@@ -20,46 +20,47 @@ import tornado
 from dotenv import load_dotenv
 from jupyter_server.base.handlers import APIHandler
 from jupyter_server.utils import url_path_join
+from openai import AsyncOpenAI
+from pydantic import BaseModel, ConfigDict, ValidationError
 
 LOGGER = logging.getLogger(__name__)
 LOGGER.setLevel(logging.INFO)
 
 
 load_dotenv()
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", None)
 
-_LIVE_RESPONSE_FORMAT = {
+if not OPENAI_API_KEY:
+    print("OPENAI_API_KEY not found")
+
+
+class SuggestedEditModel(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    id: Optional[str] = None
+    title: str
+    description: str
+    cellIndex: int
+    replacementSource: str
+    rationale: Optional[str] = None
+
+
+class SuggestedEditsPayload(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    suggestions: list[SuggestedEditModel]
+
+
+LOGGER = logging.getLogger(__name__)
+LOGGER.setLevel(logging.INFO)
+_SUGGESTED_EDITS_SCHEMA = SuggestedEditsPayload.model_json_schema()
+
+_STRUCTURED_RESPONSE_FORMAT = {
     "type": "json_schema",
     "json_schema": {
         "name": "suggested_edits_response",
-        "schema": {
-            "type": "object",
-            "properties": {
-                "suggestions": {
-                    "type": "array",
-                    "items": {
-                        "type": "object",
-                        "required": [
-                            "title",
-                            "description",
-                            "cellIndex",
-                            "replacementSource",
-                        ],
-                        "properties": {
-                            "id": {"type": "string"},
-                            "title": {"type": "string"},
-                            "description": {"type": "string"},
-                            "cellIndex": {"type": "integer"},
-                            "replacementSource": {"type": "string"},
-                            "rationale": {"type": "string"},
-                        },
-                        "additionalProperties": False,
-                    },
-                    "maxItems": 6,
-                }
-            },
-            "required": ["suggestions"],
-            "additionalProperties": False,
-        },
+        "schema": _SUGGESTED_EDITS_SCHEMA,
+        "strict": True,
     },
 }
 
@@ -102,7 +103,7 @@ class SuggestedEditsStreamHandler(APIHandler):
         mode = str(body.get("mode", "context")).lower()
         if mode not in {"context", "full"}:
             mode = "context"
-        llm_mode = str(settings.get("llmMode", "mock")).lower()
+        llm_mode = str(settings.get("llmMode", "live")).lower()
         context_window = _safe_int(settings.get("contextWindow"), fallback=3)
 
         # Log the request snapshot and settings
@@ -223,18 +224,7 @@ def _apply_scan_scope(
 
 @lru_cache(maxsize=1)
 def _get_openai_client():
-    from openai import AsyncOpenAI  # type: ignore  # pylint: disable=import-error
-
-    api_key = os.environ["OPENAI_API_KEY"]
-    base_url = os.getenv("OPENAI_BASE_URL")
-    organization = os.getenv("OPENAI_ORG")
-
-    kwargs: Dict[str, Any] = {"api_key": api_key}
-    if base_url:
-        kwargs["base_url"] = base_url
-    if organization:
-        kwargs["organization"] = organization
-    return AsyncOpenAI(**kwargs)
+    return AsyncOpenAI(api_key=OPENAI_API_KEY)
 
 
 async def stream_live_suggestions(
@@ -262,28 +252,29 @@ async def stream_live_suggestions(
     ]
 
     try:
-        response = await client.responses.create(  # type: ignore[arg-type]
+        response = await client.responses.parse(
             model=model_name,
             input=messages,
-            response_format=_LIVE_RESPONSE_FORMAT,
+            text_format=_STRUCTURED_RESPONSE_FORMAT,
             max_output_tokens=1024,
         )
-    except Exception as error:  # pylint: disable=broad-except
+    except Exception as error:
         LOGGER.error("OpenAI request failed", exc_info=error)
         raise RuntimeError(f"OpenAI request failed: {error}") from error
 
-    payload = _extract_suggestions_from_response(response)
-    suggestions = payload.get("suggestions", [])
+    structured = _parse_structured_edits(response)
 
     LOGGER.info(
-        "LLM RESPONSE raw payload: %s", json.dumps(payload, ensure_ascii=False)[:2000]
+        "LLM RESPONSE raw payload: %s",
+        json.dumps(structured.model_dump(), ensure_ascii=False)[:2000],
     )
 
+    suggestions = structured.suggestions
     if not suggestions:
         return
 
-    for raw in suggestions:
-        normalized = _normalize_llm_suggestion(raw)
+    for suggestion in suggestions:
+        normalized = _normalize_llm_suggestion(suggestion)
         LOGGER.info(
             "LLM RESPONSE suggestion: %s", json.dumps(normalized, ensure_ascii=False)
         )
@@ -435,7 +426,16 @@ def _trim_text(value: str, limit: int) -> str:
     return text[:limit].rstrip() + "…"
 
 
-def _extract_suggestions_from_response(response: Any) -> Dict[str, Any]:
+def _parse_structured_edits(response: Any) -> SuggestedEditsPayload:
+    payload_dict = _extract_structured_payload_dict(response)
+    try:
+        return SuggestedEditsPayload.model_validate(payload_dict)
+    except ValidationError as error:
+        LOGGER.error("LLM response failed schema validation: %s", error)
+        raise ValueError("LLM suggestions payload failed schema validation.") from error
+
+
+def _extract_structured_payload_dict(response: Any) -> Dict[str, Any]:
     payload: Optional[Mapping[str, Any]] = None
 
     for output in getattr(response, "output", []) or []:
@@ -486,25 +486,22 @@ def _coerce_response_text(value: Any) -> Optional[str]:
     return str(value)
 
 
-def _normalize_llm_suggestion(raw: Mapping[str, Any]) -> Dict[str, Any]:
-    title = str(raw.get("title", "Suggested Edit")).strip() or "Suggested Edit"
-    description = str(raw.get("description", ""))
-    cell_index = int(raw.get("cellIndex", 0))
-    replacement = str(raw.get("replacementSource", ""))
-    rationale = raw.get("rationale")
+def _normalize_llm_suggestion(suggestion: SuggestedEditModel) -> Dict[str, Any]:
+    title = suggestion.title.strip() or "Suggested Edit"
+    suggestion_id = suggestion.id or uuid.uuid4().hex
 
-    suggestion: Dict[str, Any] = {
-        "id": str(raw.get("id") or uuid.uuid4().hex),
+    payload: Dict[str, Any] = {
+        "id": suggestion_id,
         "title": title,
-        "description": description,
-        "cellIndex": cell_index,
-        "replacementSource": replacement,
+        "description": suggestion.description,
+        "cellIndex": suggestion.cellIndex,
+        "replacementSource": suggestion.replacementSource,
     }
 
-    if rationale:
-        suggestion["rationale"] = str(rationale)
+    if suggestion.rationale:
+        payload["rationale"] = suggestion.rationale
 
-    return suggestion
+    return payload
 
 
 def setup_route_handlers(web_app):
