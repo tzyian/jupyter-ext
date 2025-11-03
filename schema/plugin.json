@@ -1,0 +1,8 @@
+{
+  "jupyter.lab.shortcuts": [],
+  "title": "selenejs",
+  "description": "selenejs settings.",
+  "type": "object",
+  "properties": {},
+  "additionalProperties": false
+}
