@@ -38,6 +38,11 @@ test = [
     "pytest-cov",
     "pytest-jupyter[server]>=0.6.0"
 ]
+llm = [
+    "openai>=1.46.0",
+    "python-dotenv>=1.0.1",
+    "pydantic>=2.7,<3"
+]
 
 [tool.hatch.version]
 source = "nodejs"

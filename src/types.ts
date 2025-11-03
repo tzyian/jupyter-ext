@@ -55,7 +55,6 @@ export interface ISuggestedEditsSettings {
   readonly debounceMs: number;
   readonly maxCellCharacters: number;
   readonly contextWindow: number;
-  readonly llmMode: 'mock' | 'live';
 }
 
 export interface ISuggestionRequest {

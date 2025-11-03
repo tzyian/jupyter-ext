@@ -473,8 +473,7 @@ export function defaultSettings(): ISuggestedEditsSettings {
     autoRefresh: true,
     debounceMs: 4000,
     maxCellCharacters: 3000,
-    contextWindow: 3,
-    llmMode: 'mock'
+    contextWindow: 3
   };
 }
 
