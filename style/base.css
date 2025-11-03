@@ -3,3 +3,145 @@
 
     https://jupyterlab.readthedocs.io/en/stable/developer/css.html
 */
+
+/* Suggested Edits Sidebar */
+.jp-selenepy-suggestedEdits {
+  padding: 0 16px;
+  overflow-x: hidden;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+}
+
+.jp-selenepy-suggestedEdits-header {
+  padding: 12px 0;
+  border-bottom: 1px solid var(--jp-border-color1);
+  margin-bottom: 12px;
+}
+
+.jp-selenepy-suggestedEdits-header h2 {
+  margin: 0 0 8px 0;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.jp-selenepy-suggestedEdits-buttonGroup {
+  display: flex;
+  gap: 8px;
+}
+
+.jp-selenepy-suggestedEdits-actionButton {
+  padding: 6px 12px;
+  font-size: 13px;
+  border-radius: 3px;
+  border: 1px solid var(--jp-border-color1);
+  background: var(--jp-layout-color1);
+  color: var(--jp-ui-font-color1);
+  cursor: pointer;
+}
+
+.jp-selenepy-suggestedEdits-actionButton:hover {
+  background: var(--jp-layout-color2);
+}
+
+.jp-selenepy-suggestedEdits-status {
+  padding: 8px 0;
+  font-size: 13px;
+  color: var(--jp-ui-font-color2);
+  margin-bottom: 12px;
+}
+
+.jp-selenepy-suggestedEdits-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.jp-selenepy-suggestedEdits-item {
+  border: 1px solid var(--jp-border-color1);
+  border-radius: 4px;
+  padding: 12px;
+  background: var(--jp-layout-color1);
+}
+
+.jp-selenepy-suggestedEdits-item-body h3 {
+  margin: 0 0 8px 0;
+  font-size: 14px;
+  font-weight: 600;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+}
+
+.jp-selenepy-suggestedEdits-item-body p {
+  margin: 0 0 8px 0;
+  font-size: 13px;
+  line-height: 1.5;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  white-space: pre-wrap;
+}
+
+.jp-selenepy-suggestedEdits-item-body pre {
+  margin: 8px 0;
+  padding: 8px;
+  background: var(--jp-layout-color2);
+  border-radius: 3px;
+  font-size: 12px;
+  line-height: 1.4;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+}
+
+.jp-selenepy-suggestedEdits-item-diff {
+  margin: 8px 0;
+}
+
+.jp-selenepy-suggestedEdits-item-diff summary {
+  cursor: pointer;
+  font-size: 13px;
+  padding: 4px 0;
+  user-select: none;
+}
+
+.jp-selenepy-suggestedEdits-item-diff pre {
+  margin: 8px 0 0 0;
+  padding: 8px;
+  background: var(--jp-layout-color2);
+  border-radius: 3px;
+  font-size: 12px;
+  line-height: 1.4;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+}
+
+.jp-selenepy-suggestedEdits-item-diff-segment {
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+}
+
+.jp-selenepy-suggestedEdits-item-diff-segment-added {
+  background-color: rgba(0, 255, 0, 0.15);
+  color: var(--jp-success-color1);
+}
+
+.jp-selenepy-suggestedEdits-item-diff-segment-removed {
+  background-color: rgba(255, 0, 0, 0.15);
+  color: var(--jp-error-color1);
+  text-decoration: line-through;
+}
+
+.jp-selenepy-suggestedEdits-item-diff-segment-unchanged {
+  color: var(--jp-ui-font-color2);
+}
+
+.jp-selenepy-suggestedEdits-item-controls {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--jp-border-color2);
+}
