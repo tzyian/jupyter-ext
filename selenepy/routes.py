@@ -68,7 +68,7 @@ class SuggestedEditsStreamHandler(APIHandler):
                 context_window,
                 snapshot.get("path", "unknown"),
             )
-            async for suggestion in stream_live_suggestions(target_snapshot):
+            async for suggestion in stream_live_suggestions(target_snapshot, mode):
                 await writer.send_suggestion(suggestion)
         except tornado.iostream.StreamClosedError:
             LOGGER.info("Client disconnected from suggestion stream.")

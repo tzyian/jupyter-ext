@@ -27,6 +27,8 @@ export interface IActiveCellContext {
   readonly selectedText?: string;
 }
 
+export type SuggestionContextType = 'local' | 'global';
+
 export interface ISuggestion {
   readonly id: string;
   readonly title: string;
@@ -34,6 +36,7 @@ export interface ISuggestion {
   readonly cellIndex: number;
   readonly replacementSource: string;
   readonly rationale?: string;
+  readonly contextType?: SuggestionContextType;
 }
 
 export type SuggestionStreamEvent =

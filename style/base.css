@@ -50,10 +50,42 @@
   margin-bottom: 12px;
 }
 
-.jp-selenepy-suggestedEdits-list {
+.jp-selenepy-suggestedEdits-sectionHeader {
+  margin: 16px 0 8px 0;
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: var(--jp-ui-font-color2);
+}
+
+.jp-selenepy-suggestedEdits-localSection,
+.jp-selenepy-suggestedEdits-globalSection {
+  margin-bottom: 20px;
+}
+
+.jp-selenepy-suggestedEdits-slotGroup {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 12px;
+  }
+  
+  .jp-selenepy-suggestedEdits-slot {
+    min-height: 60px;
+  }
+  
+  .jp-selenepy-suggestedEdits-slot>.jp-selenepy-suggestedEdits-item {
+    margin: 0;
+  }
+  
+  .jp-selenepy-suggestedEdits-slot-empty {
+    margin: 0;
+    padding: 12px;
+    border: 1px dashed var(--jp-border-color2);
+    border-radius: 4px;
+    font-size: 13px;
+    font-style: italic;
+    color: var(--jp-ui-font-color2);
+    background: var(--jp-layout-color2);
 }
 
 .jp-selenepy-suggestedEdits-item {

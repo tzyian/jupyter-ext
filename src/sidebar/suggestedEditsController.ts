@@ -144,7 +144,7 @@ export class SuggestedEditsController implements IDisposable {
       )) {
         this.processStreamEvent(event);
       }
-      this._panel.showComplete();
+      this._panel.showComplete(this._activeMode);
     } catch (error) {
       if ((error as DOMException)?.name === 'AbortError') {
         return;
@@ -163,18 +163,32 @@ export class SuggestedEditsController implements IDisposable {
       case 'status':
         if (event.phase === 'started') {
           this._panel.showLoading(this.loadingMessageForMode());
+          if (this._activeMode === 'full') {
+            this._panel.beginGlobalStream();
+          } else {
+            this._panel.beginLocalStream();
+          }
         }
         break;
       case 'suggestion':
-        this._panel.appendSuggestion(
-          this.ensureResolvedSuggestion(event.payload)
-        );
+        this.handleSuggestionEvent(event.payload);
         break;
       case 'info':
         this._panel.setStatus(event.message);
         break;
       default:
         break;
+    }
+  }
+
+  private handleSuggestionEvent(
+    payload: ISuggestion | IResolvedSuggestion
+  ): void {
+    const suggestion = this.ensureResolvedSuggestion(payload);
+    if (suggestion.contextType === 'global') {
+      this._panel.setGlobalSuggestion(suggestion);
+    } else {
+      this._panel.pushLocalSuggestion(suggestion);
     }
   }
 
@@ -226,7 +240,10 @@ export class SuggestedEditsController implements IDisposable {
     suggestion: ISuggestion | IResolvedSuggestion
   ): IResolvedSuggestion {
     if ('diffSegments' in suggestion && 'originalSource' in suggestion) {
-      return suggestion;
+      return {
+        ...suggestion,
+        contextType: suggestion.contextType ?? 'local'
+      };
     }
 
     const original = this.lookupOriginalSource(suggestion.cellIndex);
@@ -236,7 +253,8 @@ export class SuggestedEditsController implements IDisposable {
       diffSegments: this.buildDiffSegments(
         original,
         suggestion.replacementSource
-      )
+      ),
+      contextType: suggestion.contextType ?? 'local'
     };
   }
 
@@ -471,7 +489,7 @@ function resolveActiveCellContext(
 export function defaultSettings(): ISuggestedEditsSettings {
   return {
     autoRefresh: true,
-    debounceMs: 4000,
+    debounceMs: 5000,
     maxCellCharacters: 3000,
     contextWindow: 3
   };

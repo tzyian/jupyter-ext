@@ -13,7 +13,12 @@ from dotenv import load_dotenv
 from openai import AsyncOpenAI
 from openai.types.responses.response_input_param import ResponseInputItemParam
 
-from .models import SYSTEM_PROMPT, SuggestedEditModel, SuggestedEditsPayload
+from .models import (
+    SYSTEM_PROMPT,
+    SuggestedEditModel,
+    SuggestedEditsPayload,
+    SuggestionContextType,
+)
 
 LOGGER = logging.getLogger(__name__)
 LOGGER.setLevel(logging.INFO)
@@ -69,13 +74,15 @@ def apply_scan_scope(
 
 
 async def stream_live_suggestions(
-    snapshot: Mapping[str, Any],
+    snapshot: Mapping[str, Any], mode: str
 ) -> AsyncIterator[Mapping[str, Any]]:
     """Yield structured suggestions from the OpenAI Responses API."""
     client = _get_openai_client()
     model_name = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
     prompt = _format_snapshot_for_prompt(snapshot)
     LOGGER.info("LLM PROMPT:\n%s", prompt)
+
+    context_type: SuggestionContextType = "local" if mode == "context" else "global"
 
     messages: list[ResponseInputItemParam] = [
         {"role": "system", "content": SYSTEM_PROMPT},
@@ -113,15 +120,18 @@ async def stream_live_suggestions(
         return
 
     for suggestion in suggestions:
-        normalized = _normalize_llm_suggestion(suggestion)
+        normalized = _normalize_llm_suggestion(suggestion, context_type)
         LOGGER.info("LLM RESPONSE suggestion: %s", normalized)
         yield normalized
         await asyncio.sleep(0.05)
 
 
-def _normalize_llm_suggestion(suggestion: SuggestedEditModel) -> Dict[str, Any]:
+def _normalize_llm_suggestion(
+    suggestion: SuggestedEditModel, fallback_context: SuggestionContextType
+) -> Dict[str, Any]:
     title = suggestion.title.strip() or "Suggested Edit"
     suggestion_id = suggestion.id or uuid.uuid4().hex
+    context_type: SuggestionContextType = suggestion.contextType or fallback_context
 
     payload: Dict[str, Any] = {
         "id": suggestion_id,
@@ -129,6 +139,7 @@ def _normalize_llm_suggestion(suggestion: SuggestedEditModel) -> Dict[str, Any]:
         "description": suggestion.description,
         "cellIndex": suggestion.cellIndex,
         "replacementSource": suggestion.replacementSource,
+        "contextType": context_type,
     }
 
     if suggestion.rationale:

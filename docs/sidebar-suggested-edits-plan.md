@@ -70,3 +70,59 @@
 - Need clarity on user privacy/compliance considerations for sending notebook data to LLM.
 - Determine fallback behavior when offline or endpoint unreachable (e.g., cached suggestions, user messaging).
 - Define performance budgets for scanning frequency and sidebar rendering.
+
+## Slot-Based Suggestion Architecture (Nov 4, 2025)
+
+### Overview
+- Sidebar displays up to **three persistent slots**:
+  1. `Local Slot A` – most recent local-context suggestion (current cell ± neighbors).
+  2. `Local Slot B` – previous local-context suggestion (shifted down when a new local suggestion arrives).
+  3. `Global Slot` – most recent global-context suggestion generated from a manual full scan.
+- Local slots update automatically on notebook activity (subject to debounce). Global slot updates only when the user clicks **Refresh (full)**.
+
+### Frontend Responsibilities
+- Extend `SuggestedEditsSidebar` to manage structured slots instead of an append-only list:
+  - Maintain an internal state `{ local: [slotA, slotB], global: slot }`.
+  - Render two sections: **Local Context Suggestions** (with two cards) and **Global Notebook Suggestion** (with header + single card).
+  - Provide methods like `updateLocalSuggestion(suggestion)` and `updateGlobalSuggestion(suggestion)` that update DOM nodes in place, hiding sections when empty.
+  - When `updateLocalSuggestion` is called, shift `slotA → slotB`, store new suggestion in `slotA`, and re-render both entries.
+- Preserve apply/dismiss interactions per slot; dismissing a local card should reveal the older suggestion if present.
+
+### Controller Responsibilities
+- Annotate streamed suggestions with `contextType: 'local' | 'global'` (ensure backend carries this flag).
+- Update `processStreamEvent` in `suggestedEditsController` to route payloads:
+  - If `contextType === 'local'`, call `panel.updateLocalSuggestion()`.
+  - If `contextType === 'global'`, call `panel.updateGlobalSuggestion()`.
+- Automatic refresh (`autoRefresh`) schedules only `refresh('context')`. Cancel timers when auto-refresh disabled.
+- Manual buttons:
+  - **Refresh (context)** triggers `refresh('context')` immediately.
+  - **Refresh (full)** triggers `refresh('full')`, updating global slot.
+- Persist latest snapshot per mode so follow-up actions (apply/diff) remain valid.
+
+### Backend Adjustments
+- Ensure streaming responses include `contextType` for each suggestion:
+  - Contextual scans (`mode=context`) emit `contextType='local'`.
+  - Full scans (`mode=full`) emit `contextType='global'`.
+- Optionally include timestamp metadata so UI can display “Last global update at …”.
+
+### Types & Validation
+- Extend shared TypeScript types (`ISuggestion`, `IResolvedSuggestion`) and corresponding Pydantic models with optional `contextType: Literal['local', 'global']`.
+- Update normalization utilities to default to `'local'` when missing, ensuring backward compatibility.
+
+### UX & Copy Updates
+- Local section label: “Local Context Suggestions (auto updates)”.
+- Global section label: “Global Notebook Suggestion (manual refresh)”.
+- When global slot is empty, show helper text prompting user to run a full scan.
+
+### CSS Adjustments
+- Provide clear visual separation between local and global sections (headers, spacing, optional border).
+- Ensure cards remain responsive with existing padding/wrapping rules.
+
+### Testing Checklist
+- Unit tests for panel slot logic: FIFO shifting, clearing, apply/dismiss behavior.
+- Controller tests verifying auto-refresh only requests context suggestions, manual full refresh updates global slot.
+- Backend tests asserting `contextType` flag is set per mode and schema validation still passes.
+
+### Open Questions
+- Should global slot persist across notebook switches or reset per notebook? (Default: reset.)
+- Do we need to surface when global suggestion is “stale” (e.g., older than N minutes)?

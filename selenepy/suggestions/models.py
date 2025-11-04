@@ -1,9 +1,11 @@
 """Pydantic models and prompts for LLM-generated notebook suggestions."""
 from __future__ import annotations
 
-from typing import Optional
+from typing import Literal, Optional
 
 from pydantic import BaseModel, ConfigDict
+
+SuggestionContextType = Literal["local", "global"]
 
 
 class SuggestedEditModel(BaseModel):
@@ -17,6 +19,7 @@ class SuggestedEditModel(BaseModel):
     cellIndex: int
     replacementSource: str
     rationale: Optional[str] = None
+    contextType: Optional[SuggestionContextType] = None
 
 
 class SuggestedEditsPayload(BaseModel):
@@ -30,6 +33,12 @@ class SuggestedEditsPayload(BaseModel):
 SYSTEM_PROMPT = (
     "You review Jupyter notebooks and propose clear, actionable edits. "
     "Return only JSON matching the provided schema. "
+    "In order of priority:"
+    "1) Conceptual errors"
+    "2) Code correctness issues"
+    "3) Missing explanations of key concepts"
+    "4) Code efficiency improvements"
+    "5) Comments which could improve code clarity"
     "Each suggestion must target one cell, cite its index, summarize the change, "
     "and provide replacement cell source text that implements the edit. "
     "Avoid repetitive or generic advice; tailor each suggestion to the supplied "
@@ -38,6 +47,7 @@ SYSTEM_PROMPT = (
 
 
 __all__ = [
+    "SuggestionContextType",
     "SuggestedEditModel",
     "SuggestedEditsPayload",
     "SYSTEM_PROMPT",
