@@ -1,5 +1,17 @@
 # selenepy
 
+### Quickstart
+1. python -m venv .venv
+1. source .venv/bin/activate
+1. pip install --editable ".[dev,test]"
+1. jupyter server extension enable selenepy
+1. jupyter labextension develop . --overwrite
+1. jlpm run watch
+1. jupyter lab --port 8888 --IdentityProvider.token MY_TOKEN --ip 0.0.0.0
+
+
+
+
 [![Github Actions Status](/workflows/Build/badge.svg)](/actions/workflows/build.yml)
 [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh//main?urlpath=lab)
 
