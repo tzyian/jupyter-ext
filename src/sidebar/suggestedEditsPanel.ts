@@ -65,7 +65,15 @@ export class SuggestedEditsSidebar extends Widget {
       this._refreshFullRequested.emit(void 0);
     });
 
-    buttonGroup.append(contextButton, fullButton);
+    this._pauseButton = document.createElement('button');
+    this._pauseButton.type = 'button';
+    this._pauseButton.className = ACTION_BUTTON_CLASS;
+    this._pauseButton.textContent = 'Pause';
+    this._pauseButton.addEventListener('click', () => {
+      this._pauseRequested.emit(void 0);
+    });
+
+    buttonGroup.append(contextButton, fullButton, this._pauseButton);
     header.appendChild(buttonGroup);
     this.node.append(header);
 
@@ -133,6 +141,10 @@ export class SuggestedEditsSidebar extends Widget {
     return this._applyRequested;
   }
 
+  get pauseRequested(): ISignal<SuggestedEditsSidebar, void> {
+    return this._pauseRequested;
+  }
+
   get dismissRequested(): ISignal<SuggestedEditsSidebar, IResolvedSuggestion> {
     return this._dismissRequested;
   }
@@ -152,6 +164,10 @@ export class SuggestedEditsSidebar extends Widget {
 
   setStatus(message: string): void {
     this._statusNode.textContent = message;
+  }
+
+  setPaused(paused: boolean): void {
+    this._pauseButton.textContent = paused ? 'Resume' : 'Pause';
   }
 
   beginLocalStream(): void {
@@ -371,12 +387,16 @@ export class SuggestedEditsSidebar extends Widget {
     SuggestedEditsSidebar,
     IResolvedSuggestion
   >(this);
+  private readonly _pauseRequested = new Signal<SuggestedEditsSidebar, void>(
+    this
+  );
   private readonly _dismissRequested = new Signal<
     SuggestedEditsSidebar,
     IResolvedSuggestion
   >(this);
 
   private readonly _statusNode: HTMLDivElement;
+  private readonly _pauseButton: HTMLButtonElement;
   private readonly _localSlots: ISlotState[] = [];
   private _globalSlot: ISlotState;
 }

@@ -99,9 +99,9 @@ async def stream_live_suggestions(
             model=model_name,
             input=messages,
             text_format=SuggestedEditsPayload,
-            max_output_tokens=1024,
+            max_output_tokens=4096,
         )
-    except Exception as error:  # pylint: disable=broad-except
+    except Exception as error:
         LOGGER.error("OpenAI request failed", exc_info=error)
         raise RuntimeError(f"OpenAI request failed: {error}") from error
 

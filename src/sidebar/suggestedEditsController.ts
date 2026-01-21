@@ -37,6 +37,7 @@ export class SuggestedEditsController implements IDisposable {
     );
     this._panel.refreshFullRequested.connect(this.handleFullRefresh, this);
     this._panel.applyRequested.connect(this.handleApply, this);
+    this._panel.pauseRequested.connect(this.handlePauseToggle, this);
 
     this._tracker.currentChanged.connect(this.handleNotebookChanged, this);
     if (this._tracker.currentWidget) {
@@ -61,6 +62,7 @@ export class SuggestedEditsController implements IDisposable {
     );
     this._panel.refreshFullRequested.disconnect(this.handleFullRefresh, this);
     this._panel.applyRequested.disconnect(this.handleApply, this);
+    this._panel.pauseRequested.disconnect(this.handlePauseToggle, this);
     this._tracker.currentChanged.disconnect(this.handleNotebookChanged, this);
     this.cancelPendingStream();
   }
@@ -106,7 +108,7 @@ export class SuggestedEditsController implements IDisposable {
   }
 
   private scheduleRefresh(): void {
-    if (!this._notebookSignals) {
+    if (!this._notebookSignals || this._isPaused) {
       return;
     }
 
@@ -120,7 +122,7 @@ export class SuggestedEditsController implements IDisposable {
   }
 
   async refresh(mode: SuggestionScanMode = 'context'): Promise<void> {
-    if (!this._notebookSignals) {
+    if (!this._notebookSignals || this._isPaused) {
       this._panel.showIdle();
       return;
     }
@@ -236,6 +238,19 @@ export class SuggestedEditsController implements IDisposable {
     void this.refresh('full');
   }
 
+  private handlePauseToggle(_: SuggestedEditsSidebar, __: void): void {
+    this._isPaused = !this._isPaused;
+
+    if (this._isPaused) {
+      this.cancelPendingStream();
+      this._panel.setStatus('Paused.');
+    } else {
+      void this.refresh('context');
+    }
+
+    this._panel.setPaused(this._isPaused);
+  }
+
   private ensureResolvedSuggestion(
     suggestion: ISuggestion | IResolvedSuggestion
   ): IResolvedSuggestion {
@@ -296,6 +311,7 @@ export class SuggestedEditsController implements IDisposable {
   private _currentAbort: AbortController | null = null;
   private _lastSnapshot: INotebookSnapshot | null = null;
   private _activeMode: SuggestionScanMode = 'context';
+  private _isPaused = false;
   private _disposed = false;
 }
 
