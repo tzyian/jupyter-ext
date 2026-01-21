@@ -2,20 +2,25 @@ import type { JupyterFrontEnd, ILayoutRestorer } from '@jupyterlab/application';
 import type { INotebookTracker } from '@jupyterlab/notebook';
 import type { ISettingRegistry } from '@jupyterlab/settingregistry';
 
-import {
-  SuggestedEditsController,
-  defaultSettings
-} from './suggestedEditsController';
+import { SuggestedEditsController } from './suggestedEditsController';
+import { defaultSettings } from './utils/defaults';
 import { SuggestedEditsSidebar } from './suggestedEditsPanel';
+import { registerCommands } from './commands';
 import type { ISuggestedEditsSettings } from '../types';
 
 export const SIDEBAR_ID = 'selenejs-suggested-edits-sidebar';
 
+/**
+ * Registration result for the suggested edits sidebar.
+ */
 export interface ISuggestedEditsSidebarRegistration {
   readonly sidebar: SuggestedEditsSidebar;
   readonly controller: SuggestedEditsController;
 }
 
+/**
+ * Register the suggested edits sidebar with the JupyterLab application.
+ */
 export function registerSuggestedEditsSidebar(options: {
   pluginId: string;
   app: JupyterFrontEnd;
@@ -49,40 +54,9 @@ export function registerSuggestedEditsSidebar(options: {
   return { sidebar, controller };
 }
 
-namespace CommandIDs {
-  export const openSidebar = 'selenejs:open-suggested-edits';
-  export const refresh = 'selenejs:refresh-suggested-edits';
-}
-
-function registerCommands(
-  app: JupyterFrontEnd,
-  sidebar: SuggestedEditsSidebar,
-  controller: SuggestedEditsController
-): void {
-  if (!app.commands.hasCommand(CommandIDs.openSidebar)) {
-    app.commands.addCommand(CommandIDs.openSidebar, {
-      label: 'Show Suggested Edits',
-      isEnabled: () => !sidebar.isDisposed,
-      execute: () => {
-        if (!sidebar.isAttached) {
-          app.shell.add(sidebar, 'left', { rank: 600 });
-        }
-        app.shell.activateById(sidebar.id);
-      }
-    });
-  }
-
-  if (!app.commands.hasCommand(CommandIDs.refresh)) {
-    app.commands.addCommand(CommandIDs.refresh, {
-      label: 'Refresh Suggested Edits',
-      isEnabled: () => !sidebar.isDisposed,
-      execute: () => {
-        void controller.refresh();
-      }
-    });
-  }
-}
-
+/**
+ * Load settings from the setting registry.
+ */
 async function loadSettings(
   registry: ISettingRegistry | null,
   controller: SuggestedEditsController,

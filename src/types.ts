@@ -75,5 +75,7 @@ export interface IResolvedSuggestion extends ISuggestion {
 
 export interface IReadonlyDiffSegment {
   readonly value: string;
-  readonly type: 'added' | 'removed' | 'unchanged';
+  readonly type: 'added' | 'removed' | 'unchanged' | 'modified';
+  readonly lineNumberOriginal?: number;
+  readonly lineNumberNew?: number;
 }

@@ -1,30 +1,24 @@
 import { IDisposable } from '@lumino/disposable';
-import type { ReadonlyPartialJSONObject } from '@lumino/coreutils';
-import type { ICellModel } from '@jupyterlab/cells';
-import type { CodeEditor } from '@jupyterlab/codeeditor';
-import type {
-  Notebook,
-  NotebookPanel,
-  INotebookTracker
-} from '@jupyterlab/notebook';
-import type { IChangedArgs } from '@jupyterlab/coreutils';
-
+import type { NotebookPanel, INotebookTracker } from '@jupyterlab/notebook';
 import type {
   INotebookSnapshot,
   IResolvedSuggestion,
   ISuggestion,
   ISuggestedEditsSettings,
-  IReadonlyDiffSegment,
   SuggestionScanMode,
-  SuggestionStreamEvent
+  SuggestionStreamEvent,
+  INotebookCellSnapshot
 } from '../types';
 import { SuggestedEditsSidebar } from './suggestedEditsPanel';
-import { streamSuggestions } from './suggestionStream';
+import { streamSuggestions } from './api';
+import { buildSnapshot } from './utils/snapshot';
+import { buildDiffSegments } from './utils/diff';
+import { INotebookSignals, NotebookSignalGroup } from './utils/notebookSignals';
 
-interface INotebookSignals extends IDisposable {
-  readonly panel: NotebookPanel;
-}
-
+/**
+ * Controller for the suggested edits sidebar.
+ * Orchestrates notebook tracking, suggestion streaming, and UI updates.
+ */
 export class SuggestedEditsController implements IDisposable {
   constructor(
     private readonly _tracker: INotebookTracker,
@@ -265,10 +259,7 @@ export class SuggestedEditsController implements IDisposable {
     return {
       ...suggestion,
       originalSource: original,
-      diffSegments: this.buildDiffSegments(
-        original,
-        suggestion.replacementSource
-      ),
+      diffSegments: buildDiffSegments(original, suggestion.replacementSource),
       contextType: suggestion.contextType ?? 'local'
     };
   }
@@ -278,26 +269,10 @@ export class SuggestedEditsController implements IDisposable {
     if (!snapshot) {
       return '';
     }
-    const cell = snapshot.cells.find(entry => entry.index === index);
+    const cell = snapshot.cells.find(
+      (entry: INotebookCellSnapshot) => entry.index === index
+    );
     return cell?.source ?? '';
-  }
-
-  private buildDiffSegments(
-    original: string,
-    replacement: string
-  ): IReadonlyDiffSegment[] {
-    if (original === replacement) {
-      return original ? [{ value: original, type: 'unchanged' }] : [];
-    }
-
-    const segments: IReadonlyDiffSegment[] = [];
-    if (original) {
-      segments.push({ value: original, type: 'removed' });
-    }
-    if (replacement) {
-      segments.push({ value: replacement, type: 'added' });
-    }
-    return segments.length ? segments : [{ value: '', type: 'unchanged' }];
   }
 
   private loadingMessageForMode(): string {
@@ -313,224 +288,4 @@ export class SuggestedEditsController implements IDisposable {
   private _activeMode: SuggestionScanMode = 'context';
   private _isPaused = false;
   private _disposed = false;
-}
-
-class NotebookSignalGroup implements INotebookSignals {
-  constructor(panel: NotebookPanel, onChange: () => void) {
-    this._panel = panel;
-    this._onChange = onChange;
-
-    const model = panel.context.model;
-    if (model) {
-      model.contentChanged.connect(this.handleModelChange, this);
-      model.stateChanged.connect(this.handleStateChange, this);
-    }
-
-    panel.content.activeCellChanged.connect(this.handleActiveCellChange, this);
-    panel.context.pathChanged.connect(this.handlePathChange, this);
-  }
-
-  get panel(): NotebookPanel {
-    return this._panel;
-  }
-
-  get isDisposed(): boolean {
-    return this._disposed;
-  }
-
-  dispose(): void {
-    if (this.isDisposed) {
-      return;
-    }
-    this._disposed = true;
-    const model = this._panel.context.model;
-    if (model) {
-      model.contentChanged.disconnect(this.handleModelChange, this);
-      model.stateChanged.disconnect(this.handleStateChange, this);
-    }
-    this._panel.content.activeCellChanged.disconnect(
-      this.handleActiveCellChange,
-      this
-    );
-    this._panel.context.pathChanged.disconnect(this.handlePathChange, this);
-  }
-
-  private handleModelChange(): void {
-    this._onChange();
-  }
-
-  private handleStateChange(
-    _: NotebookPanel['context']['model'],
-    args: IChangedArgs<any, any, string>
-  ): void {
-    if (args.name === 'dirty' && args.newValue === false) {
-      return;
-    }
-    this._onChange();
-  }
-
-  private handleActiveCellChange(_: Notebook, __: unknown): void {
-    this._onChange();
-  }
-
-  private handlePathChange(): void {
-    this._onChange();
-  }
-
-  private readonly _panel: NotebookPanel;
-  private readonly _onChange: () => void;
-  private _disposed = false;
-}
-
-function buildSnapshot(
-  panel: NotebookPanel,
-  maxLength: number
-): INotebookSnapshot {
-  const notebook = panel.content;
-  const model = notebook.model;
-  const outline: INotebookSnapshot['outline'] = [];
-  const cells: INotebookSnapshot['cells'] = [];
-
-  const activeCellContext = resolveActiveCellContext(
-    notebook.activeCell,
-    notebook.activeCellIndex ?? 0
-  );
-
-  if (!model) {
-    return {
-      path: panel.context.path,
-      activeCellIndex: notebook.activeCellIndex ?? 0,
-      activeCellContext,
-      outline,
-      cells,
-      lastActivity: new Date().toISOString()
-    };
-  }
-
-  const trunc = (value: string) =>
-    value.length > maxLength ? `${value.slice(0, maxLength)}…` : value;
-
-  for (let index = 0; index < model.cells.length; index++) {
-    const cellModel = model.cells.get(index);
-    const cellType = cellModel.type as 'code' | 'markdown' | 'raw';
-    const source = getCellSource(cellModel);
-
-    if (cellType === 'markdown') {
-      const lines = source.split(/\r?\n/);
-      for (const line of lines) {
-        const match = /^\s*(#{1,6})\s+(.*)/.exec(line.trim());
-        if (match) {
-          outline.push({
-            level: match[1].length,
-            text: match[2],
-            cellIndex: index
-          });
-          break;
-        }
-      }
-    }
-
-    cells.push({
-      cellType,
-      source: trunc(source),
-      index,
-      metadata: extractMetadata(cellModel)
-    });
-  }
-
-  return {
-    path: panel.context.path,
-    activeCellIndex: notebook.activeCellIndex ?? 0,
-    activeCellContext,
-    outline,
-    cells,
-    lastActivity: new Date().toISOString()
-  };
-}
-
-function resolveActiveCellContext(
-  cell: Notebook['activeCell'],
-  cellIndex: number
-): INotebookSnapshot['activeCellContext'] {
-  if (!cell) {
-    return undefined;
-  }
-  const editor = cell.editor as CodeEditor.IEditor | undefined;
-  if (!editor) {
-    return undefined;
-  }
-
-  let cursorOffset: number | null = null;
-  try {
-    const cursor = editor.getCursorPosition();
-    cursorOffset = editor.getOffsetAt(cursor);
-  } catch (error) {
-    cursorOffset = null;
-  }
-
-  let selectedText: string | undefined;
-  const source = cell.model ? getCellSource(cell.model) : '';
-  let selectionRange: CodeEditor.IRange | null | undefined;
-
-  if (typeof editor.getSelection === 'function') {
-    selectionRange = editor.getSelection() as CodeEditor.IRange | null;
-  } else if (typeof editor.getSelections === 'function') {
-    const selections = editor.getSelections();
-    selectionRange = selections && selections.length > 0 ? selections[0] : null;
-  }
-
-  if (selectionRange) {
-    try {
-      const startOffset = editor.getOffsetAt(selectionRange.start);
-      const endOffset = editor.getOffsetAt(selectionRange.end);
-      if (endOffset > startOffset) {
-        const previewLimit = 1200;
-        selectedText = source.slice(
-          startOffset,
-          Math.min(endOffset, startOffset + previewLimit)
-        );
-      }
-    } catch (error) {
-      selectedText = undefined;
-    }
-  }
-
-  return {
-    index: cellIndex,
-    cursorOffset,
-    selectedText
-  };
-}
-
-export function defaultSettings(): ISuggestedEditsSettings {
-  return {
-    autoRefresh: true,
-    debounceMs: 5000,
-    maxCellCharacters: 3000,
-    contextWindow: 3
-  };
-}
-
-function getCellSource(model: ICellModel): string {
-  const shared = model.sharedModel;
-  if ('getSource' in shared && typeof shared.getSource === 'function') {
-    return shared.getSource() as string;
-  }
-  if ('source' in shared && typeof shared.source === 'string') {
-    return shared.source as string;
-  }
-  const valueLike = (model as { value?: { text?: string } }).value;
-  if (valueLike?.text) {
-    return valueLike.text;
-  }
-  return '';
-}
-
-function extractMetadata(model: ICellModel): ReadonlyPartialJSONObject {
-  const observable = model.metadata as unknown as {
-    toJSON?: () => Record<string, unknown>;
-  } | null;
-  return observable?.toJSON
-    ? (observable.toJSON() as ReadonlyPartialJSONObject)
-    : {};
 }

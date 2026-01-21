@@ -3597,6 +3597,15 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@types/diff@npm:^8.0.0":
+  version: 8.0.0
+  resolution: "@types/diff@npm:8.0.0"
+  dependencies:
+    diff: "*"
+  checksum: 9a7210d664898457db83d463f2586b2b4883013772a84879dfd6a9e2d3c8dc3b087d90e552d28adf982ca6e8635e5a9b47c8dc21507643a01af6b0797a8cec68
+  languageName: node
+  linkType: hard
+
 "@types/eslint-scope@npm:^3.7.7":
   version: 3.7.7
   resolution: "@types/eslint-scope@npm:3.7.7"
@@ -5615,6 +5624,13 @@ __metadata:
   version: 29.6.3
   resolution: "diff-sequences@npm:29.6.3"
   checksum: f4914158e1f2276343d98ff5b31fc004e7304f5470bf0f1adb2ac6955d85a531a6458d33e87667f98f6ae52ebd3891bb47d420bb48a5bd8b7a27ee25b20e33aa
+  languageName: node
+  linkType: hard
+
+"diff@npm:*, diff@npm:^8.0.3":
+  version: 8.0.3
+  resolution: "diff@npm:8.0.3"
+  checksum: 397f6f7a93d8622e8748805ebaad35dfbbdd0a5fe03722b0905aee2662b1ccf82728f90e9f975a20e8406b1df46c28bd1958b42fc5cb03fb202d4cb93251e15d
   languageName: node
   linkType: hard
 
@@ -9479,6 +9495,7 @@ __metadata:
     "@jupyterlab/services": ^7.0.0
     "@jupyterlab/settingregistry": ^4.0.0
     "@jupyterlab/testutils": ^4.0.0
+    "@types/diff": ^8.0.0
     "@types/jest": ^29.2.0
     "@types/json-schema": ^7.0.11
     "@types/react": ^18.0.26
@@ -9487,6 +9504,7 @@ __metadata:
     "@typescript-eslint/parser": ^6.1.0
     baseline-browser-mapping: ^2.9.16
     css-loader: ^6.7.1
+    diff: ^8.0.3
     eslint: ^8.36.0
     eslint-config-prettier: ^8.8.0
     eslint-plugin-prettier: ^5.0.0

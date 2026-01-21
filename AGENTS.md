@@ -183,9 +183,11 @@ function activate(app: JupyterFrontEnd): void {}
 - **✅ Do**: Use dashes instead of underscores, like `jupyterlab-myext`
 - **✅ Do**: Match it to the npm package name for consistency
 
-**NPM package** (in `package.json`):
+**NPM package**:
 
+- **✅ Do**: Use `jlpm` 
 - **✅ Do**: Use lowercase with dashes: `"jupyterlab-myext"` or scoped `"@org/myext"`
+- **❌ Don't**: Use `npm`
 - **❌ Don't**: Mix naming styles between package.json and pyproject.toml
 
 ### Plugin and Command IDs

@@ -10,6 +10,15 @@ import type {
 
 const STREAM_PATH = 'suggestions/stream';
 
+/**
+ * Stream suggestions from the backend server.
+ *
+ * @param snapshot - The notebook snapshot to analyze.
+ * @param configuration - The extension settings.
+ * @param mode - The scan mode ('context' or 'full').
+ * @param signal - An optional abort signal.
+ * @returns An async generator of suggestion events.
+ */
 export async function* streamSuggestions(
   snapshot: INotebookSnapshot,
   configuration: ISuggestedEditsSettings,
@@ -78,6 +87,9 @@ export async function* streamSuggestions(
   }
 }
 
+/**
+ * Parse a raw SSE event payload.
+ */
 function parseEvent(payload: string): SuggestionStreamEvent | null {
   const lines = payload.split(/\n/);
   let eventType = 'message';
