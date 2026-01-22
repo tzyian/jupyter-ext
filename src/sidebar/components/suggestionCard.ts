@@ -9,8 +9,6 @@ const ACTION_BUTTON_CLASS = `${ROOT_CLASS}-actionButton`;
 const ITEM_CLASS = `${ROOT_CLASS}-item`;
 const ITEM_BODY_CLASS = `${ITEM_CLASS}-body`;
 const ITEM_CONTROLS_CLASS = `${ITEM_CLASS}-controls`;
-const DIFF_CONTAINER_CLASS = `${ITEM_CLASS}-diff`;
-
 /**
  * Options for building a suggestion card.
  */
@@ -50,17 +48,58 @@ export function buildSuggestionCard(
     body.append(rationale);
   }
 
-  const proposed = document.createElement('details');
-  proposed.className = DIFF_CONTAINER_CLASS;
-  const summary = document.createElement('summary');
-  summary.textContent = 'View proposed change';
-  proposed.append(summary);
+  // View Toggles
+  const toggleContainer = document.createElement('div');
+  toggleContainer.className = 'jp-selenepy-view-toggle';
 
-  const diffPre = document.createElement('pre');
-  renderDiff(diffPre, suggestion.diffSegments);
-  proposed.append(diffPre);
+  const previewContainer = document.createElement('div');
+  previewContainer.className = 'jp-selenepy-suggestion-preview';
 
-  body.append(proposed);
+  const updateView = (view: 'original' | 'proposed' | 'diff') => {
+    previewContainer.textContent = '';
+    toggleContainer.querySelectorAll('button').forEach(btn => {
+      btn.classList.toggle('jp-mod-active', btn.dataset.view === view);
+    });
+
+    if (view === 'original') {
+      const pre = document.createElement('pre');
+      pre.className = 'jp-selenepy-preview-original';
+      pre.textContent = suggestion.originalSource;
+      previewContainer.append(pre);
+    } else if (view === 'proposed') {
+      const pre = document.createElement('pre');
+      pre.className = 'jp-selenepy-preview-proposed';
+      pre.textContent = suggestion.replacementSource;
+      previewContainer.append(pre);
+    } else {
+      const diffPre = document.createElement('pre');
+      renderDiff(diffPre, suggestion.diffSegments);
+      previewContainer.append(diffPre);
+    }
+  };
+
+  const createToggleButton = (
+    label: string,
+    view: 'original' | 'proposed' | 'diff'
+  ) => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'jp-selenepy-toggle-button';
+    btn.textContent = label;
+    btn.dataset.view = view;
+    btn.addEventListener('click', () => updateView(view));
+    return btn;
+  };
+
+  const originalBtn = createToggleButton('Original', 'original');
+  const proposedBtn = createToggleButton('Proposed', 'proposed');
+  const diffBtn = createToggleButton('Diff', 'diff');
+
+  toggleContainer.append(originalBtn, proposedBtn, diffBtn);
+  body.append(toggleContainer, previewContainer);
+
+  // Default to Diff view
+  updateView('diff');
 
   const controls = document.createElement('div');
   controls.className = ITEM_CONTROLS_CLASS;

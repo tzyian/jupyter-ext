@@ -321,8 +321,8 @@ export class SuggestedEditsSidebar extends Widget {
     IResolvedSuggestion
   >(this);
 
-  private _statusNode: HTMLDivElement;
-  private _pauseButton: HTMLButtonElement;
+  private _statusNode!: HTMLDivElement;
+  private _pauseButton!: HTMLButtonElement;
   private readonly _localSlots: ISlotState[] = [];
-  private _globalSlot: ISlotState;
+  private _globalSlot!: ISlotState;
 }
