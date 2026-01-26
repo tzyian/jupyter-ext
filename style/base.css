@@ -162,6 +162,8 @@
 
 .jp-selenepy-suggestion-preview {
   margin-bottom: 12px;
+  overflow-x: auto;
+    max-width: 100%;
 }
 
 .jp-selenepy-suggestion-preview pre {
@@ -178,17 +180,18 @@
 
 /* Preview Views */
 .jp-selenepy-suggestion-preview .jp-selenepy-preview-original {
-  background-color: rgba(0, 255, 0, 0.1);
-  color: var(--jp-success-color1);
+  background-color: rgba(255, 0, 0, 0.1);
+    color: var(--jp-error-color1);
 }
 
 .jp-selenepy-suggestion-preview .jp-selenepy-preview-proposed {
-  background-color: rgba(255, 0, 0, 0.1);
-  color: var(--jp-error-color1);
+  background-color: rgba(0, 255, 0, 0.1);
+    color: var(--jp-success-color1);
 }
 /* Diff Table Styling */
 .jp-selenepy-diff-table {
   width: 100%;
+  table-layout: fixed;
   border-collapse: collapse;
   font-family: var(--jp-code-font-family);
   font-size: 12px;
@@ -200,9 +203,9 @@
 }
 
 .jp-selenepy-diff-ln {
-  width: 1%;
-  min-width: 30px;
-  padding: 0 8px;
+  width: 10px;
+    min-width: 10px;
+    padding: 0 4px;
   text-align: right;
   color: var(--jp-ui-font-color3);
   user-select: none;
@@ -212,8 +215,8 @@
 }
 
 .jp-selenepy-diff-gutter {
-  width: 1%;
-  min-width: 20px;
+  width: 10px;
+  min-width: 10px;
   padding: 0 4px;
   text-align: center;
   font-weight: bold;
@@ -226,24 +229,24 @@
   white-space: pre-wrap;
   word-wrap: break-word;
   overflow-wrap: break-word;
+  word-break: break-all;
   vertical-align: top;
-  width: 98%;
 }
 
 .jp-selenepy-diff-row-added {
-  background-color: rgba(255, 0, 0, 0.1);
+  background-color: rgba(0, 255, 0, 0.1);
 }
 .jp-selenepy-diff-row-added .jp-selenepy-diff-gutter,
 .jp-selenepy-diff-row-added .jp-selenepy-diff-code {
-  color: var(--jp-error-color1);
+  color: var(--jp-success-color1);
 }
 
 .jp-selenepy-diff-row-removed {
-  background-color: rgba(0, 255, 0, 0.1);
+  background-color: rgba(255, 0, 0, 0.1);
 }
 .jp-selenepy-diff-row-removed .jp-selenepy-diff-gutter,
 .jp-selenepy-diff-row-removed .jp-selenepy-diff-code {
-  color: var(--jp-success-color1);
+  color: var(--jp-error-color1);
   text-decoration: line-through;
 }
 
