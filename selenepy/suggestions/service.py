@@ -57,14 +57,12 @@ def apply_scan_scope(
     start = max(0, active - limit)
     end = active + limit + 1
 
-    filtered_cells = [
-        cell for cell in cells if start <= _safe_int(cell.get("index"), 0) < end
-    ]
+    def is_in_window(item: Mapping[str, Any], key: str = "cellIndex") -> bool:
+        return start <= _safe_int(item.get(key), 0) < end
 
+    filtered_cells = [cell for cell in cells if is_in_window(cell)]
     outline: Sequence[Mapping[str, Any]] = snapshot.get("outline", []) or []
-    filtered_outline = [
-        item for item in outline if start <= _safe_int(item.get("cellIndex"), 0) < end
-    ]
+    filtered_outline = [item for item in outline if is_in_window(item)]
 
     trimmed = dict(snapshot)
     trimmed["cells"] = filtered_cells
@@ -156,33 +154,33 @@ def _format_snapshot_for_prompt(snapshot: Mapping[str, Any]) -> str:
     lines = [
         f"Notebook path: {snapshot.get('path', 'unknown')}",
         f"Active cell index: {snapshot.get('activeCellIndex', 0)}",
-        "Outline:",
+        "--- Outline ---",
     ]
 
     if active_context:
         cursor_offset = active_context.get("cursorOffset")
         if cursor_offset is not None:
-            lines.append(f"  Cursor offset: {cursor_offset}")
+            lines.append(f"Cursor offset: {cursor_offset}")
         selected = _trim_text(str(active_context.get("selectedText", "")), 240)
         if selected:
-            lines.append("  Selected text snippet:")
-            lines.append(f"    {selected}")
+            lines.append(f"Selected text snippet: {selected}")
 
     if outline:
         for item in outline:
             level = item.get("level", 1)
             text = _trim_text(str(item.get("text", "")), 120)
             cell_idx = item.get("cellIndex", 0)
-            lines.append(f"  - Level {level} → cell {cell_idx}: {text}")
+            lines.append(f"L{level} [Cell {cell_idx}]: {text}")
     else:
-        lines.append("  (outline empty)")
+        lines.append("(outline empty)")
 
-    lines.append("Cells:")
+    lines.append("\n--- Cells ---")
     for cell in cells:
-        idx = cell.get("index", 0)
+        idx = cell.get("cellIndex", 0)
         cell_type = cell.get("cellType", "markdown")
         source = _trim_text(str(cell.get("source", "")), 400)
-        lines.append(f"  * Cell {idx} [{cell_type}]: {source}")
+        lines.append(f"Cell {idx} [{cell_type}]:")
+        lines.append(f"{source}\n")
 
     return "\n".join(lines)
 

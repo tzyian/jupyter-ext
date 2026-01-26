@@ -1,7 +1,7 @@
 """Tornado route handlers for the selenepy JupyterLab extension."""
 import json
 import logging
-from typing import Any
+from typing import Any, Mapping
 
 import tornado
 from jupyter_server.base.handlers import APIHandler
@@ -40,44 +40,69 @@ class SuggestedEditsStreamHandler(APIHandler):
         self.set_header("X-Accel-Buffering", "no")
         self.set_header("Connection", "keep-alive")
 
+        try:
+            params = self._parse_request_params()
+            await self._run_suggestion_stream(params)
+        except Exception as error:  # pylint: disable=broad-except
+            LOGGER.error("Suggested edits stream failed", exc_info=error)
+            writer = SuggestionStreamWriter(self)
+            await writer.send_info(f"Error generating suggestions: {error}")
+            await writer.send_status("complete")
+            await writer.close()
+
+    def _parse_request_params(self) -> Mapping[str, Any]:
+        """Extract and validate request parameters from the body."""
         body = self.get_json_body() or {}
         snapshot = body.get("snapshot") or {}
         settings = body.get("settings") or {}
         mode = str(body.get("mode", "context")).lower()
         if mode not in {"context", "full"}:
             mode = "context"
-        context_window = int(settings.get("contextWindow", 3))
+        context_window = _safe_int(settings.get("contextWindow"), 3)
 
-        # Log the request snapshot and settings
+        return {
+            "snapshot": snapshot,
+            "settings": settings,
+            "mode": mode,
+            "context_window": context_window,
+        }
+
+    async def _run_suggestion_stream(self, params: Mapping[str, Any]) -> None:
+        """Orchestrate the suggestion generation and streaming process."""
+        snapshot = params["snapshot"]
+        mode = params["mode"]
+        context_window = params["context_window"]
+
+        # Log the request details
         LOGGER.info(
-            "LLM REQUEST snapshot: %s", json.dumps(snapshot, ensure_ascii=False)[:1200]
+            "LLM REQUEST (mode=%s, window=%s, path=%s)",
+            mode,
+            context_window,
+            snapshot.get("path", "unknown"),
         )
-        LOGGER.info(
-            "LLM REQUEST settings: %s", json.dumps(settings, ensure_ascii=False)
+        LOGGER.debug(
+            "SNAPSHOT DATA: %s", json.dumps(snapshot, ensure_ascii=False)[:1200]
         )
-        LOGGER.info("LLM REQUEST mode: %s, context_window: %s", mode, context_window)
 
         writer = SuggestionStreamWriter(self)
         await writer.send_status("started")
 
         try:
             target_snapshot = apply_scan_scope(snapshot, mode, context_window)
-            LOGGER.info(
-                "Suggestion stream started (mode=%s, window=%s, path=%s)",
-                mode,
-                context_window,
-                snapshot.get("path", "unknown"),
-            )
             async for suggestion in stream_live_suggestions(target_snapshot, mode):
                 await writer.send_suggestion(suggestion)
         except tornado.iostream.StreamClosedError:
             LOGGER.info("Client disconnected from suggestion stream.")
-        except Exception as error:  # pylint: disable=broad-except
-            LOGGER.error("Suggested edits stream failed", exc_info=error)
-            await writer.send_info(f"Error generating suggestions: {error}")
         finally:
             await writer.send_status("complete")
             await writer.close()
+
+
+def _safe_int(value: Any, fallback: int = 0) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return fallback
 
 
 def setup_route_handlers(web_app):
