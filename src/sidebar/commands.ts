@@ -1,5 +1,5 @@
 import type { JupyterFrontEnd } from '@jupyterlab/application';
-import type { SuggestedEditsSidebar } from './suggestedEditsPanel';
+import { SuggestedEditsSidebar } from './SuggestedEditsSidebar';
 import type { SuggestedEditsController } from './suggestedEditsController';
 
 /**

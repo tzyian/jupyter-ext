@@ -59,7 +59,7 @@ export function buildSnapshot(
     cells.push({
       cellType,
       source: trunc(source),
-      index,
+      cellIndex: index,
       metadata: extractMetadata(cellModel)
     });
   }
@@ -125,7 +125,7 @@ export function resolveActiveCellContext(
   }
 
   return {
-    index: cellIndex,
+    cellIndex,
     cursorOffset,
     selectedText
   };

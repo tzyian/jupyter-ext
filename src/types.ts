@@ -9,7 +9,7 @@ export interface INotebookOutlineItem {
 export interface INotebookCellSnapshot {
   readonly cellType: 'code' | 'markdown' | 'raw';
   readonly source: string;
-  readonly index: number;
+  readonly cellIndex: number;
   readonly metadata: ReadonlyPartialJSONObject;
 }
 
@@ -22,7 +22,7 @@ export interface INotebookSnapshot {
   readonly lastActivity: string;
 }
 export interface IActiveCellContext {
-  readonly index: number;
+  readonly cellIndex: number;
   readonly cursorOffset: number | null;
   readonly selectedText?: string;
 }

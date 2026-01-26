@@ -12,12 +12,6 @@ const STREAM_PATH = 'suggestions/stream';
 
 /**
  * Stream suggestions from the backend server.
- *
- * @param snapshot - The notebook snapshot to analyze.
- * @param configuration - The extension settings.
- * @param mode - The scan mode ('context' or 'full').
- * @param signal - An optional abort signal.
- * @returns An async generator of suggestion events.
  */
 export async function* streamSuggestions(
   snapshot: INotebookSnapshot,
@@ -53,7 +47,7 @@ export async function* streamSuggestions(
 
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
-  let buffer = '';
+  let lineBuffer = '';
 
   try {
     while (true) {
@@ -61,25 +55,22 @@ export async function* streamSuggestions(
       if (done) {
         break;
       }
-      buffer += decoder.decode(value, { stream: true });
-      let boundary = buffer.indexOf('\n\n');
-      while (boundary !== -1) {
-        const rawEvent = buffer.slice(0, boundary);
-        buffer = buffer.slice(boundary + 2);
-        const parsed = parseEvent(rawEvent);
+
+      const chunk = decoder.decode(value, { stream: true });
+      lineBuffer += chunk;
+
+      const lines = lineBuffer.split(/\r?\n/);
+      // Keep the last partial line in the buffer
+      lineBuffer = lines.pop() ?? '';
+
+      for (const line of lines) {
+        if (!line.trim()) {
+          continue;
+        }
+        const parsed = parseEventLine(line);
         if (parsed) {
           yield parsed;
         }
-        boundary = buffer.indexOf('\n\n');
-      }
-    }
-
-    // Flush remaining buffer if it contains a final event without trailing newline
-    const remainder = buffer.trim();
-    if (remainder) {
-      const parsed = parseEvent(remainder);
-      if (parsed) {
-        yield parsed;
       }
     }
   } finally {
@@ -88,45 +79,22 @@ export async function* streamSuggestions(
 }
 
 /**
- * Parse a raw SSE event payload.
+ * Parse a single SSE data line.
  */
-function parseEvent(payload: string): SuggestionStreamEvent | null {
-  const lines = payload.split(/\n/);
-  let eventType = 'message';
-  let data = '';
-
-  for (const line of lines) {
-    if (line.startsWith('event:')) {
-      eventType = line.slice(6).trim();
-    } else if (line.startsWith('data:')) {
-      const value = line.slice(5).trim();
-      data += value;
-    }
+function parseEventLine(line: string): SuggestionStreamEvent | null {
+  if (!line.startsWith('data:')) {
+    return null;
   }
 
+  const data = line.slice(5).trim();
   if (!data) {
     return null;
   }
 
   try {
-    const json = JSON.parse(data) as SuggestionStreamEvent;
-    if (json && 'type' in json) {
-      return json;
-    }
+    return JSON.parse(data) as SuggestionStreamEvent;
   } catch (error) {
-    console.warn('Failed to parse suggestion event', error);
+    console.warn('Failed to parse suggestion event line', error);
+    return null;
   }
-
-  switch (eventType) {
-    case 'status':
-      if (data === 'started' || data === 'complete') {
-        return { type: 'status', phase: data };
-      }
-      break;
-    case 'info':
-      return { type: 'info', message: data };
-    default:
-      break;
-  }
-  return null;
 }

@@ -4,7 +4,7 @@ import type { ISettingRegistry } from '@jupyterlab/settingregistry';
 
 import { SuggestedEditsController } from './suggestedEditsController';
 import { defaultSettings } from './utils/defaults';
-import { SuggestedEditsSidebar } from './suggestedEditsPanel';
+import { SuggestedEditsSidebar } from './SuggestedEditsSidebar';
 import { registerCommands } from './commands';
 import type { ISuggestedEditsSettings } from '../types';
 

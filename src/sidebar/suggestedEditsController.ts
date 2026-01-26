@@ -1,4 +1,5 @@
 import { IDisposable } from '@lumino/disposable';
+import { Debouncer } from '@lumino/polling';
 import type { NotebookPanel, INotebookTracker } from '@jupyterlab/notebook';
 import type {
   INotebookSnapshot,
@@ -9,7 +10,7 @@ import type {
   SuggestionStreamEvent,
   INotebookCellSnapshot
 } from '../types';
-import { SuggestedEditsSidebar } from './suggestedEditsPanel';
+import { SuggestedEditsSidebar } from './SuggestedEditsSidebar';
 import { streamSuggestions } from './api';
 import { buildSnapshot } from './utils/snapshot';
 import { buildDiffSegments } from './utils/diff';
@@ -37,6 +38,10 @@ export class SuggestedEditsController implements IDisposable {
     if (this._tracker.currentWidget) {
       this.attachNotebook(this._tracker.currentWidget);
     }
+
+    this._debouncer = new Debouncer(() => {
+      void this.refresh('context');
+    }, this._settings.debounceMs);
   }
 
   get isDisposed(): boolean {
@@ -59,6 +64,7 @@ export class SuggestedEditsController implements IDisposable {
     this._panel.pauseRequested.disconnect(this.handlePauseToggle, this);
     this._tracker.currentChanged.disconnect(this.handleNotebookChanged, this);
     this.cancelPendingStream();
+    this._debouncer.dispose();
   }
 
   updateSettings(settings: ISuggestedEditsSettings): void {
@@ -67,7 +73,7 @@ export class SuggestedEditsController implements IDisposable {
       this.cancelPendingStream();
       this._panel.showIdle();
     } else {
-      this.scheduleRefresh();
+      void this._debouncer.invoke();
     }
   }
 
@@ -99,20 +105,14 @@ export class SuggestedEditsController implements IDisposable {
       this._notebookSignals = null;
     }
     this.cancelPendingStream();
+    void this._debouncer.stop();
   }
 
   private scheduleRefresh(): void {
     if (!this._notebookSignals || this._isPaused) {
       return;
     }
-
-    if (this._debounceId) {
-      window.clearTimeout(this._debounceId);
-    }
-
-    this._debounceId = window.setTimeout(() => {
-      void this.refresh('context');
-    }, this._settings.debounceMs);
+    void this._debouncer.invoke();
   }
 
   async refresh(mode: SuggestionScanMode = 'context'): Promise<void> {
@@ -214,10 +214,7 @@ export class SuggestedEditsController implements IDisposable {
   }
 
   private cancelPendingStream(): void {
-    if (this._debounceId) {
-      window.clearTimeout(this._debounceId);
-      this._debounceId = null;
-    }
+    void this._debouncer.stop();
     if (this._currentAbort) {
       this._currentAbort.abort();
       this._currentAbort = null;
@@ -270,7 +267,7 @@ export class SuggestedEditsController implements IDisposable {
       return '';
     }
     const cell = snapshot.cells.find(
-      (entry: INotebookCellSnapshot) => entry.index === index
+      (entry: INotebookCellSnapshot) => entry.cellIndex === index
     );
     return cell?.source ?? '';
   }
@@ -282,7 +279,7 @@ export class SuggestedEditsController implements IDisposable {
   }
 
   private _notebookSignals: INotebookSignals | null = null;
-  private _debounceId: number | null = null;
+  private _debouncer: Debouncer;
   private _currentAbort: AbortController | null = null;
   private _lastSnapshot: INotebookSnapshot | null = null;
   private _activeMode: SuggestionScanMode = 'context';
