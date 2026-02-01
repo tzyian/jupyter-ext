@@ -16,7 +16,9 @@ export class TelemetrySidebar extends ReactWidget {
   protected render(): JSX.Element {
     return (
       <DashboardView
-        fetchStats={() => this._telemetryService.getStats()}
+        fetchStats={notebookPath =>
+          this._telemetryService.getStats(undefined, undefined, notebookPath)
+        }
       />
     );
   }

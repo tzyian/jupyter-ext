@@ -1,7 +1,11 @@
 import { IDisposable } from '@lumino/disposable';
 import type { INotebookTracker, NotebookPanel } from '@jupyterlab/notebook';
 import { NotebookActions } from '@jupyterlab/notebook';
+import type { ICellModel } from '@jupyterlab/cells';
+import type { IObservableList } from '@jupyterlab/observables';
 import type { TelemetryService } from './telemetryService';
+
+import { Contents } from '@jupyterlab/services';
 
 /**
  * Tracks notebook-level telemetry events using JupyterLab signals and DOM events.
@@ -24,7 +28,8 @@ export class NotebookTelemetryTracker implements IDisposable {
 
   constructor(
     private readonly _tracker: INotebookTracker,
-    private readonly _telemetry: TelemetryService
+    private readonly _telemetry: TelemetryService,
+    private readonly _contents: Contents.IManager
   ) {
     // Track when notebooks are opened/closed
     this._tracker.widgetAdded.connect(this._onNotebookAdded, this);
@@ -35,6 +40,9 @@ export class NotebookTelemetryTracker implements IDisposable {
 
     // Track visibility changes (tab switching)
     document.addEventListener('visibilitychange', this._onVisibilityChange);
+
+    // Track file renames
+    this._contents.fileChanged.connect(this._onFileChanged, this);
 
     // Attach to current notebook if any
     if (this._tracker.currentWidget) {
@@ -60,7 +68,32 @@ export class NotebookTelemetryTracker implements IDisposable {
     this._tracker.currentChanged.disconnect(this._onCurrentChanged, this);
     NotebookActions.executed.disconnect(this._onCellExecuted, this);
     document.removeEventListener('visibilitychange', this._onVisibilityChange);
+    this._contents.fileChanged.disconnect(this._onFileChanged, this);
   }
+
+  private _onFileChanged = (
+    _: Contents.IManager,
+    change: Contents.IChangedArgs
+  ): void => {
+    if (change.type !== 'rename' || !change.oldValue || !change.newValue) {
+      return;
+    }
+
+    const oldPath = change.oldValue.path;
+    const newPath = change.newValue.path;
+
+    if (!oldPath || !newPath) {
+      return;
+    }
+
+    // Only migrate for notebook files
+    if (oldPath.endsWith('.ipynb') && newPath.endsWith('.ipynb')) {
+      console.log(
+        `[NotebookTracker] Detected notebook rename: ${oldPath} -> ${newPath}`
+      );
+      void this._telemetry.notifyRename(oldPath, newPath);
+    }
+  };
 
   private _onNotebookAdded(_: INotebookTracker, panel: NotebookPanel): void {
     this._telemetry.logEvent('NotebookOpenEvent', {
@@ -253,10 +286,13 @@ export class NotebookTelemetryTracker implements IDisposable {
     this._currentNotebookPath = null;
   }
 
-  private _onCellsChanged = (_: any, change: any): void => {
+  private _onCellsChanged = (
+    _: any,
+    change: IObservableList.IChangedArgs<ICellModel>
+  ): void => {
     if (change.type === 'add') {
       const newCells = change.newValues;
-      newCells.forEach((cell: any, idx: number) => {
+      newCells.forEach((cell, idx) => {
         this._telemetry.logEvent('CellAddEvent', {
           cellId: cell.id,
           cellIndex: change.newIndex + idx,
@@ -265,7 +301,7 @@ export class NotebookTelemetryTracker implements IDisposable {
       });
     } else if (change.type === 'remove') {
       const oldCells = change.oldValues;
-      oldCells.forEach((cell: any, idx: number) => {
+      oldCells.forEach((cell, idx) => {
         this._telemetry.logEvent('CellRemoveEvent', {
           cellId: cell.id,
           cellIndex: change.oldIndex + idx,

@@ -179,13 +179,17 @@ class TelemetryDB:
         return counts
 
     def get_summary_stats(
-        self, start_time: Optional[float] = None, end_time: Optional[float] = None
+        self,
+        start_time: Optional[float] = None,
+        end_time: Optional[float] = None,
+        notebook_path: Optional[str] = None,
     ) -> dict[str, Any]:
         """Get aggregated statistics for the dashboard.
 
         Args:
             start_time: Start of time range
             end_time: End of time range
+            notebook_path: Optional filter for specific notebook
 
         Returns:
             Dictionary with summary statistics
@@ -194,7 +198,7 @@ class TelemetryDB:
             cursor = conn.cursor()
 
             LOGGER.info(
-                f"[TelemetryDB] Querying stats: start_time={start_time}, end_time={end_time}"
+                f"[TelemetryDB] Querying stats: start_time={start_time}, end_time={end_time}, notebook_path={notebook_path}"
             )
 
             # Build time filter
@@ -206,6 +210,9 @@ class TelemetryDB:
             if end_time:
                 time_filter += " AND timestamp <= ?"
                 params.append(end_time)
+            if notebook_path:
+                time_filter += " AND json_extract(metadata, '$.notebookPath') = ?"
+                params.append(notebook_path)
 
             # Count events by type
             cursor.execute(
@@ -335,6 +342,24 @@ class TelemetryDB:
                 cursor, time_filter, params
             )
 
+            # Get list of all notebooks (unfiltered) to populate dropdowns
+            cursor.execute(
+                """
+                SELECT DISTINCT json_extract(metadata, '$.notebookPath')
+                FROM events
+                WHERE type = 'NotebookOpenEvent'
+                AND json_extract(metadata, '$.notebookPath') IS NOT NULL
+                """
+            )
+            available_notebooks = []
+            for row in cursor.fetchall():
+                path = row[0]
+                if path:
+                    available_notebooks.append(
+                        {"path": path, "filename": os.path.basename(path)}
+                    )
+            available_notebooks.sort(key=lambda x: x["filename"])
+
         return {
             "event_counts": event_counts,
             "total_editing_time_seconds": total_editing_time,
@@ -358,6 +383,7 @@ class TelemetryDB:
             "estimated_time_saved_minutes": estimated_time_saved_minutes,
             "productivity_score": productivity_score,
             "per_notebook_breakdown": per_notebook_breakdown,
+            "available_notebooks": available_notebooks,
         }
 
 
@@ -493,3 +519,63 @@ def _get_per_notebook_breakdown(
         )
 
     return notebook_stats
+
+    def migrate_notebook_path(self, old_path: str, new_path: str) -> int:
+        """Migrate telemetry events from an old notebook path to a new one.
+
+        Args:
+            old_path: The previous notebook path.
+            new_path: The new notebook path.
+
+        Returns:
+            Number of events updated.
+        """
+        with sqlite3.connect(str(self.db_path)) as conn:
+            cursor = conn.cursor()
+
+            LOGGER.info(f"[TelemetryDB] Migrating events from {old_path} to {new_path}")
+
+            # SQLite's json_replace is the most efficient way if available
+            try:
+                cursor.execute(
+                    """
+                    UPDATE events
+                    SET metadata = json_replace(metadata, '$.notebookPath', ?)
+                    WHERE json_extract(metadata, '$.notebookPath') = ?
+                    """,
+                    (new_path, old_path),
+                )
+            except sqlite3.OperationalError:
+                # Fallback if json_replace is not available (older sqlite versions)
+                # We fetch, modify in python, and update
+                LOGGER.warning(
+                    "[TelemetryDB] json_replace failed, falling back to manual update"
+                )
+                cursor.execute(
+                    """
+                    SELECT id, metadata
+                    FROM events
+                    WHERE json_extract(metadata, '$.notebookPath') = ?
+                    """,
+                    (old_path,),
+                )
+
+                updates = []
+                for row in cursor.fetchall():
+                    row_id = row[0]
+                    metadata = json.loads(row[1])
+                    metadata["notebookPath"] = new_path
+                    updates.append((json.dumps(metadata), row_id))
+
+                if updates:
+                    cursor.executemany(
+                        "UPDATE events SET metadata = ? WHERE id = ?", updates
+                    )
+
+            conn.commit()
+            updated = cursor.rowcount
+
+        LOGGER.info(
+            f"[TelemetryDB] Migrated {updated} events from {old_path} to {new_path}"
+        )
+        return updated

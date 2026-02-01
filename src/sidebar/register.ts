@@ -55,7 +55,8 @@ export function registerSuggestedEditsSidebar(options: {
   const telemetryService = new TelemetryService();
   const notebookTracker = new NotebookTelemetryTracker(
     tracker,
-    telemetryService
+    telemetryService,
+    app.serviceManager.contents
   );
   const sidebarTracker = new SidebarTelemetryTracker(sidebar, telemetryService);
 

@@ -37,6 +37,7 @@ export interface ISuggestion {
   readonly replacementSource: string;
   readonly rationale?: string;
   readonly contextType?: SuggestionContextType;
+  readonly notebookPath?: string;
 }
 
 export type SuggestionStreamEvent =

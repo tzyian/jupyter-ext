@@ -91,7 +91,8 @@ export class TelemetryService {
    */
   async getStats(
     startTime?: number,
-    endTime?: number
+    endTime?: number,
+    notebookPath?: string
   ): Promise<ITelemetryStats | null> {
     try {
       const settings = this._serverSettings ?? ServerConnection.makeSettings();
@@ -103,6 +104,9 @@ export class TelemetryService {
       }
       if (endTime) {
         params.set('end_time', endTime.toString());
+      }
+      if (notebookPath) {
+        params.set('notebook_path', notebookPath);
       }
 
       const url = params.toString() ? `${baseUrl}?${params}` : baseUrl;
@@ -122,6 +126,46 @@ export class TelemetryService {
     } catch (error) {
       console.error('Telemetry stats fetch error:', error);
       return null;
+    }
+  }
+
+  /**
+   * Notify backend about a notebook rename operation.
+   */
+  async notifyRename(oldPath: string, newPath: string): Promise<void> {
+    try {
+      const settings = this._serverSettings ?? ServerConnection.makeSettings();
+      const url = URLExt.join(
+        settings.baseUrl,
+        'selenepy',
+        'telemetry',
+        'rename'
+      );
+
+      console.log(`[Telemetry] Notifying rename: ${oldPath} -> ${newPath}`);
+
+      const response = await ServerConnection.makeRequest(
+        url,
+        {
+          method: 'POST',
+          body: JSON.stringify({ old_path: oldPath, new_path: newPath })
+        },
+        settings
+      );
+
+      if (!response.ok) {
+        console.error(
+          '[Telemetry] Failed to notify rename:',
+          response.statusText
+        );
+      } else {
+        const result = await response.json();
+        console.log(
+          `[Telemetry] Rename notification successful: ${result.migrated_events} events migrated`
+        );
+      }
+    } catch (error) {
+      console.error('[Telemetry] Rename notification error:', error);
     }
   }
 

@@ -262,7 +262,8 @@ export class SuggestedEditsController implements IDisposable {
       ...suggestion,
       originalSource: original,
       diffSegments: buildDiffSegments(original, suggestion.replacementSource),
-      contextType: suggestion.contextType ?? 'local'
+      contextType: suggestion.contextType ?? 'local',
+      notebookPath: this._lastSnapshot?.path
     };
   }
 

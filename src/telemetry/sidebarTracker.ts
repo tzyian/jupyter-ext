@@ -13,10 +13,7 @@ export class SidebarTelemetryTracker implements IDisposable {
     private readonly _telemetry: TelemetryService
   ) {
     // Track refresh requests
-    this._sidebar.refreshContextRequested.connect(
-      this._onRefreshContext,
-      this
-    );
+    this._sidebar.refreshContextRequested.connect(this._onRefreshContext, this);
     this._sidebar.refreshFullRequested.connect(this._onRefreshFull, this);
 
     // Track suggestion outcomes
@@ -62,14 +59,16 @@ export class SidebarTelemetryTracker implements IDisposable {
   private _onApply = (_: any, suggestion: any): void => {
     this._telemetry.logEvent('SuggestionAppliedEvent', {
       cellIndex: suggestion.cellIndex,
-      contextType: suggestion.contextType
+      contextType: suggestion.contextType,
+      notebookPath: suggestion.notebookPath
     });
   };
 
   private _onDismiss = (_: any, suggestion: any): void => {
     this._telemetry.logEvent('SuggestionDismissedEvent', {
       cellIndex: suggestion.cellIndex,
-      contextType: suggestion.contextType
+      contextType: suggestion.contextType,
+      notebookPath: suggestion.notebookPath
     });
   };
 

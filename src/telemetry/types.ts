@@ -35,6 +35,7 @@ export interface ITelemetryStats {
   estimated_time_saved_minutes: number;
   productivity_score: number;
   per_notebook_breakdown: INotebookBreakdown[];
+  available_notebooks: { path: string; filename: string }[];
 }
 
 /**
