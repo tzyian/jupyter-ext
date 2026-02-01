@@ -13,6 +13,7 @@ from dotenv import load_dotenv
 from openai import AsyncOpenAI
 from openai.types.responses.response_input_param import ResponseInputItemParam
 
+from ..utils import safe_int
 from .models import (
     SYSTEM_PROMPT,
     SuggestedEditModel,
@@ -49,7 +50,7 @@ def apply_scan_scope(
         return snapshot
 
     cells: Sequence[Mapping[str, Any]] = snapshot.get("cells", []) or []
-    active = _safe_int(snapshot.get("activeCellIndex"), 0)
+    active = safe_int(snapshot.get("activeCellIndex"), 0)
     if not cells:
         return snapshot
 
@@ -58,7 +59,7 @@ def apply_scan_scope(
     end = active + limit + 1
 
     def is_in_window(item: Mapping[str, Any], key: str = "cellIndex") -> bool:
-        return start <= _safe_int(item.get(key), 0) < end
+        return start <= safe_int(item.get(key), 0) < end
 
     filtered_cells = [cell for cell in cells if is_in_window(cell)]
     outline: Sequence[Mapping[str, Any]] = snapshot.get("outline", []) or []
@@ -192,11 +193,7 @@ def _trim_text(value: str, limit: int) -> str:
     return text[:limit].rstrip() + "…"
 
 
-def _safe_int(value: Any, fallback: int = 0) -> int:
-    try:
-        return int(value)
-    except (TypeError, ValueError):
-        return fallback
+# Removed local _safe_int as it moved to ..utils
 
 
 __all__ = [

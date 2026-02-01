@@ -1,9 +1,11 @@
+import json
+import logging
 import os
 import sqlite3
 from pathlib import Path
 from typing import Any, Optional
 
-from tornado.log import app_log as LOGGER
+LOGGER = logging.getLogger(__name__)
 
 
 class TelemetryDB:
@@ -24,30 +26,29 @@ class TelemetryDB:
 
     def _init_db(self) -> None:
         """Create the events table if it doesn't exist."""
-        conn = sqlite3.connect(str(self.db_path))
-        cursor = conn.cursor()
+        with sqlite3.connect(str(self.db_path)) as conn:
+            cursor = conn.cursor()
 
-        cursor.execute(
+            cursor.execute(
+                """
+                CREATE TABLE IF NOT EXISTS events (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    type TEXT NOT NULL,
+                    timestamp REAL NOT NULL,
+                    metadata TEXT
+                )
             """
-            CREATE TABLE IF NOT EXISTS events (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                type TEXT NOT NULL,
-                timestamp REAL NOT NULL,
-                metadata TEXT
             )
-        """
-        )
 
-        # Create index on type and timestamp for faster queries
-        cursor.execute(
+            # Create index on type and timestamp for faster queries
+            cursor.execute(
+                """
+                CREATE INDEX IF NOT EXISTS idx_type_timestamp
+                ON events(type, timestamp)
             """
-            CREATE INDEX IF NOT EXISTS idx_type_timestamp
-            ON events(type, timestamp)
-        """
-        )
+            )
 
-        conn.commit()
-        conn.close()
+            conn.commit()
 
     def insert_events(self, events: list[dict[str, Any]]) -> int:
         """Insert multiple telemetry events into the database.
@@ -61,30 +62,31 @@ class TelemetryDB:
         if not events:
             return 0
 
-        conn = sqlite3.connect(str(self.db_path))
-        cursor = conn.cursor()
+        with sqlite3.connect(str(self.db_path)) as conn:
+            cursor = conn.cursor()
 
-        import json
+            rows = [
+                (
+                    event["type"],
+                    event["timestamp"],
+                    json.dumps(event.get("metadata", {})),
+                )
+                for event in events
+            ]
 
-        rows = [
-            (
-                event["type"],
-                event["timestamp"],
-                json.dumps(event.get("metadata", {})),
+            cursor.executemany(
+                "INSERT INTO events (type, timestamp, metadata) VALUES (?, ?, ?)", rows
             )
-            for event in events
-        ]
 
-        cursor.executemany(
-            "INSERT INTO events (type, timestamp, metadata) VALUES (?, ?, ?)", rows
-        )
-
-        conn.commit()
-        inserted = cursor.rowcount
-        conn.close()
+            conn.commit()
+            inserted = cursor.rowcount
 
         LOGGER.info(f"[TelemetryDB] Inserted {inserted} events")
         return inserted
+
+    def insert_events_batch(self, events: list[dict[str, Any]]) -> int:
+        """Legacy alias for insert_events to maintain compatibility with routes.py."""
+        return self.insert_events(events)
 
     def get_events(
         self,
@@ -104,46 +106,43 @@ class TelemetryDB:
         Returns:
             List of event dictionaries
         """
-        conn = sqlite3.connect(str(self.db_path))
-        cursor = conn.cursor()
+        with sqlite3.connect(str(self.db_path)) as conn:
+            cursor = conn.cursor()
 
-        query = "SELECT id, type, timestamp, metadata FROM events WHERE 1=1"
-        params = []
+            query = "SELECT id, type, timestamp, metadata FROM events WHERE 1=1"
+            params = []
 
-        if event_type:
-            query += " AND type = ?"
-            params.append(event_type)
+            if event_type:
+                query += " AND type = ?"
+                params.append(event_type)
 
-        if start_time:
-            query += " AND timestamp >= ?"
-            params.append(start_time)
+            if start_time:
+                query += " AND timestamp >= ?"
+                params.append(start_time)
 
-        if end_time:
-            query += " AND timestamp <= ?"
-            params.append(end_time)
+            if end_time:
+                query += " AND timestamp <= ?"
+                params.append(end_time)
 
-        query += " ORDER BY timestamp DESC"
+            query += " ORDER BY timestamp DESC"
 
-        if limit:
-            query += " LIMIT ?"
-            params.append(limit)
+            if limit:
+                query += " LIMIT ?"
+                params.append(limit)
 
-        cursor.execute(query, params)
+            cursor.execute(query, params)
 
-        import json
+            events = []
+            for row in cursor.fetchall():
+                events.append(
+                    {
+                        "id": row[0],
+                        "type": row[1],
+                        "timestamp": row[2],
+                        "metadata": json.loads(row[3]) if row[3] else {},
+                    }
+                )
 
-        events = []
-        for row in cursor.fetchall():
-            events.append(
-                {
-                    "id": row[0],
-                    "type": row[1],
-                    "timestamp": row[2],
-                    "metadata": json.loads(row[3]) if row[3] else {},
-                }
-            )
-
-        conn.close()
         return events
 
     def get_event_counts(
@@ -158,25 +157,24 @@ class TelemetryDB:
         Returns:
             Dictionary mapping event types to counts
         """
-        conn = sqlite3.connect(str(self.db_path))
-        cursor = conn.cursor()
+        with sqlite3.connect(str(self.db_path)) as conn:
+            cursor = conn.cursor()
 
-        query = "SELECT type, COUNT(*) as count FROM events WHERE 1=1"
-        params = []
+            query = "SELECT type, COUNT(*) as count FROM events WHERE 1=1"
+            params = []
 
-        if start_time:
-            query += " AND timestamp >= ?"
-            params.append(start_time)
+            if start_time:
+                query += " AND timestamp >= ?"
+                params.append(start_time)
 
-        if end_time:
-            query += " AND timestamp <= ?"
-            params.append(end_time)
+            if end_time:
+                query += " AND timestamp <= ?"
+                params.append(end_time)
 
-        query += " GROUP BY type"
+            query += " GROUP BY type"
 
-        cursor.execute(query, params)
-        counts = {row[0]: row[1] for row in cursor.fetchall()}
-        conn.close()
+            cursor.execute(query, params)
+            counts = {row[0]: row[1] for row in cursor.fetchall()}
 
         return counts
 
@@ -192,150 +190,150 @@ class TelemetryDB:
         Returns:
             Dictionary with summary statistics
         """
-        conn = sqlite3.connect(str(self.db_path))
-        cursor = conn.cursor()
+        with sqlite3.connect(str(self.db_path)) as conn:
+            cursor = conn.cursor()
 
-        LOGGER.info(
-            f"[TelemetryDB] Querying stats: start_time={start_time}, end_time={end_time}"
-        )
+            LOGGER.info(
+                f"[TelemetryDB] Querying stats: start_time={start_time}, end_time={end_time}"
+            )
 
-        # Build time filter
-        time_filter = "1=1"
-        params = []
-        if start_time:
-            time_filter += " AND timestamp >= ?"
-            params.append(start_time)
-        if end_time:
-            time_filter += " AND timestamp <= ?"
-            params.append(end_time)
+            # Build time filter
+            time_filter = "1=1"
+            params = []
+            if start_time:
+                time_filter += " AND timestamp >= ?"
+                params.append(start_time)
+            if end_time:
+                time_filter += " AND timestamp <= ?"
+                params.append(end_time)
 
-        # Count events by type
-        cursor.execute(
-            f"""
-            SELECT type, COUNT(*) as count
-            FROM events
-            WHERE {time_filter}
-            GROUP BY type
-        """,
-            params,
-        )
+            # Count events by type
+            cursor.execute(
+                f"""
+                SELECT type, COUNT(*) as count
+                FROM events
+                WHERE {time_filter}
+                GROUP BY type
+            """,
+                params,
+            )
 
-        event_counts = {row[0]: row[1] for row in cursor.fetchall()}
-        LOGGER.info(f"[TelemetryDB] Event counts: {event_counts}")
+            event_counts = {row[0]: row[1] for row in cursor.fetchall()}
+            LOGGER.info(f"[TelemetryDB] Event counts: {event_counts}")
 
-        # Calculate total editing time (sum of session durations)
-        cursor.execute(
-            f"""
-            SELECT SUM(CAST(json_extract(metadata, '$.duration') AS REAL)) as total_duration
-            FROM events
-            WHERE type = 'CellEditEvent' AND {time_filter}
-        """,
-            params,
-        )
+            # Calculate total editing time (sum of session durations)
+            cursor.execute(
+                f"""
+                SELECT SUM(CAST(json_extract(metadata, '$.duration') AS REAL)) as total_duration
+                FROM events
+                WHERE type = 'CellEditEvent' AND {time_filter}
+            """,
+                params,
+            )
 
-        editing_time_result = cursor.fetchone()
-        total_editing_time = editing_time_result[0] if editing_time_result[0] else 0
-        LOGGER.info(f"[TelemetryDB] Total editing time: {total_editing_time:.2f}s")
+            editing_time_result = cursor.fetchone()
+            total_editing_time = editing_time_result[0] if editing_time_result[0] else 0
+            LOGGER.info(f"[TelemetryDB] Total editing time: {total_editing_time:.2f}s")
 
-        # Calculate total time away
-        cursor.execute(
-            f"""
-            SELECT SUM(CAST(json_extract(metadata, '$.duration') AS REAL)) as total_away
-            FROM events
-            WHERE type = 'NotebookHiddenEvent' AND {time_filter}
-        """,
-            params,
-        )
+            # Calculate total time away
+            cursor.execute(
+                f"""
+                SELECT SUM(CAST(json_extract(metadata, '$.duration') AS REAL)) as total_away
+                FROM events
+                WHERE type = 'NotebookHiddenEvent' AND {time_filter}
+            """,
+                params,
+            )
 
-        away_time_result = cursor.fetchone()
-        total_away_time = away_time_result[0] if away_time_result[0] else 0
-        LOGGER.info(f"[TelemetryDB] Total away time: {total_away_time:.2f}s")
+            away_time_result = cursor.fetchone()
+            total_away_time = away_time_result[0] if away_time_result[0] else 0
+            LOGGER.info(f"[TelemetryDB] Total away time: {total_away_time:.2f}s")
 
-        # Calculate total notebook session time
-        cursor.execute(
-            f"""
-            SELECT SUM(CAST(json_extract(metadata, '$.duration') AS REAL)) as total_session
-            FROM events
-            WHERE type = 'NotebookSessionEvent' AND {time_filter}
-        """,
-            params,
-        )
+            # Calculate total notebook session time
+            cursor.execute(
+                f"""
+                SELECT SUM(CAST(json_extract(metadata, '$.duration') AS REAL)) as total_session
+                FROM events
+                WHERE type = 'NotebookSessionEvent' AND {time_filter}
+            """,
+                params,
+            )
 
-        session_time_result = cursor.fetchone()
-        total_notebook_session_time = (
-            session_time_result[0] if session_time_result[0] else 0
-        )
-        LOGGER.info(
-            f"[TelemetryDB] Total notebook session time: {total_notebook_session_time:.2f}s"
-        )
+            session_time_result = cursor.fetchone()
+            total_notebook_session_time = (
+                session_time_result[0] if session_time_result[0] else 0
+            )
+            LOGGER.info(
+                f"[TelemetryDB] Total notebook session time: {total_notebook_session_time:.2f}s"
+            )
 
-        # Count unique notebooks
-        cursor.execute(
-            f"""
-            SELECT COUNT(DISTINCT json_extract(metadata, '$.notebookPath'))
-            FROM events
-            WHERE type = 'NotebookOpenEvent' AND {time_filter}
-        """,
-            params,
-        )
+            # Count unique notebooks
+            cursor.execute(
+                f"""
+                SELECT COUNT(DISTINCT json_extract(metadata, '$.notebookPath'))
+                FROM events
+                WHERE type = 'NotebookOpenEvent' AND {time_filter}
+            """,
+                params,
+            )
 
-        unique_notebooks = cursor.fetchone()[0] or 0
+            unique_notebooks = cursor.fetchone()[0] or 0
 
-        # Count successful executions
-        cursor.execute(
-            f"""
-            SELECT COUNT(*)
-            FROM events
-            WHERE type = 'CellExecuteEvent'
-            AND json_extract(metadata, '$.success') = 1
-            AND {time_filter}
-        """,
-            params,
-        )
+            # Count successful executions
+            cursor.execute(
+                f"""
+                SELECT COUNT(*)
+                FROM events
+                WHERE type = 'CellExecuteEvent'
+                AND json_extract(metadata, '$.success') = 1
+                AND {time_filter}
+            """,
+                params,
+            )
 
-        cells_executed_successfully = cursor.fetchone()[0] or 0
+            cells_executed_successfully = cursor.fetchone()[0] or 0
 
-        # Count failed executions
-        cursor.execute(
-            f"""
-            SELECT COUNT(*)
-            FROM events
-            WHERE type = 'CellExecuteEvent'
-            AND json_extract(metadata, '$.success') = 0
-            AND {time_filter}
-        """,
-            params,
-        )
+            # Count failed executions
+            cursor.execute(
+                f"""
+                SELECT COUNT(*)
+                FROM events
+                WHERE type = 'CellExecuteEvent'
+                AND json_extract(metadata, '$.success') = 0
+                AND {time_filter}
+            """,
+                params,
+            )
 
-        cells_executed_failed = cursor.fetchone()[0] or 0
+            cells_executed_failed = cursor.fetchone()[0] or 0
 
-        # Calculate derived metrics
-        total_executions = event_counts.get("CellExecuteEvent", 0)
-        execution_success_rate = (
-            (cells_executed_successfully / total_executions * 100)
-            if total_executions > 0
-            else 0
-        )
+            # Calculate derived metrics
+            total_executions = event_counts.get("CellExecuteEvent", 0)
+            execution_success_rate = (
+                (cells_executed_successfully / total_executions * 100)
+                if total_executions > 0
+                else 0
+            )
 
-        suggestions_applied = event_counts.get("SuggestionAppliedEvent", 0)
-        estimated_time_saved_minutes = suggestions_applied * 2  # 2 min per suggestion
+            suggestions_applied = event_counts.get("SuggestionAppliedEvent", 0)
+            estimated_time_saved_minutes = (
+                suggestions_applied * 2
+            )  # 2 min per suggestion
 
-        # Calculate productivity score
-        productivity_score = _calculate_productivity_score(
-            execution_success_rate=execution_success_rate,
-            editing_time_seconds=total_editing_time,
-            suggestions_applied=suggestions_applied,
-            suggestions_dismissed=event_counts.get("SuggestionDismissedEvent", 0),
-            cells_created=event_counts.get("CellAddEvent", 0),
-            notebooks_saved=event_counts.get("NotebookSaveEvent", 0),
-        )
+            # Calculate productivity score
+            productivity_score = _calculate_productivity_score(
+                execution_success_rate=execution_success_rate,
+                editing_time_seconds=total_editing_time,
+                suggestions_applied=suggestions_applied,
+                suggestions_dismissed=event_counts.get("SuggestionDismissedEvent", 0),
+                cells_created=event_counts.get("CellAddEvent", 0),
+                notebooks_saved=event_counts.get("NotebookSaveEvent", 0),
+            )
 
-        # Get per-notebook breakdown
-        per_notebook_breakdown = _get_per_notebook_breakdown(
-            cursor, time_filter, params
-        )
-
-        conn.close()
+            # Get per-notebook breakdown
+            per_notebook_breakdown = _get_per_notebook_breakdown(
+                cursor, time_filter, params
+            )
 
         return {
             "event_counts": event_counts,

@@ -10,6 +10,7 @@ from jupyter_server.utils import url_path_join
 from .streaming import SuggestionStreamWriter
 from .suggestions import apply_scan_scope, stream_live_suggestions
 from .telemetry_db import TelemetryDB
+from .utils import safe_int
 
 LOGGER = logging.getLogger(__name__)
 LOGGER.setLevel(logging.INFO)
@@ -52,7 +53,7 @@ class SuggestedEditsStreamHandler(APIHandler):
         mode = str(body.get("mode", "context")).lower()
         if mode not in {"context", "full"}:
             mode = "context"
-        context_window = _safe_int(settings.get("contextWindow"), 3)
+        context_window = safe_int(settings.get("contextWindow"), 3)
 
         return {
             "snapshot": snapshot,
@@ -101,11 +102,6 @@ class SuggestedEditsStreamHandler(APIHandler):
                 pass  # Stream already closed, ignore
 
 
-def _safe_int(value: Any, fallback: int = 0) -> int:
-    try:
-        return int(value)
-    except (TypeError, ValueError):
-        return fallback
 
 
 class TelemetryHandler(APIHandler):
