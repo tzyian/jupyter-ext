@@ -131,11 +131,14 @@ export class SuggestedEditsController implements IDisposable {
     const controller = new AbortController();
     this._currentAbort = controller;
 
+    const promptId = this._panel.getSelectedPromptId();
+
     try {
       for await (const event of streamSuggestions(
         snapshot,
         this._settings,
         mode,
+        promptId,
         controller.signal
       )) {
         this.processStreamEvent(event);
@@ -211,6 +214,8 @@ export class SuggestedEditsController implements IDisposable {
     shared.transact(() => {
       shared.setSource(normalized);
     });
+
+    this._panel.setStatus('Suggestion applied!');
   }
 
   private cancelPendingStream(): void {

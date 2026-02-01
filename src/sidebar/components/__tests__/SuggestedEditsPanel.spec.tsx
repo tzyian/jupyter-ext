@@ -12,7 +12,8 @@ describe('SuggestedEditsPanel', () => {
     onRefreshFull: jest.fn(),
     onPauseToggle: jest.fn(),
     onApply: jest.fn(),
-    onDismiss: jest.fn()
+    onDismiss: jest.fn(),
+    onOpenSettings: jest.fn()
   };
 
   it('should render the status message', () => {

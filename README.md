@@ -2,12 +2,12 @@
 
 ### Quickstart
 1. python -m venv .venv
-1. source .venv/bin/activate
-1. pip install --editable ".[dev,test]"
-1. jupyter server extension enable selenepy
-1. jupyter labextension develop . --overwrite
-1. jlpm run watch
-1. jupyter lab --port 8888 --IdentityProvider.token MY_TOKEN --ip 0.0.0.0
+2. source .venv/bin/activate
+3. pip install --editable ".[dev,test]"
+4. jupyter server extension enable selenepy
+5. jupyter labextension develop . --overwrite
+6. jlpm run watch
+7. jupyter lab --port 8888 --IdentityProvider.token MY_TOKEN --ip 0.0.0.0
 
 
 

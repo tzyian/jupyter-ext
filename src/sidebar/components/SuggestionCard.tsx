@@ -94,7 +94,7 @@ export const SuggestionCard: React.FC<ISuggestionCardProps> = ({
 
       <div className="jp-selenepy-suggestedEdits-item-controls">
         <button
-          className="jp-selenepy-suggestedEdits-actionButton"
+          className="jp-selenepy-suggestedEdits-actionButton jp-mod-active"
           onClick={() => onApply(suggestion)}
         >
           Apply

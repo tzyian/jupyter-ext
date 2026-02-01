@@ -3,12 +3,75 @@ import { ServerConnection } from '@jupyterlab/services';
 
 import type {
   INotebookSnapshot,
+  IPrompt,
   ISuggestedEditsSettings,
   SuggestionScanMode,
   SuggestionStreamEvent
 } from '../types';
 
+
+const PROMPTS_PATH = 'prompts';
 const STREAM_PATH = 'suggestions/stream';
+
+export async function fetchPrompts(): Promise<IPrompt[]> {
+  const connectionSettings = ServerConnection.makeSettings();
+  const url = URLExt.join(connectionSettings.baseUrl, 'selenepy', PROMPTS_PATH);
+
+  const response = await ServerConnection.makeRequest(
+    url,
+    {},
+    connectionSettings
+  );
+
+  if (!response.ok) {
+    throw new ServerConnection.ResponseError(response, await response.text());
+  }
+
+  const data = await response.json();
+  return data.prompts;
+}
+
+export async function savePrompt(
+  name: string,
+  content: string,
+  id?: string
+): Promise<IPrompt> {
+  const connectionSettings = ServerConnection.makeSettings();
+  const url = URLExt.join(connectionSettings.baseUrl, 'selenepy', PROMPTS_PATH);
+
+  const response = await ServerConnection.makeRequest(
+    url,
+    {
+      method: 'POST',
+      body: JSON.stringify({ name, content, id })
+    },
+    connectionSettings
+  );
+
+  if (!response.ok) {
+    throw new ServerConnection.ResponseError(response, await response.text());
+  }
+
+  return response.json();
+}
+
+export async function deletePrompt(id: string): Promise<void> {
+  const connectionSettings = ServerConnection.makeSettings();
+  const url =
+    URLExt.join(connectionSettings.baseUrl, 'selenepy', PROMPTS_PATH) +
+    '?id=' +
+    encodeURIComponent(id);
+
+  const response = await ServerConnection.makeRequest(
+    url,
+    { method: 'DELETE' },
+    connectionSettings
+  );
+
+  if (!response.ok) {
+    throw new ServerConnection.ResponseError(response, await response.text());
+  }
+}
 
 /**
  * Stream suggestions from the backend server.
@@ -17,6 +80,7 @@ export async function* streamSuggestions(
   snapshot: INotebookSnapshot,
   configuration: ISuggestedEditsSettings,
   mode: SuggestionScanMode,
+  promptId: string,
   signal?: AbortSignal
 ): AsyncGenerator<SuggestionStreamEvent> {
   const connectionSettings = ServerConnection.makeSettings();
@@ -24,7 +88,7 @@ export async function* streamSuggestions(
 
   const init: RequestInit = {
     method: 'POST',
-    body: JSON.stringify({ snapshot, settings: configuration, mode }),
+    body: JSON.stringify({ snapshot, settings: configuration, mode, promptId }),
     headers: {
       'Content-Type': 'application/json',
       ...(connectionSettings.init?.headers ?? {})

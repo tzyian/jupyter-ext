@@ -10,6 +10,7 @@ import { ISettingRegistry } from '@jupyterlab/settingregistry';
 
 import { registerWordLineStatus } from './widgets/wordlinestatus';
 import { registerSuggestedEditsSidebar } from './sidebar/register';
+import '../style/index.css';
 
 const plugin: JupyterFrontEndPlugin<void> = {
   id: 'selenejs:plugin',

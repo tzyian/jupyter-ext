@@ -12,6 +12,7 @@ export interface ISuggestedEditsPanelProps {
   onPauseToggle: () => void;
   onApply: (suggestion: IResolvedSuggestion) => void;
   onDismiss: (suggestion: IResolvedSuggestion, index?: number) => void;
+  onOpenSettings: () => void;
 }
 
 export const SuggestedEditsPanel: React.FC<ISuggestedEditsPanelProps> = ({
@@ -23,13 +24,21 @@ export const SuggestedEditsPanel: React.FC<ISuggestedEditsPanelProps> = ({
   onRefreshFull,
   onPauseToggle,
   onApply,
-  onDismiss
+  onDismiss,
+  onOpenSettings
 }) => {
   return (
     <div className="jp-selenepy-suggestedEdits-container">
       <header className="jp-selenepy-suggestedEdits-header">
         <h2>Suggested Edits</h2>
         <div className="jp-selenepy-suggestedEdits-buttonGroup">
+          <button
+            className="jp-selenepy-suggestedEdits-actionButton"
+            onClick={onOpenSettings}
+            title="Manage System Prompts"
+          >
+            ⚙️ Prompts
+          </button>
           <button
             className="jp-selenepy-suggestedEdits-actionButton"
             onClick={onRefreshContext}

@@ -2,8 +2,14 @@ import { ReactWidget } from '@jupyterlab/apputils';
 import { Signal, type ISignal } from '@lumino/signaling';
 import React from 'react';
 
-import type { IResolvedSuggestion, SuggestionScanMode } from '../types';
+import type {
+  IResolvedSuggestion,
+  SuggestionScanMode,
+  IPrompt
+} from '../types';
 import { SuggestedEditsPanel } from './components/SuggestedEditsPanel';
+import { PromptSettingsPanel } from './components/PromptSettingsPanel';
+import { fetchPrompts, savePrompt, deletePrompt } from './api';
 
 /**
  * Sidebar widget for displaying LLM suggested edits, backed by React.
@@ -13,6 +19,59 @@ export class SuggestedEditsSidebar extends ReactWidget {
     super();
     this.id = 'selenejs-suggested-edits-sidebar';
     this.addClass('jp-selenepy-suggestedEdits');
+    this._loadPrompts();
+  }
+
+  private async _loadPrompts() {
+    try {
+      this._prompts = await fetchPrompts();
+      // Ensure we have a valid selection
+      if (!this._prompts.find(p => p.id === this._selectedPromptId)) {
+        this._selectedPromptId = 'default';
+      }
+      this.update();
+    } catch (err) {
+      console.error('Failed to load prompts', err);
+    }
+  }
+
+  private async _handleCreatePrompt(name: string, content: string) {
+    try {
+      const newPrompt = await savePrompt(name, content);
+      await this._loadPrompts();
+      this._selectedPromptId = newPrompt.id;
+      this.update();
+    } catch (err) {
+      console.error('Failed to create prompt', err);
+      this.showError('Failed to save prompt.');
+    }
+  }
+
+  private async _handleUpdatePrompt(name: string, content: string, id: string) {
+    try {
+      await savePrompt(name, content, id);
+      await this._loadPrompts();
+      this.update();
+    } catch (err) {
+      console.error('Failed to update prompt', err);
+      this.showError('Failed to save prompt.');
+    }
+  }
+
+  private async _handleDeletePrompt(id: string) {
+    try {
+      await deletePrompt(id);
+      await this._loadPrompts();
+      this._selectedPromptId = 'default';
+      this.update();
+    } catch (err) {
+      console.error('Failed to delete prompt', err);
+      this.showError('Failed to delete prompt.');
+    }
+  }
+
+  getSelectedPromptId(): string {
+    return this._selectedPromptId;
   }
 
   get refreshContextRequested(): ISignal<SuggestedEditsSidebar, void> {
@@ -97,6 +156,30 @@ export class SuggestedEditsSidebar extends ReactWidget {
   }
 
   protected render(): JSX.Element {
+    if (this._view === 'settings') {
+      return (
+        <PromptSettingsPanel
+          prompts={this._prompts}
+          selectedPromptId={this._selectedPromptId}
+          onSelectPrompt={id => {
+            this._selectedPromptId = id;
+            this.update();
+          }}
+          onCreatePrompt={(name, content) =>
+            this._handleCreatePrompt(name, content)
+          }
+          onUpdatePrompt={(name, content, id) =>
+            this._handleUpdatePrompt(name, content, id)
+          }
+          onDeletePrompt={id => this._handleDeletePrompt(id)}
+          onBack={() => {
+            this._view = 'home';
+            this.update();
+          }}
+        />
+      );
+    }
+
     return (
       <SuggestedEditsPanel
         status={this._status}
@@ -116,6 +199,10 @@ export class SuggestedEditsSidebar extends ReactWidget {
             this.updateStatusAfterRemoval();
             this.update();
           }
+        }}
+        onOpenSettings={() => {
+          this._view = 'settings';
+          this.update();
         }}
       />
     );
@@ -143,6 +230,9 @@ export class SuggestedEditsSidebar extends ReactWidget {
   private _isPaused = false;
   private _localSuggestions: (IResolvedSuggestion | null)[] = [null, null];
   private _globalSuggestion: IResolvedSuggestion | null = null;
+  private _prompts: IPrompt[] = [];
+  private _selectedPromptId: string = 'default';
+  private _view: 'home' | 'settings' = 'home';
 
   private readonly _refreshContextRequested = new Signal<
     SuggestedEditsSidebar,

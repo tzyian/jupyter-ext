@@ -7,6 +7,7 @@ import tornado
 from jupyter_server.base.handlers import APIHandler
 from jupyter_server.utils import url_path_join
 
+from .prompts import PromptManager
 from .streaming import SuggestionStreamWriter
 from .suggestions import apply_scan_scope, stream_live_suggestions
 from .telemetry_db import TelemetryDB
@@ -14,6 +15,55 @@ from .utils import safe_int
 
 LOGGER = logging.getLogger(__name__)
 LOGGER.setLevel(logging.INFO)
+
+
+class PromptsHandler(APIHandler):
+    """Handler for managing custom system prompts."""
+
+    def initialize(self, prompt_manager: PromptManager):
+        self.prompt_manager = prompt_manager
+
+    @tornado.web.authenticated
+    def get(self):
+        prompts = self.prompt_manager.get_all_prompts()
+        self.finish(json.dumps({"prompts": prompts}))
+
+    @tornado.web.authenticated
+    def post(self):
+        body = self.get_json_body() or {}
+        name = body.get("name")
+        content = body.get("content")
+        prompt_id = body.get("id")
+
+        if not name or not content:
+            self.set_status(400)
+            self.finish(json.dumps({"error": "Name and content are required"}))
+            return
+
+        saved_prompt = self.prompt_manager.save_prompt(name, content, prompt_id)
+        self.finish(json.dumps(saved_prompt))
+
+    @tornado.web.authenticated
+    def delete(self):
+        prompt_id = self.get_argument("id")
+        if not prompt_id:
+            self.set_status(400)
+            self.finish(json.dumps({"error": "Prompt ID is required"}))
+            return
+
+        success = self.prompt_manager.delete_prompt(prompt_id)
+        if success:
+            self.set_status(204)
+            self.finish()
+        else:
+            self.set_status(400)
+            self.finish(
+                json.dumps(
+                    {
+                        "error": "Could not delete prompt (it might be default or not exist)"
+                    }
+                )
+            )
 
 
 class HelloRouteHandler(APIHandler):
@@ -35,6 +85,9 @@ class HelloRouteHandler(APIHandler):
 class SuggestedEditsStreamHandler(APIHandler):
     """Handler for Server-Sent Event stream of LLM suggestions."""
 
+    def initialize(self, prompt_manager: PromptManager):
+        self.prompt_manager = prompt_manager
+
     @tornado.web.authenticated
     async def post(self) -> None:
         self.set_header("Content-Type", "text/event-stream")
@@ -54,12 +107,14 @@ class SuggestedEditsStreamHandler(APIHandler):
         if mode not in {"context", "full"}:
             mode = "context"
         context_window = safe_int(settings.get("contextWindow"), 3)
+        prompt_id = body.get("promptId", "default")
 
         return {
             "snapshot": snapshot,
             "settings": settings,
             "mode": mode,
             "context_window": context_window,
+            "prompt_id": prompt_id,
         }
 
     async def _run_suggestion_stream(self, params: Mapping[str, Any]) -> None:
@@ -67,13 +122,15 @@ class SuggestedEditsStreamHandler(APIHandler):
         snapshot = params["snapshot"]
         mode = params["mode"]
         context_window = params["context_window"]
+        prompt_id = params["prompt_id"]
 
         # Log the request details
         LOGGER.info(
-            "LLM REQUEST (mode=%s, window=%s, path=%s)",
+            "LLM REQUEST (mode=%s, window=%s, path=%s, prompt_id=%s)",
             mode,
             context_window,
             snapshot.get("path", "unknown"),
+            prompt_id,
         )
         LOGGER.debug(
             "SNAPSHOT DATA: %s", json.dumps(snapshot, ensure_ascii=False)[:1200]
@@ -82,9 +139,15 @@ class SuggestedEditsStreamHandler(APIHandler):
         writer = SuggestionStreamWriter(self)
         await writer.send_status("started")
 
+        # Resolve system prompt
+        prompt_data = self.prompt_manager.get_prompt_by_id(prompt_id)
+        system_prompt = prompt_data["content"] if prompt_data else None
+
         try:
             target_snapshot = apply_scan_scope(snapshot, mode, context_window)
-            async for suggestion in stream_live_suggestions(target_snapshot, mode):
+            async for suggestion in stream_live_suggestions(
+                target_snapshot, mode, system_prompt
+            ):
                 await writer.send_suggestion(suggestion)
         except tornado.iostream.StreamClosedError:
             LOGGER.info("Client disconnected from suggestion stream.")
@@ -170,17 +233,24 @@ def setup_route_handlers(web_app):
     host_pattern = ".*$"
     base_url = web_app.settings["base_url"]
 
-    # Initialize telemetry database
+    # Initialize services
     telemetry_db = TelemetryDB()
+    prompt_manager = PromptManager()
 
     hello_route_pattern = url_path_join(base_url, "selenepy", "hello")
     stream_route_pattern = url_path_join(base_url, "selenepy", "suggestions", "stream")
     telemetry_route_pattern = url_path_join(base_url, "selenepy", "telemetry")
+    prompts_route_pattern = url_path_join(base_url, "selenepy", "prompts")
 
     handlers = [
         (hello_route_pattern, HelloRouteHandler),
-        (stream_route_pattern, SuggestedEditsStreamHandler),
+        (
+            stream_route_pattern,
+            SuggestedEditsStreamHandler,
+            {"prompt_manager": prompt_manager},
+        ),
         (telemetry_route_pattern, TelemetryHandler, {"db": telemetry_db}),
+        (prompts_route_pattern, PromptsHandler, {"prompt_manager": prompt_manager}),
     ]
 
     web_app.add_handlers(host_pattern, handlers)

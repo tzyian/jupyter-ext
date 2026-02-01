@@ -73,7 +73,7 @@ def apply_scan_scope(
 
 
 async def stream_live_suggestions(
-    snapshot: Mapping[str, Any], mode: str
+    snapshot: Mapping[str, Any], mode: str, system_prompt: str | None = None
 ) -> AsyncIterator[Mapping[str, Any]]:
     """Yield structured suggestions from the OpenAI Responses API."""
     client = _get_openai_client()
@@ -83,8 +83,10 @@ async def stream_live_suggestions(
 
     context_type: SuggestionContextType = "local" if mode == "context" else "global"
 
+    current_system_prompt = system_prompt or SYSTEM_PROMPT
+
     messages: list[ResponseInputItemParam] = [
-        {"role": "system", "content": SYSTEM_PROMPT},
+        {"role": "system", "content": current_system_prompt},
         {
             "role": "user",
             "content": (

@@ -53,6 +53,14 @@ export type SuggestionStreamEvent =
       readonly message: string;
     };
 
+
+export interface IPrompt {
+  readonly id: string;
+  readonly name: string;
+  readonly content: string;
+  readonly isDefault: boolean;
+}
+
 export interface ISuggestedEditsSettings {
   readonly autoRefresh: boolean;
   readonly debounceMs: number;
@@ -64,6 +72,7 @@ export interface ISuggestionRequest {
   readonly snapshot: INotebookSnapshot;
   readonly settings: ISuggestedEditsSettings;
   readonly mode: SuggestionScanMode;
+  readonly promptId: string;
 }
 
 export type SuggestionScanMode = 'context' | 'full';
