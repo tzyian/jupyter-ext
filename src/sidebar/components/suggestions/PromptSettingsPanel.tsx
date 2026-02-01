@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { IPrompt } from '../../types';
+import { IPrompt } from '../../../types';
 
 interface IPromptSettingsPanelProps {
   prompts: IPrompt[];
@@ -55,7 +55,9 @@ export const PromptSettingsPanel: React.FC<IPromptSettingsPanelProps> = ({
   const [saveStatus, setSaveStatus] = useState('');
 
   const handleSave = () => {
-    if (!name || !content) return;
+    if (!name || !content) {
+      return;
+    }
 
     if (isNew) {
       onCreatePrompt(name, content);
@@ -159,90 +161,6 @@ export const PromptSettingsPanel: React.FC<IPromptSettingsPanelProps> = ({
           )}
         </div>
       </div>
-
-      <style>{`
-            .jp-selenepy-promptSettings {
-                display: flex;
-                flex-direction: column;
-                height: 100%;
-                background: var(--jp-layout-color1);
-            }
-            .jp-selenepy-promptSettings-header {
-                padding: 8px;
-                border-bottom: 1px solid var(--jp-border-color2);
-                display: flex;
-                align-items: center;
-                gap: 8px;
-            }
-            .jp-selenepy-promptSettings-header h2 {
-                margin: 0;
-                font-size: var(--jp-ui-font-size1);
-                flex: 1;
-            }
-            .jp-selenepy-promptSettings-backBtn {
-                background: none;
-                border: none;
-                color: var(--jp-ui-font-color1);
-                cursor: pointer;
-            }
-            .jp-selenepy-promptSettings-controls {
-                padding: 12px;
-                background: var(--jp-layout-color2);
-                border-bottom: 1px solid var(--jp-border-color2);
-            }
-            .jp-selenepy-promptSettings-selectRow {
-                margin-top: 4px;
-                display: flex;
-            }
-            .jp-selenepy-promptSelector {
-                width: 100%;
-            }
-            .jp-selenepy-promptSettings-editor {
-                flex: 1;
-                padding: 12px;
-                display: flex;
-                flex-direction: column;
-                gap: 8px;
-            }
-            .jp-selenepy-promptInput {
-                padding: 4px;
-            }
-            .jp-selenepy-promptTextarea {
-                flex: 1;
-                resize: none;
-                padding: 8px;
-                font-family: var(--jp-ui-font-family);
-            }
-            .jp-selenepy-promptSettings-actions {
-                display: flex;
-                justify-content: flex-end;
-                gap: 8px;
-                align-items: center;
-            }
-            .jp-selenepy-infoText {
-                color: var(--jp-ui-font-color2);
-                font-size: var(--jp-ui-font-size0);
-                margin-right: auto;
-            }
-            .jp-selenepy-saveBtn {
-                background: var(--jp-brand-color1);
-                color: white;
-                border: none;
-                padding: 6px 12px;
-                cursor: pointer;
-            }
-            .jp-selenepy-deleteBtn {
-                background: var(--jp-error-color1);
-                color: white;
-                border: none;
-                padding: 6px 12px;
-                cursor: pointer;
-            }
-            .jp-selenepy-saveBtn:disabled {
-                opacity: 0.5;
-                cursor: not-allowed;
-            }
-        `}</style>
     </div>
   );
 };

@@ -8,7 +8,7 @@ import type {
   IPrompt
 } from '../types';
 import { SuggestedEditsPanel } from './components/SuggestedEditsPanel';
-import { PromptSettingsPanel } from './components/PromptSettingsPanel';
+import { PromptSettingsPanel } from './components/suggestions/PromptSettingsPanel';
 import { fetchPrompts, savePrompt, deletePrompt } from './api';
 
 /**

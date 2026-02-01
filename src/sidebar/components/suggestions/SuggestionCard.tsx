@@ -3,7 +3,7 @@ import type {
   IResolvedSuggestion,
   SuggestionContextType,
   IReadonlyDiffSegment
-} from '../../types';
+} from '../../../types';
 
 export interface ISuggestionCardProps {
   suggestion: IResolvedSuggestion;

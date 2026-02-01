@@ -1,5 +1,5 @@
 import React from 'react';
-import { SuggestionCard } from './SuggestionCard';
+import { SuggestionCard } from './suggestions/SuggestionCard';
 import type { IResolvedSuggestion } from '../../types';
 
 export interface ISuggestedEditsPanelProps {
