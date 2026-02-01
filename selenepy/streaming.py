@@ -30,9 +30,13 @@ class SuggestionStreamWriter:
         """Internal method to write SSE formatted data."""
         if self._closed:
             return
-        chunk = f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
-        self._handler.write(chunk)
-        await self._handler.flush()
+        try:
+            chunk = f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
+            self._handler.write(chunk)
+            await self._handler.flush()
+        except Exception:  # pylint: disable=broad-except
+            # Stream is closed, mark it and silently fail
+            self._closed = True
 
     async def close(self) -> None:
         """Close the stream and finish the response."""

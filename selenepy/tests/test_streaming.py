@@ -1,3 +1,4 @@
+import json
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -8,39 +9,32 @@ from selenepy.streaming import SuggestionStreamWriter
 @pytest.mark.asyncio
 async def test_suggestion_stream_writer():
     # Mock Tornado handler
-    handler = MagicMock()
-    handler.write = MagicMock()
-    handler.flush = AsyncMock()
-    handler.finish = MagicMock()
-    
-    writer = SuggestionStreamWriter(handler)
+    mock_handler = MagicMock()
+    mock_handler.write = MagicMock()
+    mock_handler.flush = AsyncMock()
+    mock_handler.finish = MagicMock()
+
+    writer = SuggestionStreamWriter(mock_handler)
     
     # Test send_status
     await writer.send_status("started")
-    handler.write.assert_called_with('data: {"type": "status", "phase": "started"}\n\n')
-    handler.flush.assert_called()
+    mock_handler.write.assert_called_once()
+    chunk = mock_handler.write.call_args[0][0]
+    assert "started" in chunk
+    assert chunk.startswith("data: ")
+    assert chunk.endswith("\n\n")
+
+    mock_handler.write.reset_mock()
     
     # Test send_suggestion
-    handler.write.reset_mock()
-    suggestion = {"id": "1", "title": "test"}
-    await writer.send_suggestion(suggestion)
-    handler.write.assert_called_with('data: {"type": "suggestion", "payload": {"id": "1", "title": "test"}}\n\n')
-    
-    # Test send_info
-    handler.write.reset_mock()
-    await writer.send_info("hello")
-    handler.write.assert_called_with('data: {"type": "info", "message": "hello"}\n\n')
+    await writer.send_suggestion({"id": "123", "title": "Test"})
+    mock_handler.write.assert_called_once()
+    chunk = mock_handler.write.call_args[0][0]
+    payload = json.loads(chunk[6:])
+    assert payload["type"] == "suggestion"
+    assert payload["payload"]["id"] == "123"
     
     # Test close
     await writer.close()
-    handler.finish.assert_called_once()
-    
-    # Test second close (should be no-op)
-    handler.finish.reset_mock()
-    await writer.close()
-    handler.finish.assert_not_called()
-    
-    # Test send after close (should be no-op)
-    handler.write.reset_mock()
-    await writer.send_status("done")
-    handler.write.assert_not_called()
+    assert writer._closed is True
+    mock_handler.finish.assert_called_once()

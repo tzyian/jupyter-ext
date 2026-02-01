@@ -1,4 +1,14 @@
-from selenepy.suggestions.service import _safe_int, _trim_text, apply_scan_scope
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
+
+from selenepy.suggestions.service import (
+    _format_snapshot_for_prompt,
+    _safe_int,
+    _trim_text,
+    apply_scan_scope,
+    stream_live_suggestions,
+)
 
 
 def test_trim_text():
@@ -53,3 +63,29 @@ def test_apply_scan_scope_edge_cases():
     assert len(result["cells"]) == 1
     assert result["cells"][0]["cellIndex"] == 1
     assert result["scanWindow"] == {"start": 1, "end": 1}
+
+
+def test_format_snapshot_for_prompt():
+    snapshot = {
+        "path": "test.ipynb",
+        "activeCellIndex": 0,
+        "cells": [{"cellIndex": 0, "cellType": "code", "source": "print(1)"}],
+        "outline": [{"cellIndex": 0, "level": 1, "text": "Header"}],
+    }
+    prompt = _format_snapshot_for_prompt(snapshot)
+    assert "test.ipynb" in prompt
+    assert "Active cell index: 0" in prompt
+    assert "L1 [Cell 0]: Header" in prompt
+    assert "Cell 0 [code]:\nprint(1)" in prompt
+
+
+@pytest.mark.asyncio
+async def test_stream_live_suggestions_empty():
+    mock_client = MagicMock()
+    mock_client.responses.parse = AsyncMock(return_value=MagicMock(output_parsed=None))
+
+    with patch(
+        "selenepy.suggestions.service._get_openai_client", return_value=mock_client
+    ):
+        results = [s async for s in stream_live_suggestions({}, "context")]
+        assert len(results) == 0
