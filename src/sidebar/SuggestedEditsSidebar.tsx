@@ -25,9 +25,12 @@ export class SuggestedEditsSidebar extends ReactWidget {
   private async _loadPrompts() {
     try {
       this._prompts = await fetchPrompts();
-      // Ensure we have a valid selection
-      if (!this._prompts.find(p => p.id === this._selectedPromptId)) {
-        this._selectedPromptId = 'default';
+      // Ensure we have valid selections
+      if (!this._prompts.find(p => p.id === this._selectedLocalPromptId)) {
+        this._selectedLocalPromptId = 'default';
+      }
+      if (!this._prompts.find(p => p.id === this._selectedGlobalPromptId)) {
+        this._selectedGlobalPromptId = 'default';
       }
       this.update();
     } catch (err) {
@@ -35,43 +38,57 @@ export class SuggestedEditsSidebar extends ReactWidget {
     }
   }
 
-  private async _handleCreatePrompt(name: string, content: string) {
+  private async _performPromptAction<T>(
+    action: () => Promise<T>,
+    errorMessage: string
+  ): Promise<T | void> {
     try {
-      const newPrompt = await savePrompt(name, content);
+      const result = await action();
       await this._loadPrompts();
-      this._selectedPromptId = newPrompt.id;
       this.update();
+      return result;
     } catch (err) {
-      console.error('Failed to create prompt', err);
-      this.showError('Failed to save prompt.');
+      console.error(errorMessage, err);
+      this.showError(errorMessage);
     }
   }
 
-  private async _handleUpdatePrompt(name: string, content: string, id: string) {
-    try {
-      await savePrompt(name, content, id);
-      await this._loadPrompts();
-      this.update();
-    } catch (err) {
-      console.error('Failed to update prompt', err);
-      this.showError('Failed to save prompt.');
-    }
+  private _handleCreatePrompt(
+    name: string,
+    content: string
+  ): Promise<string | void> {
+    return this._performPromptAction(async () => {
+      const prompt = await savePrompt(name, content);
+      return prompt.id;
+    }, 'Failed to create prompt.');
   }
 
-  private async _handleDeletePrompt(id: string) {
-    try {
+  private _handleUpdatePrompt(name: string, content: string, id: string): void {
+    void this._performPromptAction(
+      () => savePrompt(name, content, id),
+      'Failed to update prompt.'
+    );
+  }
+
+  private _handleDeletePrompt(id: string): void {
+    const deleteAction = async () => {
       await deletePrompt(id);
-      await this._loadPrompts();
-      this._selectedPromptId = 'default';
-      this.update();
-    } catch (err) {
-      console.error('Failed to delete prompt', err);
-      this.showError('Failed to delete prompt.');
-    }
+      // Reset selection if deleted prompt was active
+      if (this._selectedLocalPromptId === id) {
+        this._selectedLocalPromptId = 'default';
+      }
+      if (this._selectedGlobalPromptId === id) {
+        this._selectedGlobalPromptId = 'default';
+      }
+    };;
+
+    void this._performPromptAction(deleteAction, 'Failed to delete prompt.');
   }
 
-  getSelectedPromptId(): string {
-    return this._selectedPromptId;
+  getSelectedPromptId(mode: SuggestionScanMode): string {
+    return mode === 'full'
+      ? this._selectedGlobalPromptId
+      : this._selectedLocalPromptId;
   }
 
   get refreshContextRequested(): ISignal<SuggestedEditsSidebar, void> {
@@ -160,9 +177,14 @@ export class SuggestedEditsSidebar extends ReactWidget {
       return (
         <PromptSettingsPanel
           prompts={this._prompts}
-          selectedPromptId={this._selectedPromptId}
-          onSelectPrompt={id => {
-            this._selectedPromptId = id;
+          selectedLocalPromptId={this._selectedLocalPromptId}
+          selectedGlobalPromptId={this._selectedGlobalPromptId}
+          onSelectLocal={id => {
+            this._selectedLocalPromptId = id;
+            this.update();
+          }}
+          onSelectGlobal={id => {
+            this._selectedGlobalPromptId = id;
             this.update();
           }}
           onCreatePrompt={(name, content) =>
@@ -209,10 +231,10 @@ export class SuggestedEditsSidebar extends ReactWidget {
   }
 
   private handleLocalDismiss(index: number): void {
-    for (let i = index; i < this._localSuggestions.length - 1; i++) {
-      this._localSuggestions[i] = this._localSuggestions[i + 1];
-    }
-    this._localSuggestions[this._localSuggestions.length - 1] = null;
+    // Remove the item and shift subsequent items up
+    this._localSuggestions.splice(index, 1);
+    this._localSuggestions.push(null);
+
     this.updateStatusAfterRemoval();
     this.update();
   }
@@ -231,7 +253,8 @@ export class SuggestedEditsSidebar extends ReactWidget {
   private _localSuggestions: (IResolvedSuggestion | null)[] = [null, null];
   private _globalSuggestion: IResolvedSuggestion | null = null;
   private _prompts: IPrompt[] = [];
-  private _selectedPromptId: string = 'default';
+  private _selectedLocalPromptId: string = 'default';
+  private _selectedGlobalPromptId: string = 'default';
   private _view: 'home' | 'settings' = 'home';
 
   private readonly _refreshContextRequested = new Signal<

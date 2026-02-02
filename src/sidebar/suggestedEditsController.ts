@@ -131,7 +131,7 @@ export class SuggestedEditsController implements IDisposable {
     const controller = new AbortController();
     this._currentAbort = controller;
 
-    const promptId = this._panel.getSelectedPromptId();
+    const promptId = this._panel.getSelectedPromptId(this._activeMode);
 
     try {
       for await (const event of streamSuggestions(
