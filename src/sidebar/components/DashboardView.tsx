@@ -1,10 +1,11 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import type { ITelemetryStats } from '../../telemetry/types';
 import { DashboardMetricCard } from './dashboard/DashboardMetricCard';
 import { LLMMetricsCard } from './dashboard/LLMMetricsCard';
 import { ProductivityCard } from './dashboard/ProductivityCard';
 import { NotebookTableCard } from './dashboard/NotebookTableCard';
 import { formatDuration } from '../../utils/formatting';
+import { useTelemetryStats } from '../utils/useTelemetryStats';
 
 export interface IDashboardViewProps {
   fetchStats: (notebookPath?: string) => Promise<ITelemetryStats | null>;
@@ -13,31 +14,8 @@ export interface IDashboardViewProps {
 export const DashboardView: React.FC<IDashboardViewProps> = ({
   fetchStats
 }) => {
-  const [stats, setStats] = useState<ITelemetryStats | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [selectedNotebook, setSelectedNotebook] = useState<string>('');
-
-  useEffect(() => {
-    const loadStats = async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        const notebookPath = selectedNotebook || undefined;
-        const data = await fetchStats(notebookPath);
-        setStats(data);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load stats');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    void loadStats();
-    const interval = setInterval(loadStats, 30000); // Refresh every 30s
-
-    return () => clearInterval(interval);
-  }, [fetchStats, selectedNotebook]);
+  const { stats, loading, error, selectedNotebook, setSelectedNotebook } =
+    useTelemetryStats(fetchStats);
 
   if (loading && !stats) {
     return (

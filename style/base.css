@@ -4,6 +4,28 @@
     https://jupyterlab.readthedocs.io/en/stable/developer/css.html
 */
 
+/* Shared Layout Components */
+.jp-selenepy-suggestedEdits-header,
+.jp-selenepy-dashboard-header {
+  padding: 12px 0;
+  border-bottom: 1px solid var(--jp-border-color1);
+  margin-bottom: 12px;
+}
+
+.jp-selenepy-suggestedEdits-header h2,
+.jp-selenepy-dashboard-header h2 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.jp-selenepy-suggestedEdits-item,
+.jp-selenepy-dashboard-card {
+  padding: 16px;
+  border: 1px solid var(--jp-border-color1);
+  border-radius: 6px;
+  background: var(--jp-layout-color1);
+}
 /* Suggested Edits Sidebar */
 .jp-selenepy-suggestedEdits {
   padding: 0 16px;
@@ -12,16 +34,9 @@
   overflow-wrap: break-word;
 }
 
-.jp-selenepy-suggestedEdits-header {
-  padding: 12px 0;
-  border-bottom: 1px solid var(--jp-border-color1);
-  margin-bottom: 12px;
-}
-
 .jp-selenepy-suggestedEdits-header h2 {
-  margin: 0 0 8px 0;
-  font-size: 16px;
-  font-weight: 600;
+  margin-bottom: 8px;
+    /* Extra margin for buttons below */
 }
 
 .jp-selenepy-suggestedEdits-buttonGroup {
@@ -98,10 +113,7 @@
 }
 
 .jp-selenepy-suggestedEdits-item {
-  border: 1px solid var(--jp-border-color1);
-  border-radius: 4px;
   padding: 12px;
-  background: var(--jp-layout-color1);
 }
 
 .jp-selenepy-suggestedEdits-item-body h3 {
@@ -289,15 +301,7 @@
 }
 
 .jp-selenepy-dashboard-header {
-  padding: 12px 0;
-  border-bottom: 1px solid var(--jp-border-color1);
   margin-bottom: 16px;
-}
-
-.jp-selenepy-dashboard-header h2 {
-  margin: 0;
-  font-size: 16px;
-  font-weight: 600;
 }
 
 .jp-selenepy-dashboard-loading,
@@ -319,12 +323,6 @@
   gap: 12px;
 }
 
-.jp-selenepy-dashboard-card {
-  padding: 16px;
-  border: 1px solid var(--jp-border-color1);
-  border-radius: 6px;
-  background: var(--jp-layout-color1);
-}
 
 .jp-selenepy-dashboard-card h3 {
   margin: 0 0 12px 0;

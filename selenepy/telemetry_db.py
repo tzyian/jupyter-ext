@@ -145,6 +145,32 @@ class TelemetryDB:
 
         return events
 
+    def _build_filter_clause(
+        self,
+        start_time: Optional[float] = None,
+        end_time: Optional[float] = None,
+        notebook_path: Optional[str] = None,
+    ) -> tuple[str, list[Any]]:
+        """Build a shared SQL WHERE clause and parameters for filtering events.
+
+        Returns:
+            A tuple of (where_clause, params)
+        """
+        clauses = ["1=1"]
+        params = []
+
+        if start_time:
+            clauses.append("timestamp >= ?")
+            params.append(start_time)
+        if end_time:
+            clauses.append("timestamp <= ?")
+            params.append(end_time)
+        if notebook_path:
+            clauses.append("json_extract(metadata, '$.notebookPath') = ?")
+            params.append(notebook_path)
+
+        return " AND ".join(clauses), params
+
     def get_event_counts(
         self, start_time: Optional[float] = None, end_time: Optional[float] = None
     ) -> dict[str, int]:
@@ -202,17 +228,9 @@ class TelemetryDB:
             )
 
             # Build time filter
-            time_filter = "1=1"
-            params = []
-            if start_time:
-                time_filter += " AND timestamp >= ?"
-                params.append(start_time)
-            if end_time:
-                time_filter += " AND timestamp <= ?"
-                params.append(end_time)
-            if notebook_path:
-                time_filter += " AND json_extract(metadata, '$.notebookPath') = ?"
-                params.append(notebook_path)
+            time_filter, params = self._build_filter_clause(
+                start_time, end_time, notebook_path
+            )
 
             # Count events by type
             cursor.execute(
@@ -328,7 +346,7 @@ class TelemetryDB:
             )  # 2 min per suggestion
 
             # Calculate productivity score
-            productivity_score = _calculate_productivity_score(
+            productivity_score = self._calculate_productivity_score(
                 execution_success_rate=execution_success_rate,
                 editing_time_seconds=total_editing_time,
                 suggestions_applied=suggestions_applied,
@@ -338,7 +356,7 @@ class TelemetryDB:
             )
 
             # Get per-notebook breakdown
-            per_notebook_breakdown = _get_per_notebook_breakdown(
+            per_notebook_breakdown = self._get_per_notebook_breakdown(
                 cursor, time_filter, params
             )
 
@@ -385,140 +403,6 @@ class TelemetryDB:
             "per_notebook_breakdown": per_notebook_breakdown,
             "available_notebooks": available_notebooks,
         }
-
-
-def _calculate_productivity_score(
-    execution_success_rate: float,
-    editing_time_seconds: float,
-    suggestions_applied: int,
-    suggestions_dismissed: int,
-    cells_created: int,
-    notebooks_saved: int,
-) -> int:
-    """Calculate a productivity score from 0-100 based on multiple factors."""
-
-    # Component 1: Execution success rate (0-30 points)
-    execution_score = (execution_success_rate / 100) * 30
-
-    # Component 2: Active coding time (0-25 points)
-    # Optimal: 2-4 hours per day, diminishing returns after
-    hours = editing_time_seconds / 3600
-    if hours <= 0:
-        time_score = 0
-    elif hours <= 2:
-        time_score = (hours / 2) * 25  # Linear up to 2h
-    elif hours <= 4:
-        time_score = 25  # Optimal range
-    else:
-        time_score = max(0, 25 - (hours - 4) * 2)  # Diminishing after 4h
-
-    # Component 3: LLM acceptance rate (0-20 points)
-    total_suggestions = suggestions_applied + suggestions_dismissed
-    if total_suggestions > 0:
-        acceptance_rate = suggestions_applied / total_suggestions
-        llm_score = acceptance_rate * 20
-    else:
-        llm_score = 10  # Neutral if no suggestions yet
-
-    # Component 4: Cells created (0-15 points)
-    # Diminishing returns: sqrt scale
-    cells_score = min(15, (cells_created**0.5) * 3)
-
-    # Component 5: Notebooks saved (0-10 points)
-    save_score = min(10, notebooks_saved * 2)
-
-    total_score = execution_score + time_score + llm_score + cells_score + save_score
-
-    return round(min(100, max(0, total_score)))
-
-
-def _get_per_notebook_breakdown(
-    cursor, time_filter: str, params: list
-) -> list[dict[str, Any]]:
-    """Get detailed time breakdown per notebook file."""
-
-    # Get session time per notebook
-    cursor.execute(
-        f"""
-        SELECT
-            json_extract(metadata, '$.notebookPath') as notebook_path,
-            SUM(CAST(json_extract(metadata, '$.duration') AS REAL)) as session_time,
-            MAX(timestamp) as last_accessed
-        FROM events
-        WHERE type = 'NotebookSessionEvent'
-        AND json_extract(metadata, '$.notebookPath') IS NOT NULL
-        AND {time_filter}
-        GROUP BY notebook_path
-        ORDER BY session_time DESC
-    """,
-        params,
-    )
-
-    notebook_stats = []
-    for row in cursor.fetchall():
-        notebook_path = row[0]
-        session_time = row[1] or 0
-        last_accessed = row[2] or 0
-
-        # Get typing time for this notebook
-        cursor.execute(
-            f"""
-            SELECT SUM(CAST(json_extract(metadata, '$.duration') AS REAL))
-            FROM events
-            WHERE type = 'CellEditEvent'
-            AND json_extract(metadata, '$.notebookPath') = ?
-            AND {time_filter}
-        """,
-            [notebook_path] + params,
-        )
-
-        typing_time_result = cursor.fetchone()
-        typing_time = typing_time_result[0] if typing_time_result[0] else 0
-
-        # Get execution count for this notebook
-        cursor.execute(
-            f"""
-            SELECT COUNT(*)
-            FROM events
-            WHERE type = 'CellExecuteEvent'
-            AND json_extract(metadata, '$.notebookPath') = ?
-            AND {time_filter}
-        """,
-            [notebook_path] + params,
-        )
-
-        executions = cursor.fetchone()[0] or 0
-
-        # Get save count for this notebook
-        cursor.execute(
-            f"""
-            SELECT COUNT(*)
-            FROM events
-            WHERE type = 'NotebookSaveEvent'
-            AND json_extract(metadata, '$.notebookPath') = ?
-            AND {time_filter}
-        """,
-            [notebook_path] + params,
-        )
-
-        saves = cursor.fetchone()[0] or 0
-
-        # Extract just the filename from the path
-        filename = os.path.basename(notebook_path) if notebook_path else "Unknown"
-
-        notebook_stats.append(
-            {
-                "notebook_path": notebook_path,
-                "filename": filename,
-                "session_time_seconds": round(session_time, 1),
-                "typing_time_seconds": round(typing_time, 1),
-                "executions": executions,
-                "saves": saves,
-                "last_accessed": last_accessed,
-            }
-        )
-
-    return notebook_stats
 
     def migrate_notebook_path(self, old_path: str, new_path: str) -> int:
         """Migrate telemetry events from an old notebook path to a new one.
@@ -579,3 +463,138 @@ def _get_per_notebook_breakdown(
             f"[TelemetryDB] Migrated {updated} events from {old_path} to {new_path}"
         )
         return updated
+
+    def _calculate_productivity_score(
+        self,
+        execution_success_rate: float,
+        editing_time_seconds: float,
+        suggestions_applied: int,
+        suggestions_dismissed: int,
+        cells_created: int,
+        notebooks_saved: int,
+    ) -> int:
+        """Calculate a productivity score from 0-100 based on multiple factors."""
+
+        # Component 1: Execution success rate (0-30 points)
+        execution_score = (execution_success_rate / 100) * 30
+
+        # Component 2: Active coding time (0-25 points)
+        # Optimal: 2-4 hours per day, diminishing returns after
+        hours = editing_time_seconds / 3600
+        if hours <= 0:
+            time_score = 0
+        elif hours <= 2:
+            time_score = (hours / 2) * 25  # Linear up to 2h
+        elif hours <= 4:
+            time_score = 25  # Optimal range
+        else:
+            time_score = max(0, 25 - (hours - 4) * 2)  # Diminishing after 4h
+
+        # Component 3: LLM acceptance rate (0-20 points)
+        total_suggestions = suggestions_applied + suggestions_dismissed
+        if total_suggestions > 0:
+            acceptance_rate = suggestions_applied / total_suggestions
+            llm_score = acceptance_rate * 20
+        else:
+            llm_score = 10  # Neutral if no suggestions yet
+
+        # Component 4: Cells created (0-15 points)
+        # Diminishing returns: sqrt scale
+        cells_score = min(15, (cells_created**0.5) * 3)
+
+        # Component 5: Notebooks saved (0-10 points)
+        save_score = min(10, notebooks_saved * 2)
+
+        total_score = (
+            execution_score + time_score + llm_score + cells_score + save_score
+        )
+
+        return round(min(100, max(0, total_score)))
+
+    def _get_per_notebook_breakdown(
+        self, cursor, time_filter: str, params: list
+    ) -> list[dict[str, Any]]:
+        """Get detailed time breakdown per notebook file."""
+
+        # Get session time per notebook
+        cursor.execute(
+            f"""
+            SELECT
+                json_extract(metadata, '$.notebookPath') as notebook_path,
+                SUM(CAST(json_extract(metadata, '$.duration') AS REAL)) as session_time,
+                MAX(timestamp) as last_accessed
+            FROM events
+            WHERE type = 'NotebookSessionEvent'
+            AND json_extract(metadata, '$.notebookPath') IS NOT NULL
+            AND {time_filter}
+            GROUP BY notebook_path
+            ORDER BY session_time DESC
+        """,
+            params,
+        )
+
+        notebook_stats = []
+        for row in cursor.fetchall():
+            notebook_path = row[0]
+            session_time = row[1] or 0
+            last_accessed = row[2] or 0
+
+            # Get typing time for this notebook
+            cursor.execute(
+                f"""
+                SELECT SUM(CAST(json_extract(metadata, '$.duration') AS REAL))
+                FROM events
+                WHERE type = 'CellEditEvent'
+                AND json_extract(metadata, '$.notebookPath') = ?
+                AND {time_filter}
+            """,
+                [notebook_path] + params,
+            )
+
+            typing_time_result = cursor.fetchone()
+            typing_time = typing_time_result[0] if typing_time_result[0] else 0
+
+            # Get execution count for this notebook
+            cursor.execute(
+                f"""
+                SELECT COUNT(*)
+                FROM events
+                WHERE type = 'CellExecuteEvent'
+                AND json_extract(metadata, '$.notebookPath') = ?
+                AND {time_filter}
+            """,
+                [notebook_path] + params,
+            )
+
+            executions = cursor.fetchone()[0] or 0
+
+            # Get save count for this notebook
+            cursor.execute(
+                f"""
+                SELECT COUNT(*)
+                FROM events
+                WHERE type = 'NotebookSaveEvent'
+                AND json_extract(metadata, '$.notebookPath') = ?
+                AND {time_filter}
+            """,
+                [notebook_path] + params,
+            )
+
+            saves = cursor.fetchone()[0] or 0
+
+            # Extract just the filename from the path
+            filename = os.path.basename(notebook_path) if notebook_path else "Unknown"
+
+            notebook_stats.append(
+                {
+                    "notebook_path": notebook_path,
+                    "filename": filename,
+                    "session_time_seconds": round(session_time, 1),
+                    "typing_time_seconds": round(typing_time, 1),
+                    "executions": executions,
+                    "saves": saves,
+                    "last_accessed": last_accessed,
+                }
+            )
+
+        return notebook_stats
