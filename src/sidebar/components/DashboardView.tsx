@@ -67,6 +67,10 @@ export const DashboardView: React.FC<IDashboardViewProps> = ({
       </header>
 
       <div className="jp-selenepy-dashboard-grid">
+        {stats.per_notebook_breakdown && (
+          <NotebookTableCard notebooks={stats.per_notebook_breakdown} />
+        )}
+
         {/* Time Metrics */}
         <DashboardMetricCard
           title="⏱️ Time Spent Editing"
@@ -137,10 +141,6 @@ export const DashboardView: React.FC<IDashboardViewProps> = ({
         />
 
         <ProductivityCard score={stats.productivity_score} />
-
-        {stats.per_notebook_breakdown && (
-          <NotebookTableCard notebooks={stats.per_notebook_breakdown} />
-        )}
       </div>
     </div>
   );

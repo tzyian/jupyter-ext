@@ -27,10 +27,10 @@ export class SuggestedEditsSidebar extends ReactWidget {
       this._prompts = await fetchPrompts();
       // Ensure we have valid selections
       if (!this._prompts.find(p => p.id === this._selectedLocalPromptId)) {
-        this._selectedLocalPromptId = 'default';
+        this._selectedLocalPromptId = 'default_local';
       }
       if (!this._prompts.find(p => p.id === this._selectedGlobalPromptId)) {
-        this._selectedGlobalPromptId = 'default';
+        this._selectedGlobalPromptId = 'default_global';
       }
       this.update();
     } catch (err) {
@@ -75,12 +75,12 @@ export class SuggestedEditsSidebar extends ReactWidget {
       await deletePrompt(id);
       // Reset selection if deleted prompt was active
       if (this._selectedLocalPromptId === id) {
-        this._selectedLocalPromptId = 'default';
+        this._selectedLocalPromptId = 'default_local';
       }
       if (this._selectedGlobalPromptId === id) {
-        this._selectedGlobalPromptId = 'default';
+        this._selectedGlobalPromptId = 'default_global';
       }
-    };;
+    };
 
     void this._performPromptAction(deleteAction, 'Failed to delete prompt.');
   }
@@ -253,8 +253,8 @@ export class SuggestedEditsSidebar extends ReactWidget {
   private _localSuggestions: (IResolvedSuggestion | null)[] = [null, null];
   private _globalSuggestion: IResolvedSuggestion | null = null;
   private _prompts: IPrompt[] = [];
-  private _selectedLocalPromptId: string = 'default';
-  private _selectedGlobalPromptId: string = 'default';
+  private _selectedLocalPromptId: string = 'default_local';
+  private _selectedGlobalPromptId: string = 'default_global';
   private _view: 'home' | 'settings' = 'home';
 
   private readonly _refreshContextRequested = new Signal<

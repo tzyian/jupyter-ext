@@ -1,5 +1,7 @@
 import json
 import logging
+import sqlite3
+import time
 import uuid
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -9,93 +11,243 @@ from .suggestions.models import SYSTEM_PROMPT as DEFAULT_SYSTEM_PROMPT
 LOGGER = logging.getLogger(__name__)
 
 class PromptManager:
-    """Manages custom system prompts, storing them in a JSON file."""
+    """Manages custom system prompts, storing them in a SQLite database."""
 
-    def __init__(self, storage_path: Optional[Path] = None):
-        if storage_path is None:
-            storage_path = Path.cwd() / "custom_prompts.json"
-        
-        self.storage_path = storage_path
-        self._default_prompt = {
-            "id": "default",
-            "name": "Default",
+    def __init__(self, db_path: Optional[Path] = None):
+        if db_path is None:
+            db_path = Path.cwd() / ".prompts.db"
+
+        self.db_path = db_path
+
+        # Two separate default prompts for local and global suggestions
+        self._default_local_prompt = {
+            "id": "default_local",
+            "name": "Default (Local)",
             "content": DEFAULT_SYSTEM_PROMPT,
-            "isDefault": True
+            "isDefault": True,
         }
 
-    def _load_prompts_from_disk(self) -> List[Dict[str, Any]]:
-        """Load custom prompts from disk."""
-        if not self.storage_path.exists():
-            return []
-        
-        try:
-            with open(self.storage_path, "r", encoding="utf-8") as f:
-                return json.load(f)
-        except Exception as e:
-            LOGGER.error(f"Failed to load prompts from {self.storage_path}: {e}")
-            return []
+        self._default_global_prompt = {
+            "id": "default_global",
+            "name": "Default (Global)",
+            "content": DEFAULT_SYSTEM_PROMPT,
+            "isDefault": True,
+        }
 
-    def _save_prompts_to_disk(self, prompts: List[Dict[str, Any]]) -> None:
-        """Save custom prompts to disk."""
+        self._init_db()
+        self._migrate_from_json()
+
+    def _init_db(self) -> None:
+        """Create the prompts table if it doesn't exist."""
+        with sqlite3.connect(str(self.db_path)) as conn:
+            cursor = conn.cursor()
+
+            cursor.execute(
+                """
+                CREATE TABLE IF NOT EXISTS prompts (
+                    id TEXT PRIMARY KEY,
+                    name TEXT NOT NULL,
+                    content TEXT NOT NULL,
+                    is_default INTEGER NOT NULL DEFAULT 0,
+                    created_at REAL NOT NULL,
+                    updated_at REAL NOT NULL
+                )
+                """
+            )
+
+            # Create index on name for faster lookups
+            cursor.execute(
+                """
+                CREATE INDEX IF NOT EXISTS idx_name
+                ON prompts(name)
+                """
+            )
+
+            conn.commit()
+
+        LOGGER.info(f"[PromptManager] Initialized database at {self.db_path}")
+
+    def _migrate_from_json(self) -> None:
+        """Migrate existing custom_prompts.json data to database on first run."""
+        json_path = Path.cwd() / "custom_prompts.json"
+
+        if not json_path.exists():
+            return
+
         try:
-            with open(self.storage_path, "w", encoding="utf-8") as f:
-                json.dump(prompts, f, indent=2)
+            with open(json_path, "r", encoding="utf-8") as f:
+                prompts = json.load(f)
+
+            if not prompts:
+                return
+
+            # Check if we've already migrated by seeing if any prompts exist
+            with sqlite3.connect(str(self.db_path)) as conn:
+                cursor = conn.cursor()
+                cursor.execute("SELECT COUNT(*) FROM prompts")
+                count = cursor.fetchone()[0]
+
+                if count > 0:
+                    # Already migrated
+                    return
+
+                # Migrate prompts
+                now = time.time()
+                rows = []
+                for prompt in prompts:
+                    if prompt.get("id") == "default":
+                        continue  # Skip default prompt
+
+                    rows.append(
+                        (
+                            prompt["id"],
+                            prompt["name"],
+                            prompt["content"],
+                            1 if prompt.get("isDefault", False) else 0,
+                            now,
+                            now,
+                        )
+                    )
+
+                if rows:
+                    cursor.executemany(
+                        "INSERT INTO prompts (id, name, content, is_default, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
+                        rows,
+                    )
+                    conn.commit()
+                    LOGGER.info(
+                        f"[PromptManager] Migrated {len(rows)} prompts from JSON to database"
+                    )
+
+                # Rename the JSON file to mark it as migrated
+                backup_path = json_path.with_suffix(".json.migrated")
+                json_path.rename(backup_path)
+                LOGGER.info(f"[PromptManager] Renamed {json_path} to {backup_path}")
+
         except Exception as e:
-            LOGGER.error(f"Failed to save prompts to {self.storage_path}: {e}")
+            LOGGER.error(f"Failed to migrate prompts from JSON: {e}")
 
     def get_all_prompts(self) -> List[Dict[str, Any]]:
-        """Get all prompts including the default one."""
-        custom_prompts = self._load_prompts_from_disk()
-        # Always return default first
-        return [self._default_prompt] + custom_prompts
+        """Get all prompts including the default ones."""
+        with sqlite3.connect(str(self.db_path)) as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                """
+                SELECT id, name, content, is_default
+                FROM prompts
+                ORDER BY created_at ASC
+                """
+            )
+
+            custom_prompts = []
+            for row in cursor.fetchall():
+                custom_prompts.append(
+                    {
+                        "id": row[0],
+                        "name": row[1],
+                        "content": row[2],
+                        "isDefault": bool(row[3]),
+                    }
+                )
+
+        # Always return both default prompts first
+        return [
+            self._default_local_prompt,
+            self._default_global_prompt,
+        ] + custom_prompts
 
     def get_prompt_by_id(self, prompt_id: str) -> Optional[Dict[str, Any]]:
         """Get a specific prompt by ID."""
+        if prompt_id == "default_local":
+            return self._default_local_prompt
+        if prompt_id == "default_global":
+            return self._default_global_prompt
+        # Legacy support for old "default" ID
         if prompt_id == "default":
-            return self._default_prompt
-        
-        custom_prompts = self._load_prompts_from_disk()
-        for prompt in custom_prompts:
-            if prompt["id"] == prompt_id:
-                return prompt
+            return self._default_local_prompt
+
+        with sqlite3.connect(str(self.db_path)) as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                """
+                SELECT id, name, content, is_default
+                FROM prompts
+                WHERE id = ?
+                """,
+                (prompt_id,),
+            )
+
+            row = cursor.fetchone()
+            if row:
+                return {
+                    "id": row[0],
+                    "name": row[1],
+                    "content": row[2],
+                    "isDefault": bool(row[3]),
+                }
+
         return None
 
-    def save_prompt(self, name: str, content: str, prompt_id: Optional[str] = None) -> Dict[str, Any]:
+    def save_prompt(
+        self, name: str, content: str, prompt_id: Optional[str] = None
+    ) -> Dict[str, Any]:
         """Create or update a custom prompt."""
-        custom_prompts = self._load_prompts_from_disk()
-        
-        if prompt_id:
-            # Update existing
-            for prompt in custom_prompts:
-                if prompt["id"] == prompt_id:
-                    prompt["name"] = name
-                    prompt["content"] = content
-                    self._save_prompts_to_disk(custom_prompts)
-                    return prompt
-            # If ID provided but not found, fall through to create new (or error?)
-            # For simplicity, if ID not found, we create new.
-        
-        # Create new
-        new_prompt = {
-            "id": prompt_id or uuid.uuid4().hex,
-            "name": name,
-            "content": content,
-            "isDefault": False
-        }
-        custom_prompts.append(new_prompt)
-        self._save_prompts_to_disk(custom_prompts)
-        return new_prompt
+        now = time.time()
+
+        with sqlite3.connect(str(self.db_path)) as conn:
+            cursor = conn.cursor()
+
+            if prompt_id:
+                # Check if prompt exists
+                cursor.execute("SELECT id FROM prompts WHERE id = ?", (prompt_id,))
+                exists = cursor.fetchone()
+
+                if exists:
+                    # Update existing
+                    cursor.execute(
+                        """
+                        UPDATE prompts
+                        SET name = ?, content = ?, updated_at = ?
+                        WHERE id = ?
+                        """,
+                        (name, content, now, prompt_id),
+                    )
+                    conn.commit()
+
+                    return {
+                        "id": prompt_id,
+                        "name": name,
+                        "content": content,
+                        "isDefault": False,
+                    }
+
+            # Create new
+            new_id = prompt_id or uuid.uuid4().hex
+            cursor.execute(
+                """
+                INSERT INTO prompts (id, name, content, is_default, created_at, updated_at)
+                VALUES (?, ?, ?, 0, ?, ?)
+                """,
+                (new_id, name, content, now, now),
+            )
+            conn.commit()
+
+            LOGGER.info(f"[PromptManager] Created new prompt: {new_id}")
+
+            return {"id": new_id, "name": name, "content": content, "isDefault": False}
 
     def delete_prompt(self, prompt_id: str) -> bool:
-        """Delete a custom prompt by ID. specific default prompt cannot be deleted."""
-        if prompt_id == "default":
+        """Delete a custom prompt by ID. Default prompts cannot be deleted."""
+        if prompt_id in ("default_local", "default_global", "default"):
             return False
-        
-        custom_prompts = self._load_prompts_from_disk()
-        initial_len = len(custom_prompts)
-        custom_prompts = [p for p in custom_prompts if p["id"] != prompt_id]
-        
-        if len(custom_prompts) < initial_len:
-            self._save_prompts_to_disk(custom_prompts)
-            return True
-        return False
+
+        with sqlite3.connect(str(self.db_path)) as conn:
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM prompts WHERE id = ?", (prompt_id,))
+            conn.commit()
+            deleted = cursor.rowcount > 0
+
+        if deleted:
+            LOGGER.info(f"[PromptManager] Deleted prompt: {prompt_id}")
+
+        return deleted
