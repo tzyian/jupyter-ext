@@ -12,6 +12,7 @@ from .streaming import SuggestionStreamWriter
 from .suggestions import apply_scan_scope, stream_live_suggestions
 from .telemetry_db import TelemetryDB
 from .utils import handle_exceptions, safe_int
+from .chat import ChatStreamWriter, stream_chat_response
 
 LOGGER = logging.getLogger(__name__)
 LOGGER.setLevel(logging.INFO)
@@ -108,6 +109,7 @@ class SuggestedEditsStreamHandler(APIHandler):
             mode = "context"
         context_window = safe_int(settings.get("contextWindow"), 3)
         prompt_id = body.get("promptId", "default")
+        openai_api_key = settings.get("openaiApiKey", "")
 
         return {
             "snapshot": snapshot,
@@ -115,6 +117,7 @@ class SuggestedEditsStreamHandler(APIHandler):
             "mode": mode,
             "context_window": context_window,
             "prompt_id": prompt_id,
+            "openai_api_key": openai_api_key,
         }
 
     async def _run_suggestion_stream(self, params: Mapping[str, Any]) -> None:
@@ -123,6 +126,7 @@ class SuggestedEditsStreamHandler(APIHandler):
         mode = params["mode"]
         context_window = params["context_window"]
         prompt_id = params["prompt_id"]
+        openai_api_key = params.get("openai_api_key", "")
 
         # Log the request details
         LOGGER.info(
@@ -146,7 +150,7 @@ class SuggestedEditsStreamHandler(APIHandler):
         try:
             target_snapshot = apply_scan_scope(snapshot, mode, context_window)
             async for suggestion in stream_live_suggestions(
-                target_snapshot, mode, system_prompt
+                target_snapshot, mode, system_prompt, openai_api_key=openai_api_key
             ):
                 await writer.send_suggestion(suggestion)
         except tornado.iostream.StreamClosedError:
@@ -165,6 +169,30 @@ class SuggestedEditsStreamHandler(APIHandler):
                 pass  # Stream already closed, ignore
 
 
+class ChatStreamHandler(APIHandler):
+    """Handler for LangGraph chat stream."""
+
+    @tornado.web.authenticated
+    async def post(self) -> None:
+        self.set_header("Content-Type", "text/event-stream")
+        self.set_header("Cache-Control", "no-cache")
+        self.set_header("X-Accel-Buffering", "no")
+        self.set_header("Connection", "keep-alive")
+
+        body = self.get_json_body() or {}
+        message = body.get("message", "")
+        snapshot = body.get("snapshot")
+        settings = body.get("settings", {})
+        openai_api_key = settings.get("openaiApiKey", "")
+        
+        if not message:
+            self.set_status(400)
+            self.finish({"error": "Message is required"})
+            return
+
+        writer = ChatStreamWriter(self)
+        # Launch the stream
+        await stream_chat_response(message, writer, snapshot, openai_api_key=openai_api_key)
 
 
 class TelemetryHandler(APIHandler):
@@ -255,6 +283,7 @@ def setup_route_handlers(web_app):
 
     hello_route_pattern = url_path_join(base_url, "selenepy", "hello")
     stream_route_pattern = url_path_join(base_url, "selenepy", "suggestions", "stream")
+    chat_stream_route_pattern = url_path_join(base_url, "selenepy", "chat", "stream")
     telemetry_route_pattern = url_path_join(base_url, "selenepy", "telemetry")
     telemetry_rename_route_pattern = url_path_join(
         base_url, "selenepy", "telemetry", "rename"
@@ -271,6 +300,7 @@ def setup_route_handlers(web_app):
         (telemetry_route_pattern, TelemetryHandler, {"db": telemetry_db}),
         (telemetry_rename_route_pattern, TelemetryRenameHandler, {"db": telemetry_db}),
         (prompts_route_pattern, PromptsHandler, {"prompt_manager": prompt_manager}),
+        (chat_stream_route_pattern, ChatStreamHandler),
     ]
 
     web_app.add_handlers(host_pattern, handlers)

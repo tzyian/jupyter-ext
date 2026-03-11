@@ -13,6 +13,7 @@ export interface ISuggestedEditsPanelProps {
   onApply: (suggestion: IResolvedSuggestion) => void;
   onDismiss: (suggestion: IResolvedSuggestion, index?: number) => void;
   onOpenSettings: () => void;
+  hasApiKey: boolean;
 }
 
 export const SuggestedEditsPanel: React.FC<ISuggestedEditsPanelProps> = ({
@@ -25,7 +26,8 @@ export const SuggestedEditsPanel: React.FC<ISuggestedEditsPanelProps> = ({
   onPauseToggle,
   onApply,
   onDismiss,
-  onOpenSettings
+  onOpenSettings,
+  hasApiKey
 }) => {
   return (
     <div className="jp-selenepy-suggestedEdits-container">
@@ -59,6 +61,23 @@ export const SuggestedEditsPanel: React.FC<ISuggestedEditsPanelProps> = ({
           </button>
         </div>
       </header>
+
+      {!hasApiKey && (
+        <div
+          style={{
+            padding: '8px',
+            backgroundColor: 'var(--jp-warn-color3)',
+            color: 'var(--jp-ui-font-color0)',
+            marginBottom: '8px',
+            borderRadius: '4px',
+            fontSize: '0.9em'
+          }}
+        >
+          <strong>Missing API Key:</strong> Please set your OpenAI API Key in
+          the JupyterLab Advanced Settings under 'selenejs' to use live
+          suggestions.
+        </div>
+      )}
 
       <div className="jp-selenepy-suggestedEdits-status">{status}</div>
 

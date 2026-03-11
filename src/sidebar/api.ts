@@ -11,6 +11,7 @@ import type {
 
 const PROMPTS_PATH = 'prompts';
 const STREAM_PATH = 'suggestions/stream';
+const CHAT_STREAM_PATH = 'chat/stream';
 
 function getApiSettings(path: string): {
   url: string;
@@ -153,6 +154,88 @@ function parseEventLine(line: string): SuggestionStreamEvent | null {
     return JSON.parse(data) as SuggestionStreamEvent;
   } catch (error) {
     console.warn('Failed to parse suggestion event line', error);
+    return null;
+  }
+}
+
+/**
+ * Stream chat from the backend server.
+ */
+export async function* streamChat(
+  message: string,
+  snapshot: INotebookSnapshot | null,
+  clientSettings: import('../types').ISuggestedEditsSettings | null,
+  signal?: AbortSignal
+): AsyncGenerator<import('../types').ChatStreamEvent> {
+  const { url, settings } = getApiSettings(CHAT_STREAM_PATH);
+
+  const init: RequestInit = {
+    method: 'POST',
+    body: JSON.stringify({ message, snapshot, settings: clientSettings }),
+    headers: {
+      'Content-Type': 'application/json',
+      ...(settings.init?.headers ?? {})
+    },
+    cache: 'no-store',
+    credentials: settings.init?.credentials ?? 'same-origin',
+    redirect: 'follow',
+    signal
+  };
+
+  const response = await ServerConnection.makeRequest(url, init, settings);
+  if (!response.ok || !response.body) {
+    const text = await response.text();
+    throw new ServerConnection.ResponseError(response, text);
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let lineBuffer = '';
+
+  try {
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) {
+        break;
+      }
+
+      const chunk = decoder.decode(value, { stream: true });
+      lineBuffer += chunk;
+
+      const lines = lineBuffer.split(/\r?\n/);
+      lineBuffer = lines.pop() ?? '';
+
+      for (const line of lines) {
+        if (!line.trim()) {
+          continue;
+        }
+        const parsed = parseChatEventLine(line);
+        if (parsed) {
+          yield parsed;
+        }
+      }
+    }
+  } finally {
+    reader.releaseLock();
+  }
+}
+
+function parseChatEventLine(
+  line: string
+): import('../types').ChatStreamEvent | null {
+  if (!line.startsWith('data:')) {
+    return null;
+  }
+
+  const data = line.slice(5).trim();
+  if (!data) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(data) as import('../types').ChatStreamEvent;
+  } catch (error) {
+    console.warn('Failed to parse chat event line', error);
     return null;
   }
 }

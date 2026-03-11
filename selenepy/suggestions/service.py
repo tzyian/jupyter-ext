@@ -73,10 +73,13 @@ def apply_scan_scope(
 
 
 async def stream_live_suggestions(
-    snapshot: Mapping[str, Any], mode: str, system_prompt: str | None = None
+    snapshot: Mapping[str, Any], mode: str, system_prompt: str | None = None, openai_api_key: str | None = None
 ) -> AsyncIterator[Mapping[str, Any]]:
     """Yield structured suggestions from the OpenAI Responses API."""
-    client = _get_openai_client()
+    if openai_api_key:
+        client = AsyncOpenAI(api_key=openai_api_key)
+    else:
+        client = _get_openai_client()
     model_name = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
     prompt = _format_snapshot_for_prompt(snapshot)
     LOGGER.info("LLM PROMPT:\n%s", prompt)

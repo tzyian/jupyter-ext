@@ -13,14 +13,17 @@ import {
   SidebarTelemetryTracker
 } from '../telemetry';
 import { TelemetrySidebar } from './TelemetrySidebar';
+import { ChatSidebar } from './ChatSidebar';
 
 export const SIDEBAR_ID = 'selenejs-suggested-edits-sidebar';
+export const CHAT_SIDEBAR_ID = 'selenejs-chat-sidebar';
 
 /**
  * Registration result for the suggested edits sidebar.
  */
 export interface ISuggestedEditsSidebarRegistration {
   readonly sidebar: SuggestedEditsSidebar;
+  readonly chatSidebar: ChatSidebar;
   readonly controller: SuggestedEditsController;
   readonly telemetryService: TelemetryService;
   readonly notebookTracker: NotebookTelemetryTracker;
@@ -60,27 +63,37 @@ export function registerSuggestedEditsSidebar(options: {
   );
   const sidebarTracker = new SidebarTelemetryTracker(sidebar, telemetryService);
 
-  // Create telemetry dashboard sidebar
   const telemetrySidebar = new TelemetrySidebar(telemetryService);
   telemetrySidebar.id = 'selenejs-telemetry-sidebar';
   telemetrySidebar.title.label = 'Dashboard';
   telemetrySidebar.title.caption = 'Productivity Dashboard';
   telemetrySidebar.title.iconClass = 'jp-SpreadsheetIcon';
 
+  const chatSidebar = new ChatSidebar(tracker);
+
   registerCommands(app, sidebar, controller);
 
   if (restorer) {
     restorer.add(sidebar, SIDEBAR_ID);
     restorer.add(telemetrySidebar, 'selenejs-telemetry-sidebar');
+    restorer.add(chatSidebar, CHAT_SIDEBAR_ID);
   }
 
   app.shell.add(sidebar, 'left', { rank: 600 });
   app.shell.add(telemetrySidebar, 'left', { rank: 601 });
+  app.shell.add(chatSidebar, 'left', { rank: 602 });
 
-  void loadSettings(settingRegistry, controller, pluginId);
+  void loadSettings(
+    settingRegistry,
+    controller,
+    pluginId,
+    sidebar,
+    chatSidebar
+  );
 
   return {
     sidebar,
+    chatSidebar,
     controller,
     telemetryService,
     notebookTracker,
@@ -95,12 +108,16 @@ export function registerSuggestedEditsSidebar(options: {
 async function loadSettings(
   registry: ISettingRegistry | null,
   controller: SuggestedEditsController,
-  pluginId: string
+  pluginId: string,
+  sidebar: SuggestedEditsSidebar,
+  chatSidebar: ChatSidebar
 ): Promise<void> {
   const merged = defaultSettings();
 
   if (!registry) {
     controller.updateSettings(merged);
+    sidebar.setHasApiKey(!!merged.openaiApiKey);
+    chatSidebar.setSettings(merged);
     return;
   }
 
@@ -114,6 +131,8 @@ async function loadSettings(
         ...composite
       };
       controller.updateSettings(resolved);
+      sidebar.setHasApiKey(!!resolved.openaiApiKey);
+      chatSidebar.setSettings(resolved);
     };
 
     settings.changed.connect(applySettings);
@@ -121,5 +140,7 @@ async function loadSettings(
   } catch (error) {
     console.error('Failed to load selenejs settings.', error);
     controller.updateSettings(merged);
+    sidebar.setHasApiKey(!!merged.openaiApiKey);
+    chatSidebar.setSettings(merged);
   }
 }

@@ -13,7 +13,8 @@ describe('SuggestedEditsPanel', () => {
     onPauseToggle: jest.fn(),
     onApply: jest.fn(),
     onDismiss: jest.fn(),
-    onOpenSettings: jest.fn()
+    onOpenSettings: jest.fn(),
+    hasApiKey: true
   };
 
   it('should render the status message', () => {

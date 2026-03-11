@@ -138,6 +138,11 @@ export class SuggestedEditsSidebar extends ReactWidget {
     this.update();
   }
 
+  setHasApiKey(hasApiKey: boolean): void {
+    this._hasApiKey = hasApiKey;
+    this.update();
+  }
+
   beginLocalStream(): void {
     this._localSuggestions = [null, null];
     this.update();
@@ -226,6 +231,7 @@ export class SuggestedEditsSidebar extends ReactWidget {
           this._view = 'settings';
           this.update();
         }}
+        hasApiKey={this._hasApiKey}
       />
     );
   }
@@ -250,6 +256,7 @@ export class SuggestedEditsSidebar extends ReactWidget {
 
   private _status = '';
   private _isPaused = false;
+  private _hasApiKey = false;
   private _localSuggestions: (IResolvedSuggestion | null)[] = [null, null];
   private _globalSuggestion: IResolvedSuggestion | null = null;
   private _prompts: IPrompt[] = [];

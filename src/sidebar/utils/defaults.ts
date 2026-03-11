@@ -8,6 +8,7 @@ export function defaultSettings(): ISuggestedEditsSettings {
     autoRefresh: true,
     debounceMs: 5000,
     maxCellCharacters: 3000,
-    contextWindow: 3
+    contextWindow: 3,
+    openaiApiKey: ''
   };
 }

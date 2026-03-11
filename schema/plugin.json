@@ -3,6 +3,13 @@
   "title": "selenejs",
   "description": "selenejs settings.",
   "type": "object",
-  "properties": {},
+  "properties": {
+    "openaiApiKey": {
+      "type": "string",
+      "title": "OpenAI API Key",
+      "description": "Your OpenAI API Key for suggestions and chat.",
+      "default": ""
+    }
+  },
   "additionalProperties": false
 }

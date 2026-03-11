@@ -54,7 +54,6 @@ export type SuggestionStreamEvent =
       readonly message: string;
     };
 
-
 export interface IPrompt {
   readonly id: string;
   readonly name: string;
@@ -67,6 +66,7 @@ export interface ISuggestedEditsSettings {
   readonly debounceMs: number;
   readonly maxCellCharacters: number;
   readonly contextWindow: number;
+  readonly openaiApiKey?: string;
 }
 
 export interface ISuggestionRequest {
@@ -89,3 +89,23 @@ export interface IReadonlyDiffSegment {
   readonly lineNumberOriginal?: number;
   readonly lineNumberNew?: number;
 }
+
+export interface IChatMessage {
+  readonly id: string;
+  readonly role: 'user' | 'ai';
+  readonly content: string;
+}
+
+export type ChatStreamEvent =
+  | {
+      readonly type: 'status';
+      readonly phase: 'started' | 'complete';
+    }
+  | {
+      readonly type: 'chunk';
+      readonly content: string;
+    }
+  | {
+      readonly type: 'error';
+      readonly message: string;
+    };
