@@ -36,7 +36,7 @@
 
 .jp-selenepy-suggestedEdits-header h2 {
   margin-bottom: 8px;
-    /* Extra margin for buttons below */
+  /* Extra margin for buttons below */
 }
 
 .jp-selenepy-suggestedEdits-buttonGroup {
@@ -91,25 +91,25 @@
   display: flex;
   flex-direction: column;
   gap: 12px;
-  }
-  
-  .jp-selenepy-suggestedEdits-slot {
-    min-height: 60px;
-  }
-  
-  .jp-selenepy-suggestedEdits-slot>.jp-selenepy-suggestedEdits-item {
-    margin: 0;
-  }
-  
-  .jp-selenepy-suggestedEdits-slot-empty {
-    margin: 0;
-    padding: 12px;
-    border: 1px dashed var(--jp-border-color2);
-    border-radius: 4px;
-    font-size: 13px;
-    font-style: italic;
-    color: var(--jp-ui-font-color2);
-    background: var(--jp-layout-color2);
+}
+
+.jp-selenepy-suggestedEdits-slot {
+  min-height: 60px;
+}
+
+.jp-selenepy-suggestedEdits-slot > .jp-selenepy-suggestedEdits-item {
+  margin: 0;
+}
+
+.jp-selenepy-suggestedEdits-slot-empty {
+  margin: 0;
+  padding: 12px;
+  border: 1px dashed var(--jp-border-color2);
+  border-radius: 4px;
+  font-size: 13px;
+  font-style: italic;
+  color: var(--jp-ui-font-color2);
+  background: var(--jp-layout-color2);
 }
 
 .jp-selenepy-suggestedEdits-item {
@@ -184,7 +184,7 @@
 .jp-selenepy-suggestion-preview {
   margin-bottom: 12px;
   overflow-x: auto;
-    max-width: 100%;
+  max-width: 100%;
 }
 
 .jp-selenepy-suggestion-preview pre {
@@ -202,12 +202,12 @@
 /* Preview Views */
 .jp-selenepy-suggestion-preview .jp-selenepy-preview-original {
   background-color: rgba(255, 0, 0, 0.1);
-    color: var(--jp-error-color1);
+  color: var(--jp-error-color1);
 }
 
 .jp-selenepy-suggestion-preview .jp-selenepy-preview-proposed {
   background-color: rgba(0, 255, 0, 0.1);
-    color: var(--jp-success-color1);
+  color: var(--jp-success-color1);
 }
 /* Diff Table Styling */
 .jp-selenepy-diff-table {
@@ -225,8 +225,8 @@
 
 .jp-selenepy-diff-ln {
   width: 10px;
-    min-width: 10px;
-    padding: 0 4px;
+  min-width: 10px;
+  padding: 0 4px;
   text-align: right;
   color: var(--jp-ui-font-color3);
   user-select: none;
@@ -322,7 +322,6 @@
   grid-template-columns: 1fr;
   gap: 12px;
 }
-
 
 .jp-selenepy-dashboard-card h3 {
   margin: 0 0 12px 0;

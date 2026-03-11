@@ -13,7 +13,7 @@ from dotenv import load_dotenv
 from openai import AsyncOpenAI
 from openai.types.responses.response_input_param import ResponseInputItemParam
 
-from ..utils import safe_int
+from ..utils import safe_int, format_snapshot_for_prompt
 from .models import (
     SYSTEM_PROMPT,
     SuggestedEditModel,
@@ -81,7 +81,7 @@ async def stream_live_suggestions(
     else:
         client = _get_openai_client()
     model_name = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
-    prompt = _format_snapshot_for_prompt(snapshot)
+    prompt = format_snapshot_for_prompt(snapshot)
     LOGGER.info("LLM PROMPT:\n%s", prompt)
 
     context_type: SuggestionContextType = "local" if mode == "context" else "global"
@@ -150,52 +150,6 @@ def _normalize_llm_suggestion(
         payload["rationale"] = suggestion.rationale
 
     return payload
-
-
-def _format_snapshot_for_prompt(snapshot: Mapping[str, Any]) -> str:
-    outline: Sequence[Mapping[str, Any]] = snapshot.get("outline", []) or []
-    cells: Sequence[Mapping[str, Any]] = snapshot.get("cells", []) or []
-    active_context: Mapping[str, Any] | None = snapshot.get("activeCellContext")  # type: ignore[assignment]
-
-    lines = [
-        f"Notebook path: {snapshot.get('path', 'unknown')}",
-        f"Active cell index: {snapshot.get('activeCellIndex', 0)}",
-        "--- Outline ---",
-    ]
-
-    if active_context:
-        cursor_offset = active_context.get("cursorOffset")
-        if cursor_offset is not None:
-            lines.append(f"Cursor offset: {cursor_offset}")
-        selected = _trim_text(str(active_context.get("selectedText", "")), 240)
-        if selected:
-            lines.append(f"Selected text snippet: {selected}")
-
-    if outline:
-        for item in outline:
-            level = item.get("level", 1)
-            text = _trim_text(str(item.get("text", "")), 120)
-            cell_idx = item.get("cellIndex", 0)
-            lines.append(f"L{level} [Cell {cell_idx}]: {text}")
-    else:
-        lines.append("(outline empty)")
-
-    lines.append("\n--- Cells ---")
-    for cell in cells:
-        idx = cell.get("cellIndex", 0)
-        cell_type = cell.get("cellType", "markdown")
-        source = _trim_text(str(cell.get("source", "")), 400)
-        lines.append(f"Cell {idx} [{cell_type}]:")
-        lines.append(f"{source}\n")
-
-    return "\n".join(lines)
-
-
-def _trim_text(value: str, limit: int) -> str:
-    text = value.strip()
-    if len(text) <= limit:
-        return text
-    return text[:limit].rstrip() + "…"
 
 
 # Removed local _safe_int as it moved to ..utils

@@ -71,7 +71,7 @@ export function registerSuggestedEditsSidebar(options: {
 
   const chatSidebar = new ChatSidebar(tracker);
 
-  registerCommands(app, sidebar, controller);
+  registerCommands(app, sidebar, controller, chatSidebar);
 
   if (restorer) {
     restorer.add(sidebar, SIDEBAR_ID);

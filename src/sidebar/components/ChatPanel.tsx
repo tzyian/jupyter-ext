@@ -7,6 +7,7 @@ interface IChatPanelProps {
   onSendMessage: (message: string) => void;
   onClear: () => void;
   hasApiKey: boolean;
+  snippets?: { id: string; name: string; content: string }[];
 }
 
 export function ChatPanel({
@@ -14,7 +15,8 @@ export function ChatPanel({
   isStreaming,
   onSendMessage,
   onClear,
-  hasApiKey
+  hasApiKey,
+  snippets
 }: IChatPanelProps): JSX.Element {
   const [input, setInput] = useState('');
   const endOfMessagesRef = useRef<HTMLDivElement>(null);
@@ -139,11 +141,42 @@ export function ChatPanel({
         <div ref={endOfMessagesRef} />
       </div>
 
-      <div
-        className="jp-selenepy-chatInput"
-        style={{ display: 'flex', gap: '4px' }}
-      >
-        <textarea
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+        {snippets && snippets.length > 0 && (
+          <div
+            style={{
+              display: 'flex',
+              gap: '4px',
+              overflowX: 'auto',
+              paddingBottom: '4px'
+            }}
+          >
+            {snippets.map(s => (
+              <button
+                key={s.id}
+                onClick={() => setInput(s.content)}
+                disabled={isStreaming}
+                style={{
+                  fontSize: '10px',
+                  padding: '2px 8px',
+                  borderRadius: '10px',
+                  whiteSpace: 'nowrap',
+                  cursor: isStreaming ? 'not-allowed' : 'pointer',
+                  backgroundColor: 'var(--jp-layout-color2)',
+                  border: '1px solid var(--jp-border-color1)'
+                }}
+                title={s.content}
+              >
+                {s.name}
+              </button>
+            ))}
+          </div>
+        )}
+        <div
+          className="jp-selenepy-chatInput"
+          style={{ display: 'flex', gap: '4px' }}
+        >
+          <textarea
           value={input}
           onChange={e => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
@@ -171,6 +204,7 @@ export function ChatPanel({
         >
           Send
         </button>
+        </div>
       </div>
     </div>
   );

@@ -6,8 +6,10 @@ import logging
 from typing import Annotated, Any, Mapping, TypedDict
 
 from jupyter_server.base.handlers import APIHandler
-from langchain_core.messages import BaseMessage, HumanMessage
+from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage
 from langchain_openai import ChatOpenAI
+
+from .utils import format_snapshot_for_prompt
 from langgraph.graph import END, StateGraph
 from langgraph.graph.message import add_messages
 
@@ -93,9 +95,12 @@ async def stream_chat_response(
             LOGGER.info(
                 f"Chat received snapshot context for path: {snapshot.get('path', 'unknown')}"
             )
+            formatted_context = format_snapshot_for_prompt(snapshot)
+            context_msg = SystemMessage(content=f"You are a helpful coding assistant. Use the following notebook context to answer any questions or craft code modifications.\n\nNotebook context:\n{formatted_context}")
+            inputs = {"messages": [context_msg, HumanMessage(content=message)]}
+        else:
+            inputs = {"messages": [HumanMessage(content=message)]}
 
-
-        inputs = {"messages": [HumanMessage(content=message)]}
         config = {"configurable": {"openai_api_key": openai_api_key}} if openai_api_key else {}
 
         # Stream using async events

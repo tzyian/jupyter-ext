@@ -38,7 +38,13 @@ export async function fetchPrompts(): Promise<IPrompt[]> {
 export async function savePrompt(
   name: string,
   content: string,
-  id?: string
+  id?: string,
+  description?: string,
+  category:
+    | 'suggestion'
+    | 'chat'
+    | 'chat_snippet'
+    | 'context_menu' = 'suggestion'
 ): Promise<IPrompt> {
   const { url, settings } = getApiSettings(PROMPTS_PATH);
 
@@ -46,7 +52,7 @@ export async function savePrompt(
     url,
     {
       method: 'POST',
-      body: JSON.stringify({ name, content, id })
+      body: JSON.stringify({ name, content, id, description, category })
     },
     settings
   );

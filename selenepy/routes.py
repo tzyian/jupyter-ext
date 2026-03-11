@@ -35,13 +35,15 @@ class PromptsHandler(APIHandler):
         name = body.get("name")
         content = body.get("content")
         prompt_id = body.get("id")
+        description = body.get("description")
+        category = body.get("category", "suggestion")
 
         if not name or not content:
             self.set_status(400)
             self.finish(json.dumps({"error": "Name and content are required"}))
             return
 
-        saved_prompt = self.prompt_manager.save_prompt(name, content, prompt_id)
+        saved_prompt = self.prompt_manager.save_prompt(name, content, prompt_id, description, category)
         self.finish(json.dumps(saved_prompt))
 
     @tornado.web.authenticated

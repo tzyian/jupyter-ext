@@ -59,6 +59,8 @@ export interface IPrompt {
   readonly name: string;
   readonly content: string;
   readonly isDefault: boolean;
+  readonly description?: string;
+  readonly category?: 'suggestion' | 'chat' | 'chat_snippet' | 'context_menu';
 }
 
 export interface ISuggestedEditsSettings {

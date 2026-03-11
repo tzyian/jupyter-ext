@@ -23,14 +23,36 @@ class PromptManager:
         self._default_local_prompt = {
             "id": "default_local",
             "name": "Default (Local)",
+            "description": "Standard prompt for contextual suggestions",
             "content": DEFAULT_SYSTEM_PROMPT,
+            "category": "suggestion",
             "isDefault": True,
         }
 
         self._default_global_prompt = {
             "id": "default_global",
             "name": "Default (Global)",
+            "description": "Standard prompt for full notebook suggestions",
             "content": DEFAULT_SYSTEM_PROMPT,
+            "category": "suggestion",
+            "isDefault": True,
+        }
+
+        self._default_explain_prompt = {
+            "id": "default_explain",
+            "name": "Explain Code",
+            "description": "Explains what the selected code does in detail",
+            "content": "You are a helpful coding assistant. Explain the following code in detail, breaking down what it does step by step.",
+            "category": "chat",
+            "isDefault": True,
+        }
+
+        self._default_refactor_prompt = {
+            "id": "default_refactor",
+            "name": "Refactor Code",
+            "description": "Suggests refactoring the selected code for better readability and performance",
+            "content": "You are a helpful coding assistant. Suggest a refactoring for the following code to improve readability, performance, and best practices. Explain the changes you made.",
+            "category": "chat",
             "isDefault": True,
         }
 
@@ -49,11 +71,21 @@ class PromptManager:
                     name TEXT NOT NULL,
                     content TEXT NOT NULL,
                     is_default INTEGER NOT NULL DEFAULT 0,
+                    description TEXT,
+                    category TEXT DEFAULT 'suggestion',
                     created_at REAL NOT NULL,
                     updated_at REAL NOT NULL
                 )
                 """
             )
+
+            # Migrate schema if columns are missing
+            cursor.execute("PRAGMA table_info(prompts)")
+            columns = [info[1] for info in cursor.fetchall()]
+            if "description" not in columns:
+                cursor.execute("ALTER TABLE prompts ADD COLUMN description TEXT")
+            if "category" not in columns:
+                cursor.execute("ALTER TABLE prompts ADD COLUMN category TEXT DEFAULT 'suggestion'")
 
             # Create index on name for faster lookups
             cursor.execute(
@@ -104,6 +136,8 @@ class PromptManager:
                             prompt["name"],
                             prompt["content"],
                             1 if prompt.get("isDefault", False) else 0,
+                            prompt.get("description"),
+                            prompt.get("category", "suggestion"),
                             now,
                             now,
                         )
@@ -111,7 +145,7 @@ class PromptManager:
 
                 if rows:
                     cursor.executemany(
-                        "INSERT INTO prompts (id, name, content, is_default, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
+                        "INSERT INTO prompts (id, name, content, is_default, description, category, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
                         rows,
                     )
                     conn.commit()
@@ -133,7 +167,7 @@ class PromptManager:
             cursor = conn.cursor()
             cursor.execute(
                 """
-                SELECT id, name, content, is_default
+                SELECT id, name, content, is_default, description, category
                 FROM prompts
                 ORDER BY created_at ASC
                 """
@@ -147,6 +181,8 @@ class PromptManager:
                         "name": row[1],
                         "content": row[2],
                         "isDefault": bool(row[3]),
+                        "description": row[4],
+                        "category": row[5] or "suggestion",
                     }
                 )
 
@@ -154,6 +190,8 @@ class PromptManager:
         return [
             self._default_local_prompt,
             self._default_global_prompt,
+            self._default_explain_prompt,
+            self._default_refactor_prompt,
         ] + custom_prompts
 
     def get_prompt_by_id(self, prompt_id: str) -> Optional[Dict[str, Any]]:
@@ -162,6 +200,10 @@ class PromptManager:
             return self._default_local_prompt
         if prompt_id == "default_global":
             return self._default_global_prompt
+        if prompt_id == "default_explain":
+            return self._default_explain_prompt
+        if prompt_id == "default_refactor":
+            return self._default_refactor_prompt
         # Legacy support for old "default" ID
         if prompt_id == "default":
             return self._default_local_prompt
@@ -170,7 +212,7 @@ class PromptManager:
             cursor = conn.cursor()
             cursor.execute(
                 """
-                SELECT id, name, content, is_default
+                SELECT id, name, content, is_default, description, category
                 FROM prompts
                 WHERE id = ?
                 """,
@@ -184,12 +226,14 @@ class PromptManager:
                     "name": row[1],
                     "content": row[2],
                     "isDefault": bool(row[3]),
+                    "description": row[4],
+                    "category": row[5] or "suggestion",
                 }
 
         return None
 
     def save_prompt(
-        self, name: str, content: str, prompt_id: Optional[str] = None
+        self, name: str, content: str, prompt_id: Optional[str] = None, description: Optional[str] = None, category: str = "suggestion"
     ) -> Dict[str, Any]:
         """Create or update a custom prompt."""
         now = time.time()
@@ -207,10 +251,10 @@ class PromptManager:
                     cursor.execute(
                         """
                         UPDATE prompts
-                        SET name = ?, content = ?, updated_at = ?
+                        SET name = ?, content = ?, description = ?, category = ?, updated_at = ?
                         WHERE id = ?
                         """,
-                        (name, content, now, prompt_id),
+                        (name, content, description, category, now, prompt_id),
                     )
                     conn.commit()
 
@@ -218,6 +262,8 @@ class PromptManager:
                         "id": prompt_id,
                         "name": name,
                         "content": content,
+                        "description": description,
+                        "category": category,
                         "isDefault": False,
                     }
 
@@ -225,20 +271,27 @@ class PromptManager:
             new_id = prompt_id or uuid.uuid4().hex
             cursor.execute(
                 """
-                INSERT INTO prompts (id, name, content, is_default, created_at, updated_at)
-                VALUES (?, ?, ?, 0, ?, ?)
+                INSERT INTO prompts (id, name, content, is_default, description, category, created_at, updated_at)
+                VALUES (?, ?, ?, 0, ?, ?, ?, ?)
                 """,
-                (new_id, name, content, now, now),
+                (new_id, name, content, description, category, now, now),
             )
             conn.commit()
 
             LOGGER.info(f"[PromptManager] Created new prompt: {new_id}")
 
-            return {"id": new_id, "name": name, "content": content, "isDefault": False}
+            return {
+                "id": new_id, 
+                "name": name, 
+                "content": content, 
+                "description": description,
+                "category": category,
+                "isDefault": False
+            }
 
     def delete_prompt(self, prompt_id: str) -> bool:
         """Delete a custom prompt by ID. Default prompts cannot be deleted."""
-        if prompt_id in ("default_local", "default_global", "default"):
+        if prompt_id in ("default_local", "default_global", "default_explain", "default_refactor", "default"):
             return False
 
         with sqlite3.connect(str(self.db_path)) as conn:

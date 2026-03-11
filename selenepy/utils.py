@@ -3,7 +3,7 @@ import functools
 import json
 import logging
 import traceback
-from typing import Any, Callable
+from typing import Any, Callable, Mapping, Sequence
 
 LOGGER = logging.getLogger(__name__)
 
@@ -40,4 +40,50 @@ def handle_exceptions(method: Callable) -> Callable:
     return wrapper
 
 
-__all__ = ["safe_int", "handle_exceptions"]
+def trim_text(value: str, limit: int) -> str:
+    text = value.strip()
+    if len(text) <= limit:
+        return text
+    return text[:limit].rstrip() + "…"
+
+
+def format_snapshot_for_prompt(snapshot: Mapping[str, Any]) -> str:
+    outline: Sequence[Mapping[str, Any]] = snapshot.get("outline", []) or []
+    cells: Sequence[Mapping[str, Any]] = snapshot.get("cells", []) or []
+    active_context: Mapping[str, Any] | None = snapshot.get("activeCellContext")  # type: ignore[assignment]
+
+    lines = [
+        f"Notebook path: {snapshot.get('path', 'unknown')}",
+        f"Active cell index: {snapshot.get('activeCellIndex', 0)}",
+        "--- Outline ---",
+    ]
+
+    if active_context:
+        cursor_offset = active_context.get("cursorOffset")
+        if cursor_offset is not None:
+            lines.append(f"Cursor offset: {cursor_offset}")
+        selected = trim_text(str(active_context.get("selectedText", "")), 240)
+        if selected:
+            lines.append(f"Selected text snippet: {selected}")
+
+    if outline:
+        for item in outline:
+            level = item.get("level", 1)
+            text = trim_text(str(item.get("text", "")), 120)
+            cell_idx = item.get("cellIndex", 0)
+            lines.append(f"L{level} [Cell {cell_idx}]: {text}")
+    else:
+        lines.append("(outline empty)")
+
+    lines.append("\n--- Cells ---")
+    for cell in cells:
+        idx = cell.get("cellIndex", 0)
+        cell_type = cell.get("cellType", "markdown")
+        source = trim_text(str(cell.get("source", "")), 400)
+        lines.append(f"Cell {idx} [{cell_type}]:")
+        lines.append(f"{source}\n")
+
+    return "\n".join(lines)
+
+
+__all__ = ["safe_int", "handle_exceptions", "trim_text", "format_snapshot_for_prompt"]
