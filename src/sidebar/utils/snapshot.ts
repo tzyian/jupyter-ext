@@ -132,6 +132,28 @@ export function resolveActiveCellContext(
     }
   }
 
+  if (!selectedText && typeof document !== 'undefined') {
+    const domSelection = document.getSelection();
+    const cellNode = (cell as { node?: Node | null }).node ?? null;
+    const anchorNode = domSelection?.anchorNode ?? null;
+    const focusNode = domSelection?.focusNode ?? null;
+    const isWithinActiveCell =
+      !!domSelection &&
+      !!cellNode &&
+      !!anchorNode &&
+      !!focusNode &&
+      cellNode.contains(anchorNode) &&
+      cellNode.contains(focusNode);
+
+    if (isWithinActiveCell) {
+      const previewLimit = 1200;
+      const domSelectedText = domSelection.toString().trim();
+      if (domSelectedText) {
+        selectedText = domSelectedText.slice(0, previewLimit);
+      }
+    }
+  }
+
   return {
     cellIndex,
     cursorOffset,

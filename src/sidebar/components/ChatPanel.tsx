@@ -2,6 +2,11 @@ import React, { useState, useRef, useEffect } from 'react';
 import type { IChatMessage } from '../../types';
 import { Button } from './common/Button';
 
+interface ICellContext {
+  cellNumber: number;
+  excerpt?: string;
+}
+
 interface IChatPanelProps {
   messages: IChatMessage[];
   isStreaming: boolean;
@@ -10,6 +15,7 @@ interface IChatPanelProps {
   onStop: () => void;
   hasApiKey: boolean;
   snippets?: { id: string; name: string; content: string }[];
+  cellContext?: ICellContext | null;
 }
 
 export function ChatPanel({
@@ -19,7 +25,8 @@ export function ChatPanel({
   onClear,
   onStop,
   hasApiKey,
-  snippets
+  snippets,
+  cellContext
 }: IChatPanelProps): JSX.Element {
   const [input, setInput] = useState('');
   const endOfMessagesRef = useRef<HTMLDivElement>(null);
@@ -140,27 +147,66 @@ export function ChatPanel({
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-        {snippets && snippets.length > 0 && (
+        {cellContext && (
           <div
             style={{
-              display: 'flex',
-              gap: '4px',
-              overflowX: 'auto',
-              paddingBottom: '4px'
+              fontSize: '0.72rem',
+              padding: '2px 6px',
+              backgroundColor: 'var(--jp-layout-color2)',
+              border: '1px solid var(--jp-border-color1)',
+              borderRadius: '4px',
+              color: 'var(--jp-ui-font-color2)',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap'
             }}
+            title={
+              cellContext.excerpt
+                ? `Cell ${cellContext.cellNumber}: ${cellContext.excerpt}`
+                : `Cell ${cellContext.cellNumber}`
+            }
           >
-            {snippets.map(s => (
-              <Button
-                key={s.id}
-                variant="ghost"
-                onClick={() => setInput(s.content)}
-                disabled={isStreaming}
-                className="jp-selenepy-chat-snippet-btn"
-                title={s.content}
-              >
-                {s.name}
-              </Button>
-            ))}
+            📍{' '}
+            {cellContext.excerpt
+              ? `Cell ${cellContext.cellNumber}: "${cellContext.excerpt}"`
+              : `Cell ${cellContext.cellNumber}`}
+          </div>
+        )}
+        {snippets && snippets.length > 0 && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+            <div
+              style={{
+                fontSize: '0.72rem',
+                color: 'var(--jp-ui-font-color2)',
+                paddingLeft: '2px'
+              }}
+            >
+              Snippets
+            </div>
+            <div
+              style={{
+                display: 'flex',
+                gap: '4px',
+                overflowX: 'auto',
+                paddingBottom: '4px'
+              }}
+            >
+              {snippets.map(s => (
+                <Button
+                  key={s.id}
+                  variant="ghost"
+                  onClick={() =>
+                    setInput(prev =>
+                      prev ? `${prev}\n${s.content}` : s.content
+                    )
+                  }
+                  className="jp-selenepy-chat-snippet-btn"
+                  title={`Snippet: ${s.name}\n\n${s.content}`}
+                >
+                  {s.name}
+                </Button>
+              ))}
+            </div>
           </div>
         )}
         <div
@@ -172,7 +218,6 @@ export function ChatPanel({
             onChange={e => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder="Type your message..."
-            disabled={isStreaming}
             style={{
               flexGrow: 1,
               resize: 'none',

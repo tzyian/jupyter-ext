@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { IPrompt } from '../../types';
 import { fetchPrompts, savePrompt, deletePrompt } from '../api';
 
@@ -30,15 +30,29 @@ export function usePrompts(
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const normalizedCategories = useMemo(() => {
+    if (!categoryFilter) {
+      return null;
+    }
+    return Array.isArray(categoryFilter)
+      ? [...categoryFilter]
+      : [categoryFilter];
+  }, [categoryFilter]);
+
+  const categoryKey = useMemo(() => {
+    if (!normalizedCategories) {
+      return '__ALL__';
+    }
+    return normalizedCategories.join('|');
+  }, [normalizedCategories]);
+
   const refresh = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
       const all = await fetchPrompts();
-      if (categoryFilter) {
-        const categories = Array.isArray(categoryFilter)
-          ? categoryFilter
-          : [categoryFilter];
+      if (normalizedCategories) {
+        const categories = normalizedCategories;
         setPrompts(
           all.filter(p => {
             if (p.category && categories.includes(p.category)) {
@@ -63,7 +77,7 @@ export function usePrompts(
     } finally {
       setLoading(false);
     }
-  }, [categoryFilter]);
+  }, [categoryKey, normalizedCategories]);
 
   useEffect(() => {
     void refresh();

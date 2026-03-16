@@ -1,5 +1,5 @@
 import { ReactWidget } from '@jupyterlab/apputils';
-import React, { useEffect } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import { ChatPanel } from './components/ChatPanel';
 import { streamChat } from './api';
 import type {
@@ -27,6 +27,24 @@ export class ChatSidebar extends ReactWidget {
   private _chatMenu: Menu | null = null;
   private _selectedSnippetId: string = '__CREATE_NEW__';
   private _selectedContextMenuId: string = '__CREATE_NEW__';
+  private _menuFingerprint = '';
+  private _onDocumentSelectionChange = () => {
+    const notebookNode = this._tracker?.currentWidget?.content.node;
+    const selection =
+      typeof document !== 'undefined' ? document.getSelection() : null;
+    const anchorNode = selection?.anchorNode ?? null;
+    const focusNode = selection?.focusNode ?? null;
+
+    if (
+      notebookNode &&
+      anchorNode &&
+      focusNode &&
+      notebookNode.contains(anchorNode) &&
+      notebookNode.contains(focusNode)
+    ) {
+      this.update();
+    }
+  };
 
   constructor(tracker?: INotebookTracker) {
     super();
@@ -37,7 +55,35 @@ export class ChatSidebar extends ReactWidget {
     this.title.iconClass = 'jp-CodeConsoleIcon';
     if (tracker) {
       this._tracker = tracker;
+      tracker.currentChanged.connect((_, panel) => {
+        if (panel) {
+          panel.content.activeCellChanged.connect(() => this.update(), this);
+        }
+        this.update();
+      }, this);
+      if (tracker.currentWidget) {
+        tracker.currentWidget.content.activeCellChanged.connect(
+          () => this.update(),
+          this
+        );
+      }
     }
+    if (typeof document !== 'undefined') {
+      document.addEventListener(
+        'selectionchange',
+        this._onDocumentSelectionChange
+      );
+    }
+  }
+
+  dispose(): void {
+    if (typeof document !== 'undefined') {
+      document.removeEventListener(
+        'selectionchange',
+        this._onDocumentSelectionChange
+      );
+    }
+    super.dispose();
   }
 
   public setChatMenu(menu: Menu) {
@@ -49,11 +95,24 @@ export class ChatSidebar extends ReactWidget {
     if (!this._chatMenu) {
       return;
     }
-    this._chatMenu.clearItems();
 
     const contextMenuPrompts = this._prompts.filter(
       (p: IPrompt) => p.category === 'context_menu' || p.category === 'chat'
     );
+
+    const nextFingerprint = contextMenuPrompts
+      .map(
+        p =>
+          `${p.id}:${p.name}:${p.description ?? ''}:${p.content}:${p.category ?? ''}`
+      )
+      .join('|');
+
+    if (nextFingerprint === this._menuFingerprint) {
+      return;
+    }
+
+    this._menuFingerprint = nextFingerprint;
+    this._chatMenu.clearItems();
 
     for (const p of contextMenuPrompts) {
       this._chatMenu.addItem({
@@ -74,6 +133,25 @@ export class ChatSidebar extends ReactWidget {
   setSettings(settings: ISuggestedEditsSettings): void {
     this._settings = settings;
     this.update();
+  }
+
+  private _getActiveCellContext(): {
+    cellNumber: number;
+    excerpt?: string;
+  } | null {
+    const widget = this._tracker?.currentWidget;
+    if (!widget) {
+      return null;
+    }
+    const cellNumber = (widget.content.activeCellIndex ?? 0) + 1;
+    const snapshot = this._getSnapshot();
+    const rawSelected = snapshot?.activeCellContext?.selectedText;
+    if (!rawSelected) {
+      return { cellNumber };
+    }
+    const flat = rawSelected.replace(/\n/g, ' ').trim();
+    const excerpt = flat.length > 80 ? `${flat.slice(0, 80)}\u2026` : flat;
+    return { cellNumber, excerpt };
   }
 
   private _getSnapshot(): INotebookSnapshot | null {
@@ -159,6 +237,7 @@ export class ChatSidebar extends ReactWidget {
   }
 
   protected render(): JSX.Element {
+    const cellContext = this._getActiveCellContext();
     return (
       <ChatSidebarContent
         sidebar={this}
@@ -194,6 +273,7 @@ export class ChatSidebar extends ReactWidget {
           this._prompts = prompts;
           this._updateMenu();
         }}
+        cellContext={cellContext}
       />
     );
   }
@@ -217,12 +297,15 @@ const ChatSidebarContent: React.FC<{
   onSelectSnippet: (id: string) => void;
   onSelectContextMenu: (id: string) => void;
   onPromptsChanged: (prompts: IPrompt[]) => void;
+  cellContext: { cellNumber: number; excerpt?: string } | null;
 }> = props => {
-  const { prompts, updatePrompt, createPrompt, removePrompt } = usePrompts([
-    'chat_snippet',
-    'context_menu',
-    'chat'
-  ]);
+  const promptCategories = useMemo<IPrompt['category'][]>(
+    () => ['chat_snippet', 'context_menu', 'chat'],
+    []
+  );
+
+  const { prompts, updatePrompt, createPrompt, removePrompt } =
+    usePrompts(promptCategories);
 
   useEffect(() => {
     props.onPromptsChanged(prompts);
@@ -234,6 +317,24 @@ const ChatSidebarContent: React.FC<{
   const contextMenus = prompts.filter(
     (p: IPrompt) => p.category === 'context_menu' || p.category === 'chat'
   );
+
+  useEffect(() => {
+    if (
+      props.selectedSnippetId !== '__CREATE_NEW__' &&
+      !snippets.some(p => p.id === props.selectedSnippetId)
+    ) {
+      props.onSelectSnippet('__CREATE_NEW__');
+    }
+  }, [snippets, props.selectedSnippetId]);
+
+  useEffect(() => {
+    if (
+      props.selectedContextMenuId !== '__CREATE_NEW__' &&
+      !contextMenus.some(p => p.id === props.selectedContextMenuId)
+    ) {
+      props.onSelectContextMenu('__CREATE_NEW__');
+    }
+  }, [contextMenus, props.selectedContextMenuId]);
 
   return (
     <div
@@ -279,6 +380,7 @@ const ChatSidebarContent: React.FC<{
             onStop={props.onStop}
             hasApiKey={!!props.settings?.openaiApiKey}
             snippets={snippets}
+            cellContext={props.cellContext}
           />
         )}
 
