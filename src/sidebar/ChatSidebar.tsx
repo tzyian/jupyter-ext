@@ -162,9 +162,35 @@ export class ChatSidebar extends ReactWidget {
     return buildSnapshot(this._tracker.currentWidget, maxChars);
   }
 
+  private _buildContextMenuMessage(promptText: string): string {
+    const snapshot = this._getSnapshot();
+    const selectedText = snapshot?.activeCellContext?.selectedText?.trim();
+
+    if (!selectedText) {
+      return promptText;
+    }
+
+    return [
+      'Focus primarily on the selected notebook content below.',
+      '',
+      'Selected notebook content:',
+      '"""',
+      selectedText,
+      '"""',
+      '',
+      'Instruction:',
+      promptText
+    ].join('\n');
+  }
+
   public async executePrompt(promptText: string) {
     this._view = 'chat';
     await this._handleSendMessage(promptText);
+  }
+
+  public async executeContextMenuPrompt(promptText: string) {
+    this._view = 'chat';
+    await this._handleSendMessage(this._buildContextMenuMessage(promptText));
   }
 
   private async _handleSendMessage(content: string) {

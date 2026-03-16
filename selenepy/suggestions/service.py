@@ -152,9 +152,6 @@ def _normalize_llm_suggestion(
     return payload
 
 
-# Removed local _safe_int as it moved to ..utils
-
-
 __all__ = [
     "apply_scan_scope",
     "stream_live_suggestions",

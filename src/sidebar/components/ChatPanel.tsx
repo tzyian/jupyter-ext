@@ -61,7 +61,7 @@ export function ChatPanel({
     >
       <div className="jp-selenepy-chatHeader">
         <h3 style={{ margin: 0, fontSize: 'var(--js-header-font-size)' }}>
-          LangGraph Chat
+          SeleneJs Chat
         </h3>
         <div style={{ display: 'flex', gap: '6px' }}>
           {isStreaming && (

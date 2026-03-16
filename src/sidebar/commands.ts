@@ -4,18 +4,12 @@ import type { SuggestedEditsController } from './suggestedEditsController';
 import type { ChatSidebar } from './ChatSidebar';
 import { Menu } from '@lumino/widgets';
 
-/**
- * Command IDs for the suggested edits extension.
- */
 export namespace CommandIDs {
   export const openSidebar = 'selenejs:open-suggested-edits';
   export const refresh = 'selenejs:refresh-suggested-edits';
   export const chatAboutThis = 'selenejs:chat-about-this';
 }
 
-/**
- * Register commands with the application.
- */
 export function registerCommands(
   app: JupyterFrontEnd,
   sidebar: SuggestedEditsSidebar,
@@ -60,7 +54,7 @@ export function registerCommands(
         }
         app.shell.activateById(chatSidebar.id);
 
-        await chatSidebar.executePrompt(promptContent);
+        await chatSidebar.executeContextMenuPrompt(promptContent);
       }
     });
 
@@ -75,7 +69,6 @@ export function registerCommands(
       rank: 10
     });
 
-    // Provide the menu block to the sidebar to populate dynamically
     chatSidebar.setChatMenu(chatMenu);
   }
 }

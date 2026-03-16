@@ -1,5 +1,3 @@
-"""LangGraph chat orchestration."""
-
 import asyncio
 import json
 import logging

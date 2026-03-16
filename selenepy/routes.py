@@ -7,12 +7,12 @@ import tornado
 from jupyter_server.base.handlers import APIHandler
 from jupyter_server.utils import url_path_join
 
+from .chat import ChatStreamWriter, stream_chat_response
 from .prompts import PromptManager
 from .streaming import SuggestionStreamWriter
 from .suggestions import apply_scan_scope, stream_live_suggestions
 from .telemetry_db import TelemetryDB
 from .utils import handle_exceptions, safe_int
-from .chat import ChatStreamWriter, stream_chat_response
 
 LOGGER = logging.getLogger(__name__)
 LOGGER.setLevel(logging.INFO)
@@ -172,8 +172,6 @@ class SuggestedEditsStreamHandler(APIHandler):
 
 
 class ChatStreamHandler(APIHandler):
-    """Handler for LangGraph chat stream."""
-
     @tornado.web.authenticated
     async def post(self) -> None:
         self.set_header("Content-Type", "text/event-stream")
