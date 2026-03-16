@@ -1,5 +1,5 @@
 import { ReactWidget } from '@jupyterlab/apputils';
-import React from 'react';
+import React, { useEffect } from 'react';
 import { ChatPanel } from './components/ChatPanel';
 import { streamChat } from './api';
 import type {
@@ -11,8 +11,9 @@ import type {
 import type { INotebookTracker } from '@jupyterlab/notebook';
 import { Menu } from '@lumino/widgets';
 import { buildSnapshot } from './utils/snapshot';
-import { fetchPrompts, savePrompt, deletePrompt } from './api';
+import { usePrompts } from './utils/usePrompts';
 import { PromptEditorCard } from './components/common/PromptEditorCard';
+import { Select } from './components/common/Select';
 import { CommandIDs } from './commands';
 
 export class ChatSidebar extends ReactWidget {
@@ -37,20 +38,6 @@ export class ChatSidebar extends ReactWidget {
     if (tracker) {
       this._tracker = tracker;
     }
-    void this.loadPrompts();
-  }
-
-  public async loadPrompts() {
-    try {
-      const allPrompts = await fetchPrompts();
-      this._prompts = allPrompts.filter(
-        p => p.category === 'chat_snippet' || p.category === 'context_menu' || p.category === 'chat'
-      );
-      this.update();
-      this._updateMenu();
-    } catch (e) {
-      console.error('Failed to load chat prompts', e);
-    }
   }
 
   public setChatMenu(menu: Menu) {
@@ -64,7 +51,9 @@ export class ChatSidebar extends ReactWidget {
     }
     this._chatMenu.clearItems();
 
-    const contextMenuPrompts = this._prompts.filter(p => p.category === 'context_menu' || p.category === 'chat');
+    const contextMenuPrompts = this._prompts.filter(
+      (p: IPrompt) => p.category === 'context_menu' || p.category === 'chat'
+    );
 
     for (const p of contextMenuPrompts) {
       this._chatMenu.addItem({
@@ -169,144 +158,169 @@ export class ChatSidebar extends ReactWidget {
     this.update();
   }
 
-  private async _handleCreatePrompt(
-    name: string,
-    content: string,
-    description: string,
-    category: 'chat_snippet' | 'context_menu'
-  ): Promise<string | void> {
-    try {
-      const p = await savePrompt(
-        name,
-        content,
-        undefined,
-        description,
-        category
-      );
-      await this.loadPrompts();
-      return p.id;
-    } catch (err) {
-      console.error('Failed to create prompt', err);
-    }
-  }
-
-  private async _handleUpdatePrompt(
-    name: string,
-    content: string,
-    description: string,
-    id: string,
-    category: 'chat_snippet' | 'context_menu'
-  ) {
-    try {
-      await savePrompt(name, content, id, description, category);
-      await this.loadPrompts();
-    } catch (err) {
-      console.error('Failed to update prompt', err);
-    }
-  }
-
-  private async _handleDeletePrompt(id: string) {
-    try {
-      await deletePrompt(id);
-      await this.loadPrompts();
-    } catch (err) {
-      console.error('Failed to delete prompt', err);
-    }
-  }
-
   protected render(): JSX.Element {
-    const snippets = this._prompts.filter(p => p.category === 'chat_snippet');
-    const contextMenus = this._prompts.filter(p => p.category === 'context_menu' || p.category === 'chat');
-
     return (
-      <div
-        className="jp-selenepy-chatSidebar-wrapper"
-        style={{ display: 'flex', flexDirection: 'column', height: '100%' }}
-      >
-        <div
-          style={{
-            padding: '4px',
-            textAlign: 'right',
-            borderBottom: '1px solid var(--jp-border-color2)',
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center'
-          }}
-        >
-          <span style={{ fontSize: '11px', fontWeight: 'bold', marginLeft: '8px' }}>View:</span>
-          <select
-            value={this._view}
-            onChange={e => {
-              this._view = e.target.value as 'chat' | 'chat_snippet' | 'context_menu';
-              this.update();
-            }}
-            className="jp-selenepy-promptSelector"
-            style={{ width: 'auto', marginBottom: 0, border: 'none', background: 'transparent' }}
-          >
-            <option value="chat">Chat</option>
-            <option value="chat_snippet">Manage Chat Snippets</option>
-            <option value="context_menu">Manage Context Menus</option>
-          </select>
-        </div>
-        
-        <div style={{ flex: 1, overflowY: 'auto' }}>
-          {this._view === 'chat' && (
-            <ChatPanel
-              messages={this._messages}
-              isStreaming={this._isStreaming}
-              onSendMessage={msg => void this._handleSendMessage(msg)}
-              onClear={() => this._handleClear()}
-              hasApiKey={!!this._settings?.openaiApiKey}
-              snippets={snippets}
-            />
-          )}
-
-          {this._view === 'context_menu' && (
-            <div className="jp-selenepy-promptSettings-cards">
-              <PromptEditorCard
-                title="Right-Click Menu Options"
-                prompts={contextMenus}
-                selectedPromptId={this._selectedContextMenuId}
-                onSelectPrompt={id => {
-                  this._selectedContextMenuId = id;
-                  this.update();
-                }}
-                onUpdatePrompt={(n, c, d, i) =>
-                  void this._handleUpdatePrompt(n, c, d, i, 'context_menu')
-                }
-                onCreatePrompt={(n, c, d) =>
-                  this._handleCreatePrompt(n, c, d, 'context_menu')
-                }
-                onDeletePrompt={i => void this._handleDeletePrompt(i)}
-              />
-            </div>
-          )}
-
-          {this._view === 'chat_snippet' && (
-            <div className="jp-selenepy-promptSettings-cards">
-              <PromptEditorCard
-                title="Reusable Chat Snippets"
-                prompts={snippets}
-                selectedPromptId={this._selectedSnippetId}
-                onSelectPrompt={id => {
-                  this._selectedSnippetId = id;
-                  this.update();
-                }}
-                onUpdatePrompt={(n, c, d, i) =>
-                  void this._handleUpdatePrompt(n, c, d, i, 'chat_snippet')
-                }
-                onCreatePrompt={(n, c, d) =>
-                  this._handleCreatePrompt(n, c, d, 'chat_snippet')
-                }
-                onDeletePrompt={i => void this._handleDeletePrompt(i)}
-                showDescription={false}
-                createNewLabel="➕ Create New Snippet..."
-                selectLabel="Select Snippet:"
-              />
-            </div>
-          )}
-        </div>
-      </div>
+      <ChatSidebarContent
+        sidebar={this}
+        view={this._view}
+        messages={this._messages}
+        isStreaming={this._isStreaming}
+        settings={this._settings}
+        selectedSnippetId={this._selectedSnippetId}
+        selectedContextMenuId={this._selectedContextMenuId}
+        onViewChange={v => {
+          this._view = v;
+          this.update();
+        }}
+        onSendMessage={msg => void this._handleSendMessage(msg)}
+        onClear={() => this._handleClear()}
+        onStop={() => {
+          if (this._abortController) {
+            this._abortController.abort();
+            this._abortController = null;
+          }
+          this._isStreaming = false;
+          this.update();
+        }}
+        onSelectSnippet={id => {
+          this._selectedSnippetId = id;
+          this.update();
+        }}
+        onSelectContextMenu={id => {
+          this._selectedContextMenuId = id;
+          this.update();
+        }}
+        onPromptsChanged={prompts => {
+          this._prompts = prompts;
+          this._updateMenu();
+        }}
+      />
     );
   }
 }
+
+/**
+ * Functional component wrapper for ChatSidebar to use hooks.
+ */
+const ChatSidebarContent: React.FC<{
+  sidebar: ChatSidebar;
+  view: 'chat' | 'chat_snippet' | 'context_menu';
+  messages: IChatMessage[];
+  isStreaming: boolean;
+  settings: ISuggestedEditsSettings | null;
+  selectedSnippetId: string;
+  selectedContextMenuId: string;
+  onViewChange: (v: 'chat' | 'chat_snippet' | 'context_menu') => void;
+  onSendMessage: (msg: string) => void;
+  onClear: () => void;
+  onStop: () => void;
+  onSelectSnippet: (id: string) => void;
+  onSelectContextMenu: (id: string) => void;
+  onPromptsChanged: (prompts: IPrompt[]) => void;
+}> = props => {
+  const { prompts, updatePrompt, createPrompt, removePrompt } = usePrompts([
+    'chat_snippet',
+    'context_menu',
+    'chat'
+  ]);
+
+  useEffect(() => {
+    props.onPromptsChanged(prompts);
+  }, [prompts]);
+
+  const snippets = prompts.filter(
+    (p: IPrompt) => p.category === 'chat_snippet'
+  );
+  const contextMenus = prompts.filter(
+    (p: IPrompt) => p.category === 'context_menu' || p.category === 'chat'
+  );
+
+  return (
+    <div
+      className="jp-selenepy-chatSidebar-wrapper"
+      style={{ display: 'flex', flexDirection: 'column', height: '100%' }}
+    >
+      <div
+        style={{
+          padding: '4px',
+          borderBottom: '1px solid var(--jp-border-color2)',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center'
+        }}
+      >
+        <Select
+          label="View:"
+          value={props.view}
+          onChange={val =>
+            props.onViewChange(val as 'chat' | 'chat_snippet' | 'context_menu')
+          }
+          options={[
+            { value: 'chat', label: 'Chat' },
+            { value: 'chat_snippet', label: 'Manage Chat Snippets' },
+            { value: 'context_menu', label: 'Manage Context Menus' }
+          ]}
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: '8px',
+            width: '100%'
+          }}
+        />
+      </div>
+
+      <div style={{ flex: 1, overflowY: 'auto' }}>
+        {props.view === 'chat' && (
+          <ChatPanel
+            messages={props.messages}
+            isStreaming={props.isStreaming}
+            onSendMessage={props.onSendMessage}
+            onClear={props.onClear}
+            onStop={props.onStop}
+            hasApiKey={!!props.settings?.openaiApiKey}
+            snippets={snippets}
+          />
+        )}
+
+        {props.view === 'context_menu' && (
+          <div className="jp-selenepy-promptSettings-cards">
+            <PromptEditorCard
+              title="Right-Click Menu Options"
+              prompts={contextMenus}
+              selectedPromptId={props.selectedContextMenuId}
+              onSelectPrompt={props.onSelectContextMenu}
+              onUpdatePrompt={(n, c, d, i) =>
+                updatePrompt(n, c, d, i, 'context_menu')
+              }
+              onCreatePrompt={(n, c, d) =>
+                createPrompt(n, c, d, 'context_menu')
+              }
+              onDeletePrompt={removePrompt}
+            />
+          </div>
+        )}
+
+        {props.view === 'chat_snippet' && (
+          <div className="jp-selenepy-promptSettings-cards">
+            <PromptEditorCard
+              title="Reusable Chat Snippets"
+              prompts={snippets}
+              selectedPromptId={props.selectedSnippetId}
+              onSelectPrompt={props.onSelectSnippet}
+              onUpdatePrompt={(n, c, d, i) =>
+                updatePrompt(n, c, d, i, 'chat_snippet')
+              }
+              onCreatePrompt={(n, c, d) =>
+                createPrompt(n, c, d, 'chat_snippet')
+              }
+              onDeletePrompt={removePrompt}
+              showDescription={false}
+              createNewLabel="➕ Create New Snippet..."
+              selectLabel="Select Snippet:"
+            />
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};

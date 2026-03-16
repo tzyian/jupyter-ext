@@ -1,6 +1,6 @@
 import React from 'react';
 import { IPrompt } from '../../../types';
-import { PromptCard } from './PromptCard';
+import { PromptEditorCard } from '../common/PromptEditorCard';
 
 interface IPromptSettingsPanelProps {
   prompts: IPrompt[];
@@ -8,8 +8,17 @@ interface IPromptSettingsPanelProps {
   selectedGlobalPromptId: string;
   onSelectLocal: (id: string) => void;
   onSelectGlobal: (id: string) => void;
-  onUpdatePrompt: (name: string, content: string, id: string) => void;
-  onCreatePrompt: (name: string, content: string) => Promise<string | void>;
+  onUpdatePrompt: (
+    name: string,
+    content: string,
+    description: string,
+    id: string
+  ) => void;
+  onCreatePrompt: (
+    name: string,
+    content: string,
+    description: string
+  ) => Promise<string | void>;
   onDeletePrompt: (id: string) => void;
   onBack: () => void;
 }
@@ -27,15 +36,8 @@ export const PromptSettingsPanel: React.FC<IPromptSettingsPanelProps> = ({
 }) => {
   return (
     <div className="jp-selenepy-promptSettings">
-      <header className="jp-selenepy-promptSettings-header">
-        <button className="jp-selenepy-promptSettings-backBtn" onClick={onBack}>
-          ← Back
-        </button>
-        <h2>Manage Prompts</h2>
-      </header>
-
       <div className="jp-selenepy-promptSettings-cards">
-        <PromptCard
+        <PromptEditorCard
           title="Local Suggestions"
           prompts={prompts}
           selectedPromptId={selectedLocalPromptId}
@@ -43,9 +45,10 @@ export const PromptSettingsPanel: React.FC<IPromptSettingsPanelProps> = ({
           onUpdatePrompt={onUpdatePrompt}
           onCreatePrompt={onCreatePrompt}
           onDeletePrompt={onDeletePrompt}
+          showDescription={false}
         />
 
-        <PromptCard
+        <PromptEditorCard
           title="Global Suggestions"
           prompts={prompts}
           selectedPromptId={selectedGlobalPromptId}
@@ -53,6 +56,7 @@ export const PromptSettingsPanel: React.FC<IPromptSettingsPanelProps> = ({
           onUpdatePrompt={onUpdatePrompt}
           onCreatePrompt={onCreatePrompt}
           onDeletePrompt={onDeletePrompt}
+          showDescription={false}
         />
       </div>
     </div>

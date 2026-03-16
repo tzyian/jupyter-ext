@@ -110,8 +110,16 @@ export function resolveActiveCellContext(
 
   if (selectionRange) {
     try {
-      const startOffset = editor.getOffsetAt(selectionRange.start);
-      const endOffset = editor.getOffsetAt(selectionRange.end);
+      let startOffset = editor.getOffsetAt(selectionRange.start);
+      let endOffset = editor.getOffsetAt(selectionRange.end);
+
+      // Handle backwards selection where endOffset is before startOffset
+      if (startOffset > endOffset) {
+        const temp = startOffset;
+        startOffset = endOffset;
+        endOffset = temp;
+      }
+
       if (endOffset > startOffset) {
         const previewLimit = 1200;
         selectedText = source.slice(

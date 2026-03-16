@@ -6,6 +6,7 @@ import { ProductivityCard } from './dashboard/ProductivityCard';
 import { NotebookTableCard } from './dashboard/NotebookTableCard';
 import { formatDuration } from '../../utils/formatting';
 import { useTelemetryStats } from '../utils/useTelemetryStats';
+import { Select } from './common/Select';
 
 export interface IDashboardViewProps {
   fetchStats: (notebookPath?: string) => Promise<ITelemetryStats | null>;
@@ -45,25 +46,26 @@ export const DashboardView: React.FC<IDashboardViewProps> = ({
     );
   }
 
+  const notebookOptions = [
+    { value: '', label: '(Global) All Notebooks' },
+    ...(stats?.available_notebooks?.map(nb => ({
+      value: nb.path,
+      label: nb.filename
+    })) || [])
+  ];
+
   return (
     <div className="jp-selenepy-dashboard-container">
       <header className="jp-selenepy-dashboard-header">
         <h2>Productivity Dashboard</h2>
-        <div className="jp-selenepy-dashboard-controls">
-          <select
-            className="jp-selenepy-toggle-button jp-selenepy-dashboard-select"
-            value={selectedNotebook}
-            onChange={e => setSelectedNotebook(e.target.value)}
-            style={{ width: '100%', maxWidth: '200px', cursor: 'pointer' }}
-          >
-            <option value="">(Global) All Notebooks</option>
-            {stats?.available_notebooks?.map(nb => (
-              <option key={nb.path} value={nb.path}>
-                {nb.filename}
-              </option>
-            ))}
-          </select>
-        </div>
+        <Select
+          className="jp-selenepy-dashboard-select"
+          value={selectedNotebook}
+          onChange={setSelectedNotebook}
+          options={notebookOptions}
+          hideLabel={true}
+          style={{ width: 'auto', minWidth: '150px' }}
+        />
       </header>
 
       <div className="jp-selenepy-dashboard-grid">

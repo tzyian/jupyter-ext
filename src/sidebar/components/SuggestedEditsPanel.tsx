@@ -32,47 +32,27 @@ export const SuggestedEditsPanel: React.FC<ISuggestedEditsPanelProps> = ({
   return (
     <div className="jp-selenepy-suggestedEdits-container">
       <header className="jp-selenepy-suggestedEdits-header">
-        <h2>Suggested Edits</h2>
         <div className="jp-selenepy-suggestedEdits-buttonGroup">
           <button
-            className="jp-selenepy-suggestedEdits-actionButton"
-            onClick={onOpenSettings}
-            title="Manage System Prompts"
-          >
-            ⚙️ Prompts
-          </button>
-          <button
-            className="jp-selenepy-suggestedEdits-actionButton"
+            className="jp-selenepy-action-button js-primary-suggestions"
             onClick={onRefreshContext}
           >
             Refresh (context)
           </button>
           <button
-            className="jp-selenepy-suggestedEdits-actionButton"
+            className="jp-selenepy-action-button js-primary-suggestions"
             onClick={onRefreshFull}
           >
             Refresh (full)
           </button>
-          <button
-            className="jp-selenepy-suggestedEdits-actionButton"
-            onClick={onPauseToggle}
-          >
+          <button className="jp-selenepy-action-button" onClick={onPauseToggle}>
             {isPaused ? 'Resume' : 'Pause'}
           </button>
         </div>
       </header>
 
       {!hasApiKey && (
-        <div
-          style={{
-            padding: '8px',
-            backgroundColor: 'var(--jp-warn-color3)',
-            color: 'var(--jp-ui-font-color0)',
-            marginBottom: '8px',
-            borderRadius: '4px',
-            fontSize: '0.9em'
-          }}
-        >
+        <div className="jp-selenepy-warning-box">
           <strong>Missing API Key:</strong> Please set your OpenAI API Key in
           the JupyterLab Advanced Settings under 'selenejs' to use live
           suggestions.

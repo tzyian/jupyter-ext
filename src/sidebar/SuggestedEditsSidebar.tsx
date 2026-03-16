@@ -2,14 +2,11 @@ import { ReactWidget } from '@jupyterlab/apputils';
 import { Signal, type ISignal } from '@lumino/signaling';
 import React from 'react';
 
-import type {
-  IResolvedSuggestion,
-  SuggestionScanMode,
-  IPrompt
-} from '../types';
+import type { IResolvedSuggestion, SuggestionScanMode } from '../types';
 import { SuggestedEditsPanel } from './components/SuggestedEditsPanel';
 import { PromptSettingsPanel } from './components/suggestions/PromptSettingsPanel';
-import { fetchPrompts, savePrompt, deletePrompt } from './api';
+import { usePrompts } from './utils/usePrompts';
+import { Select } from './components/common/Select';
 
 /**
  * Sidebar widget for displaying LLM suggested edits, backed by React.
@@ -19,71 +16,16 @@ export class SuggestedEditsSidebar extends ReactWidget {
     super();
     this.id = 'selenejs-suggested-edits-sidebar';
     this.addClass('jp-selenepy-suggestedEdits');
-    this._loadPrompts();
   }
 
-  private async _loadPrompts() {
-    try {
-      this._prompts = await fetchPrompts();
-      // Ensure we have valid selections
-      if (!this._prompts.find(p => p.id === this._selectedLocalPromptId)) {
-        this._selectedLocalPromptId = 'default_local';
-      }
-      if (!this._prompts.find(p => p.id === this._selectedGlobalPromptId)) {
-        this._selectedGlobalPromptId = 'default_global';
-      }
-      this.update();
-    } catch (err) {
-      console.error('Failed to load prompts', err);
-    }
-  }
-
-  private async _performPromptAction<T>(
-    action: () => Promise<T>,
-    errorMessage: string
-  ): Promise<T | void> {
-    try {
-      const result = await action();
-      await this._loadPrompts();
-      this.update();
-      return result;
-    } catch (err) {
-      console.error(errorMessage, err);
-      this.showError(errorMessage);
-    }
-  }
-
-  private _handleCreatePrompt(
-    name: string,
-    content: string
-  ): Promise<string | void> {
-    return this._performPromptAction(async () => {
-      const prompt = await savePrompt(name, content);
-      return prompt.id;
-    }, 'Failed to create prompt.');
-  }
-
-  private _handleUpdatePrompt(name: string, content: string, id: string): void {
-    void this._performPromptAction(
-      () => savePrompt(name, content, id),
-      'Failed to update prompt.'
-    );
-  }
-
-  private _handleDeletePrompt(id: string): void {
-    const deleteAction = async () => {
-      await deletePrompt(id);
-      // Reset selection if deleted prompt was active
-      if (this._selectedLocalPromptId === id) {
-        this._selectedLocalPromptId = 'default_local';
-      }
-      if (this._selectedGlobalPromptId === id) {
-        this._selectedGlobalPromptId = 'default_global';
-      }
-    };
-
-    void this._performPromptAction(deleteAction, 'Failed to delete prompt.');
-  }
+  private _status = '';
+  private _isPaused = false;
+  private _hasApiKey = false;
+  private _localSuggestions: (IResolvedSuggestion | null)[] = [null, null];
+  private _globalSuggestion: IResolvedSuggestion | null = null;
+  private _selectedLocalPromptId: string = 'default_local';
+  private _selectedGlobalPromptId: string = 'default_global';
+  private _view: 'home' | 'settings' = 'home';
 
   getSelectedPromptId(mode: SuggestionScanMode): string {
     return mode === 'full'
@@ -178,41 +120,16 @@ export class SuggestedEditsSidebar extends ReactWidget {
   }
 
   protected render(): JSX.Element {
-    if (this._view === 'settings') {
-      return (
-        <PromptSettingsPanel
-          prompts={this._prompts}
-          selectedLocalPromptId={this._selectedLocalPromptId}
-          selectedGlobalPromptId={this._selectedGlobalPromptId}
-          onSelectLocal={id => {
-            this._selectedLocalPromptId = id;
-            this.update();
-          }}
-          onSelectGlobal={id => {
-            this._selectedGlobalPromptId = id;
-            this.update();
-          }}
-          onCreatePrompt={(name, content) =>
-            this._handleCreatePrompt(name, content)
-          }
-          onUpdatePrompt={(name, content, id) =>
-            this._handleUpdatePrompt(name, content, id)
-          }
-          onDeletePrompt={id => this._handleDeletePrompt(id)}
-          onBack={() => {
-            this._view = 'home';
-            this.update();
-          }}
-        />
-      );
-    }
-
     return (
-      <SuggestedEditsPanel
+      <SuggestedEditsSidebarContent
+        view={this._view}
         status={this._status}
         isPaused={this._isPaused}
+        hasApiKey={this._hasApiKey}
         localSuggestions={this._localSuggestions}
         globalSuggestion={this._globalSuggestion}
+        selectedLocalPromptId={this._selectedLocalPromptId}
+        selectedGlobalPromptId={this._selectedGlobalPromptId}
         onRefreshContext={() => this._refreshContextRequested.emit(void 0)}
         onRefreshFull={() => this._refreshFullRequested.emit(void 0)}
         onPauseToggle={() => this._pauseRequested.emit(void 0)}
@@ -231,7 +148,18 @@ export class SuggestedEditsSidebar extends ReactWidget {
           this._view = 'settings';
           this.update();
         }}
-        hasApiKey={this._hasApiKey}
+        onBack={() => {
+          this._view = 'home';
+          this.update();
+        }}
+        onSelectLocal={id => {
+          this._selectedLocalPromptId = id;
+          this.update();
+        }}
+        onSelectGlobal={id => {
+          this._selectedGlobalPromptId = id;
+          this.update();
+        }}
       />
     );
   }
@@ -254,16 +182,6 @@ export class SuggestedEditsSidebar extends ReactWidget {
     }
   }
 
-  private _status = '';
-  private _isPaused = false;
-  private _hasApiKey = false;
-  private _localSuggestions: (IResolvedSuggestion | null)[] = [null, null];
-  private _globalSuggestion: IResolvedSuggestion | null = null;
-  private _prompts: IPrompt[] = [];
-  private _selectedLocalPromptId: string = 'default_local';
-  private _selectedGlobalPromptId: string = 'default_global';
-  private _view: 'home' | 'settings' = 'home';
-
   private readonly _refreshContextRequested = new Signal<
     SuggestedEditsSidebar,
     void
@@ -284,3 +202,98 @@ export class SuggestedEditsSidebar extends ReactWidget {
     IResolvedSuggestion
   >(this);
 }
+
+/**
+ * Functional component wrapper to use hooks.
+ */
+const SuggestedEditsSidebarContent: React.FC<{
+  view: 'home' | 'settings';
+  status: string;
+  isPaused: boolean;
+  hasApiKey: boolean;
+  localSuggestions: (IResolvedSuggestion | null)[];
+  globalSuggestion: IResolvedSuggestion | null;
+  selectedLocalPromptId: string;
+  selectedGlobalPromptId: string;
+  onRefreshContext: () => void;
+  onRefreshFull: () => void;
+  onPauseToggle: () => void;
+  onApply: (s: IResolvedSuggestion) => void;
+  onDismiss: (s: IResolvedSuggestion, idx?: number) => void;
+  onOpenSettings: () => void;
+  onBack: () => void;
+  onSelectLocal: (id: string) => void;
+  onSelectGlobal: (id: string) => void;
+}> = props => {
+  const { prompts, updatePrompt, createPrompt, removePrompt } =
+    usePrompts('suggestion');
+
+  return (
+    <div
+      className="jp-selenepy-suggestedEdits-wrapper"
+      style={{ display: 'flex', flexDirection: 'column', height: '100%' }}
+    >
+      <div
+        style={{
+          padding: '4px',
+          borderBottom: '1px solid var(--jp-border-color2)',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center'
+        }}
+      >
+        <Select
+          label="View:"
+          value={props.view === 'home' ? 'suggestions' : 'settings'}
+          onChange={val => {
+            if (val === 'suggestions') {
+              props.onBack();
+            } else {
+              props.onOpenSettings();
+            }
+          }}
+          options={[
+            { value: 'suggestions', label: 'Suggestions' },
+            { value: 'settings', label: 'Manage Prompts' }
+          ]}
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: '8px',
+            width: '100%'
+          }}
+        />
+      </div>
+
+      <div style={{ flex: 1, overflowY: 'auto' }}>
+        {props.view === 'settings' ? (
+          <PromptSettingsPanel
+            prompts={prompts}
+            selectedLocalPromptId={props.selectedLocalPromptId}
+            selectedGlobalPromptId={props.selectedGlobalPromptId}
+            onSelectLocal={props.onSelectLocal}
+            onSelectGlobal={props.onSelectGlobal}
+            onUpdatePrompt={updatePrompt}
+            onCreatePrompt={createPrompt}
+            onDeletePrompt={removePrompt}
+            onBack={props.onBack}
+          />
+        ) : (
+          <SuggestedEditsPanel
+            status={props.status}
+            isPaused={props.isPaused}
+            localSuggestions={props.localSuggestions}
+            globalSuggestion={props.globalSuggestion}
+            onRefreshContext={props.onRefreshContext}
+            onRefreshFull={props.onRefreshFull}
+            onPauseToggle={props.onPauseToggle}
+            onApply={props.onApply}
+            onDismiss={props.onDismiss}
+            onOpenSettings={props.onOpenSettings}
+            hasApiKey={props.hasApiKey}
+          />
+        )}
+      </div>
+    </div>
+  );
+};

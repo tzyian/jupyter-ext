@@ -1,11 +1,13 @@
 import React, { useState, useRef, useEffect } from 'react';
 import type { IChatMessage } from '../../types';
+import { Button } from './common/Button';
 
 interface IChatPanelProps {
   messages: IChatMessage[];
   isStreaming: boolean;
   onSendMessage: (message: string) => void;
   onClear: () => void;
+  onStop: () => void;
   hasApiKey: boolean;
   snippets?: { id: string; name: string; content: string }[];
 }
@@ -15,6 +17,7 @@ export function ChatPanel({
   isStreaming,
   onSendMessage,
   onClear,
+  onStop,
   hasApiKey,
   snippets
 }: IChatPanelProps): JSX.Element {
@@ -49,36 +52,31 @@ export function ChatPanel({
         padding: '8px'
       }}
     >
-      <div
-        className="jp-selenepy-chatHeader"
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          marginBottom: '8px',
-          alignItems: 'center'
-        }}
-      >
-        <h3 style={{ margin: 0 }}>LangGraph Chat</h3>
-        <button
-          onClick={onClear}
-          disabled={isStreaming}
-          style={{ cursor: isStreaming ? 'not-allowed' : 'pointer' }}
-        >
-          Clear
-        </button>
+      <div className="jp-selenepy-chatHeader">
+        <h3 style={{ margin: 0, fontSize: 'var(--js-header-font-size)' }}>
+          LangGraph Chat
+        </h3>
+        <div style={{ display: 'flex', gap: '6px' }}>
+          {isStreaming && (
+            <button
+              className="jp-selenepy-action-button js-primary-chat"
+              onClick={onStop}
+            >
+              Stop
+            </button>
+          )}
+          <button
+            className="jp-selenepy-action-button"
+            onClick={onClear}
+            disabled={isStreaming}
+          >
+            Clear
+          </button>
+        </div>
       </div>
 
       {!hasApiKey && (
-        <div
-          style={{
-            padding: '8px',
-            backgroundColor: 'var(--jp-warn-color3)',
-            color: 'var(--jp-ui-font-color0)',
-            marginBottom: '8px',
-            borderRadius: '4px',
-            fontSize: '0.9em'
-          }}
-        >
+        <div className="jp-selenepy-warning-box">
           <strong>Missing API Key:</strong> Please set your OpenAI API Key in
           the JupyterLab Advanced Settings under 'selenejs' to chat.
         </div>
@@ -152,23 +150,16 @@ export function ChatPanel({
             }}
           >
             {snippets.map(s => (
-              <button
+              <Button
                 key={s.id}
+                variant="ghost"
                 onClick={() => setInput(s.content)}
                 disabled={isStreaming}
-                style={{
-                  fontSize: '10px',
-                  padding: '2px 8px',
-                  borderRadius: '10px',
-                  whiteSpace: 'nowrap',
-                  cursor: isStreaming ? 'not-allowed' : 'pointer',
-                  backgroundColor: 'var(--jp-layout-color2)',
-                  border: '1px solid var(--jp-border-color1)'
-                }}
+                className="jp-selenepy-chat-snippet-btn"
                 title={s.content}
               >
                 {s.name}
-              </button>
+              </Button>
             ))}
           </div>
         )}
@@ -177,33 +168,31 @@ export function ChatPanel({
           style={{ display: 'flex', gap: '4px' }}
         >
           <textarea
-          value={input}
-          onChange={e => setInput(e.target.value)}
-          onKeyDown={handleKeyDown}
-          placeholder="Type your message..."
-          disabled={isStreaming}
-          style={{
-            flexGrow: 1,
-            resize: 'none',
-            height: '60px',
-            padding: '4px',
-            fontFamily: 'inherit',
-            backgroundColor: 'var(--jp-layout-color1)',
-            color: 'var(--jp-ui-font-color1)',
-            border: '1px solid var(--jp-border-color1)',
-            borderRadius: '4px'
-          }}
-        />
-        <button
-          onClick={handleSend}
-          disabled={!input.trim() || isStreaming}
-          style={{
-            padding: '0 12px',
-            cursor: !input.trim() || isStreaming ? 'not-allowed' : 'pointer'
-          }}
-        >
-          Send
-        </button>
+            value={input}
+            onChange={e => setInput(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder="Type your message..."
+            disabled={isStreaming}
+            style={{
+              flexGrow: 1,
+              resize: 'none',
+              height: '60px',
+              padding: '4px',
+              fontFamily: 'inherit',
+              backgroundColor: 'var(--jp-layout-color1)',
+              color: 'var(--jp-ui-font-color1)',
+              border: '1px solid var(--jp-border-color1)',
+              borderRadius: '4px'
+            }}
+          />
+          <Button
+            variant="primary"
+            onClick={handleSend}
+            disabled={!input.trim() || isStreaming}
+            style={{ padding: '0 12px' }}
+          >
+            Send
+          </Button>
         </div>
       </div>
     </div>
