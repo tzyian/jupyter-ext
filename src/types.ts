@@ -96,6 +96,16 @@ export interface IChatMessage {
   readonly id: string;
   readonly role: 'user' | 'ai';
   readonly content: string;
+  readonly threadId?: string;
+  readonly timestamp?: number;
+}
+
+export interface IChatThread {
+  readonly id: string;
+  readonly title: string;
+  readonly createdAt: number;
+  readonly updatedAt: number;
+  readonly messageCount: number;
 }
 
 export type ChatStreamEvent =

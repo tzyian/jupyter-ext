@@ -1,0 +1,163 @@
+"""SQLite persistence for chat threads and messages."""
+
+import logging
+import sqlite3
+import time
+import uuid
+from pathlib import Path
+from typing import Optional
+
+LOGGER = logging.getLogger(__name__)
+
+
+class ChatDB:
+    """SQLite database for storing chat threads and messages."""
+
+    def __init__(self, db_path: Optional[Path] = None):
+        if db_path is None:
+            db_path = Path.cwd() / ".chat.db"
+        self.db_path = db_path
+        self._init_db()
+        LOGGER.info("[ChatDB] Initialized database at %s", self.db_path)
+
+    def _init_db(self) -> None:
+        with sqlite3.connect(str(self.db_path)) as conn:
+            conn.execute("PRAGMA foreign_keys = ON")
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS chat_threads (
+                    id TEXT PRIMARY KEY,
+                    title TEXT NOT NULL,
+                    created_at REAL NOT NULL,
+                    updated_at REAL NOT NULL
+                )
+                """
+            )
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS chat_messages (
+                    id TEXT PRIMARY KEY,
+                    thread_id TEXT NOT NULL
+                        REFERENCES chat_threads(id) ON DELETE CASCADE,
+                    role TEXT NOT NULL,
+                    content TEXT NOT NULL,
+                    timestamp REAL NOT NULL
+                )
+                """
+            )
+            conn.execute(
+                """
+                CREATE INDEX IF NOT EXISTS idx_messages_thread_ts
+                ON chat_messages(thread_id, timestamp)
+                """
+            )
+            conn.commit()
+
+    # ------------------------------------------------------------------
+    # Thread operations
+    # ------------------------------------------------------------------
+
+    def create_thread(self, title: str = "New Chat") -> dict:
+        """Create a new thread and return its record."""
+        thread_id = str(uuid.uuid4())
+        now = time.time()
+        with sqlite3.connect(str(self.db_path)) as conn:
+            conn.execute(
+                "INSERT INTO chat_threads (id, title, created_at, updated_at)"
+                " VALUES (?, ?, ?, ?)",
+                (thread_id, title, now, now),
+            )
+            conn.commit()
+        return {
+            "id": thread_id,
+            "title": title,
+            "created_at": now,
+            "updated_at": now,
+            "message_count": 0,
+        }
+
+    def list_threads(self) -> list:
+        """Return all threads ordered newest-first, with message counts."""
+        with sqlite3.connect(str(self.db_path)) as conn:
+            conn.row_factory = sqlite3.Row
+            rows = conn.execute(
+                """
+                SELECT t.id, t.title, t.created_at, t.updated_at,
+                       COUNT(m.id) AS message_count
+                FROM chat_threads t
+                LEFT JOIN chat_messages m ON m.thread_id = t.id
+                GROUP BY t.id
+                ORDER BY t.updated_at DESC
+                """
+            ).fetchall()
+        return [dict(row) for row in rows]
+
+    def rename_thread(self, thread_id: str, title: str) -> bool:
+        """Rename a thread. Returns True if a row was updated."""
+        now = time.time()
+        with sqlite3.connect(str(self.db_path)) as conn:
+            cursor = conn.execute(
+                "UPDATE chat_threads SET title = ?, updated_at = ? WHERE id = ?",
+                (title, now, thread_id),
+            )
+            conn.commit()
+        return cursor.rowcount > 0
+
+    def delete_thread(self, thread_id: str) -> bool:
+        """Delete a thread and its messages (via CASCADE). Returns True on success."""
+        with sqlite3.connect(str(self.db_path)) as conn:
+            conn.execute("PRAGMA foreign_keys = ON")
+            cursor = conn.execute("DELETE FROM chat_threads WHERE id = ?", (thread_id,))
+            conn.commit()
+        return cursor.rowcount > 0
+
+    def thread_exists(self, thread_id: str) -> bool:
+        """Check whether a thread ID is present in the database."""
+        with sqlite3.connect(str(self.db_path)) as conn:
+            row = conn.execute(
+                "SELECT 1 FROM chat_threads WHERE id = ?", (thread_id,)
+            ).fetchone()
+        return row is not None
+
+    # ------------------------------------------------------------------
+    # Message operations
+    # ------------------------------------------------------------------
+
+    def get_messages(self, thread_id: str) -> list:
+        """Return all messages for a thread in chronological order."""
+        with sqlite3.connect(str(self.db_path)) as conn:
+            conn.row_factory = sqlite3.Row
+            rows = conn.execute(
+                """
+                SELECT id, thread_id, role, content, timestamp
+                FROM chat_messages
+                WHERE thread_id = ?
+                ORDER BY timestamp ASC
+                """,
+                (thread_id,),
+            ).fetchall()
+        return [dict(row) for row in rows]
+
+    def add_message(self, thread_id: str, role: str, content: str) -> dict:
+        """Persist a message and bump the thread's updated_at timestamp."""
+        msg_id = str(uuid.uuid4())
+        now = time.time()
+        with sqlite3.connect(str(self.db_path)) as conn:
+            conn.execute("PRAGMA foreign_keys = ON")
+            conn.execute(
+                "INSERT INTO chat_messages (id, thread_id, role, content, timestamp)"
+                " VALUES (?, ?, ?, ?, ?)",
+                (msg_id, thread_id, role, content, now),
+            )
+            conn.execute(
+                "UPDATE chat_threads SET updated_at = ? WHERE id = ?",
+                (now, thread_id),
+            )
+            conn.commit()
+        return {
+            "id": msg_id,
+            "thread_id": thread_id,
+            "role": role,
+            "content": content,
+            "timestamp": now,
+        }

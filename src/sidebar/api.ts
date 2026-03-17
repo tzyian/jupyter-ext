@@ -2,6 +2,7 @@ import { URLExt } from '@jupyterlab/coreutils';
 import { ServerConnection } from '@jupyterlab/services';
 
 import type {
+  IChatThread,
   INotebookSnapshot,
   IPrompt,
   ISuggestedEditsSettings,
@@ -12,6 +13,7 @@ import type {
 const PROMPTS_PATH = 'prompts';
 const STREAM_PATH = 'suggestions/stream';
 const CHAT_STREAM_PATH = 'chat/stream';
+const CHAT_THREADS_PATH = 'chat/threads';
 
 function getApiSettings(path: string): {
   url: string;
@@ -171,13 +173,19 @@ export async function* streamChat(
   message: string,
   snapshot: INotebookSnapshot | null,
   clientSettings: import('../types').ISuggestedEditsSettings | null,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  threadId?: string
 ): AsyncGenerator<import('../types').ChatStreamEvent> {
   const { url, settings } = getApiSettings(CHAT_STREAM_PATH);
 
   const init: RequestInit = {
     method: 'POST',
-    body: JSON.stringify({ message, snapshot, settings: clientSettings }),
+    body: JSON.stringify({
+      message,
+      snapshot,
+      settings: clientSettings,
+      thread_id: threadId ?? null
+    }),
     headers: {
       'Content-Type': 'application/json',
       ...(settings.init?.headers ?? {})
@@ -244,4 +252,126 @@ function parseChatEventLine(
     console.warn('Failed to parse chat event line', error);
     return null;
   }
+}
+
+// ---------------------------------------------------------------------------
+// Thread management
+// ---------------------------------------------------------------------------
+
+/**
+ * List all chat threads, ordered newest-first.
+ */
+export async function fetchThreads(): Promise<IChatThread[]> {
+  const { url, settings } = getApiSettings(CHAT_THREADS_PATH);
+  const response = await ServerConnection.makeRequest(url, {}, settings);
+  if (!response.ok) {
+    throw new ServerConnection.ResponseError(response, await response.text());
+  }
+  const data = await response.json();
+  return (
+    data.threads as Array<{
+      id: string;
+      title: string;
+      created_at: number;
+      updated_at: number;
+      message_count: number;
+    }>
+  ).map(t => ({
+    id: t.id,
+    title: t.title,
+    createdAt: t.created_at,
+    updatedAt: t.updated_at,
+    messageCount: t.message_count
+  }));
+}
+
+/**
+ * Create a new thread. Returns the created thread record.
+ */
+export async function createThread(title = 'New Chat'): Promise<IChatThread> {
+  const { url, settings } = getApiSettings(CHAT_THREADS_PATH);
+  const response = await ServerConnection.makeRequest(
+    url,
+    {
+      method: 'POST',
+      body: JSON.stringify({ title })
+    },
+    settings
+  );
+  if (!response.ok) {
+    throw new ServerConnection.ResponseError(response, await response.text());
+  }
+  const t = await response.json();
+  return {
+    id: t.id,
+    title: t.title,
+    createdAt: t.created_at,
+    updatedAt: t.updated_at,
+    messageCount: t.message_count ?? 0
+  };
+}
+
+/**
+ * Delete a thread by ID.
+ */
+export async function deleteThread(id: string): Promise<void> {
+  const { url: base, settings } = getApiSettings(CHAT_THREADS_PATH);
+  const url = `${base}?id=${encodeURIComponent(id)}`;
+  const response = await ServerConnection.makeRequest(
+    url,
+    { method: 'DELETE' },
+    settings
+  );
+  if (!response.ok && response.status !== 204) {
+    throw new ServerConnection.ResponseError(response, await response.text());
+  }
+}
+
+/**
+ * Rename a thread.
+ */
+export async function renameThread(id: string, title: string): Promise<void> {
+  const { url: base, settings } = getApiSettings(CHAT_THREADS_PATH);
+  const url = `${base}?id=${encodeURIComponent(id)}`;
+  const response = await ServerConnection.makeRequest(
+    url,
+    {
+      method: 'PATCH',
+      body: JSON.stringify({ title })
+    },
+    settings
+  );
+  if (!response.ok) {
+    throw new ServerConnection.ResponseError(response, await response.text());
+  }
+}
+
+/**
+ * Fetch all persisted messages for a thread.
+ */
+export async function fetchThreadMessages(
+  threadId: string
+): Promise<import('../types').IChatMessage[]> {
+  const path = `chat/threads/${encodeURIComponent(threadId)}/messages`;
+  const { url, settings } = getApiSettings(path);
+  const response = await ServerConnection.makeRequest(url, {}, settings);
+  if (!response.ok) {
+    throw new ServerConnection.ResponseError(response, await response.text());
+  }
+  const data = await response.json();
+  return (
+    data.messages as Array<{
+      id: string;
+      thread_id: string;
+      role: string;
+      content: string;
+      timestamp: number;
+    }>
+  ).map(m => ({
+    id: m.id,
+    role: m.role as 'user' | 'ai',
+    content: m.content,
+    threadId: m.thread_id,
+    timestamp: m.timestamp
+  }));
 }

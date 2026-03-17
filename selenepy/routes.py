@@ -8,6 +8,7 @@ from jupyter_server.base.handlers import APIHandler
 from jupyter_server.utils import url_path_join
 
 from .chat import ChatStreamWriter, stream_chat_response
+from .chat_db import ChatDB
 from .prompts import PromptManager
 from .streaming import SuggestionStreamWriter
 from .suggestions import apply_scan_scope, stream_live_suggestions
@@ -171,7 +172,88 @@ class SuggestedEditsStreamHandler(APIHandler):
                 pass  # Stream already closed, ignore
 
 
+class ChatThreadsHandler(APIHandler):
+    """CRUD handler for chat threads."""
+
+    def initialize(self, chat_db: ChatDB):
+        self.chat_db = chat_db
+
+    @tornado.web.authenticated
+    def get(self):
+        """List all threads."""
+        threads = self.chat_db.list_threads()
+        self.finish(json.dumps({"threads": threads}))
+
+    @tornado.web.authenticated
+    def post(self):
+        """Create a new thread."""
+        body = self.get_json_body() or {}
+        title = body.get("title", "New Chat")
+        thread = self.chat_db.create_thread(title)
+        self.set_status(201)
+        self.finish(json.dumps(thread))
+
+    @tornado.web.authenticated
+    def patch(self):
+        """Rename a thread."""
+        thread_id = self.get_argument("id", None)
+        if not thread_id:
+            self.set_status(400)
+            self.finish(json.dumps({"error": "Thread ID is required"}))
+            return
+        body = self.get_json_body() or {}
+        title = body.get("title")
+        if not title:
+            self.set_status(400)
+            self.finish(json.dumps({"error": "title is required"}))
+            return
+        success = self.chat_db.rename_thread(thread_id, title)
+        if success:
+            self.finish(json.dumps({"ok": True}))
+        else:
+            self.set_status(404)
+            self.finish(json.dumps({"error": "Thread not found"}))
+
+    @tornado.web.authenticated
+    def delete(self):
+        """Delete a thread and all its messages."""
+        thread_id = self.get_argument("id", None)
+        if not thread_id:
+            self.set_status(400)
+            self.finish(json.dumps({"error": "Thread ID is required"}))
+            return
+        success = self.chat_db.delete_thread(thread_id)
+        if success:
+            self.set_status(204)
+            self.finish()
+        else:
+            self.set_status(404)
+            self.finish(json.dumps({"error": "Thread not found"}))
+
+
+class ChatThreadMessagesHandler(APIHandler):
+    """Handler for retrieving the messages of a specific thread."""
+
+    def initialize(self, chat_db: ChatDB):
+        self.chat_db = chat_db
+
+    @tornado.web.authenticated
+    def get(self, thread_id: str):
+        """Return all messages for the given thread."""
+        if not self.chat_db.thread_exists(thread_id):
+            self.set_status(404)
+            self.finish(json.dumps({"error": "Thread not found"}))
+            return
+        messages = self.chat_db.get_messages(thread_id)
+        self.finish(json.dumps({"messages": messages}))
+
+
 class ChatStreamHandler(APIHandler):
+    """SSE handler for chat streaming; persists messages when a thread_id is given."""
+
+    def initialize(self, chat_db: ChatDB):
+        self.chat_db = chat_db
+
     @tornado.web.authenticated
     async def post(self) -> None:
         self.set_header("Content-Type", "text/event-stream")
@@ -183,16 +265,30 @@ class ChatStreamHandler(APIHandler):
         message = body.get("message", "")
         snapshot = body.get("snapshot")
         settings = body.get("settings", {})
+        thread_id = body.get("thread_id")
         openai_api_key = settings.get("openaiApiKey", "")
-        
+
         if not message:
             self.set_status(400)
             self.finish({"error": "Message is required"})
             return
 
+        # Load history and persist user message when a valid thread is given
+        history: list[dict] = []
+        persist = thread_id and self.chat_db.thread_exists(thread_id)
+        if persist:
+            raw = self.chat_db.get_messages(thread_id)
+            history = [{"role": m["role"], "content": m["content"]} for m in raw]
+            self.chat_db.add_message(thread_id, "user", message)
+
         writer = ChatStreamWriter(self)
-        # Launch the stream
-        await stream_chat_response(message, writer, snapshot, openai_api_key=openai_api_key)
+        ai_response = await stream_chat_response(
+            message, writer, snapshot, openai_api_key=openai_api_key, history=history
+        )
+
+        # Persist AI response
+        if persist and ai_response:
+            self.chat_db.add_message(thread_id, "ai", ai_response)
 
 
 class TelemetryHandler(APIHandler):
@@ -280,10 +376,15 @@ def setup_route_handlers(web_app):
     # Initialize services
     telemetry_db = TelemetryDB()
     prompt_manager = PromptManager()
+    chat_db = ChatDB()
 
     hello_route_pattern = url_path_join(base_url, "selenepy", "hello")
     stream_route_pattern = url_path_join(base_url, "selenepy", "suggestions", "stream")
     chat_stream_route_pattern = url_path_join(base_url, "selenepy", "chat", "stream")
+    chat_threads_route_pattern = url_path_join(base_url, "selenepy", "chat", "threads")
+    chat_thread_messages_pattern = url_path_join(
+        base_url, "selenepy", "chat", "threads", "([^/]+)", "messages"
+    )
     telemetry_route_pattern = url_path_join(base_url, "selenepy", "telemetry")
     telemetry_rename_route_pattern = url_path_join(
         base_url, "selenepy", "telemetry", "rename"
@@ -300,7 +401,9 @@ def setup_route_handlers(web_app):
         (telemetry_route_pattern, TelemetryHandler, {"db": telemetry_db}),
         (telemetry_rename_route_pattern, TelemetryRenameHandler, {"db": telemetry_db}),
         (prompts_route_pattern, PromptsHandler, {"prompt_manager": prompt_manager}),
-        (chat_stream_route_pattern, ChatStreamHandler),
+        (chat_threads_route_pattern, ChatThreadsHandler, {"chat_db": chat_db}),
+        (chat_thread_messages_pattern, ChatThreadMessagesHandler, {"chat_db": chat_db}),
+        (chat_stream_route_pattern, ChatStreamHandler, {"chat_db": chat_db}),
     ]
 
     web_app.add_handlers(host_pattern, handlers)

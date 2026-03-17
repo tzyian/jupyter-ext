@@ -1,9 +1,16 @@
 import { ReactWidget } from '@jupyterlab/apputils';
-import React, { useEffect, useMemo } from 'react';
+import React, { useEffect, useMemo, useCallback } from 'react';
 import { ChatPanel } from './components/ChatPanel';
-import { streamChat } from './api';
+import {
+  streamChat,
+  fetchThreads,
+  createThread,
+  deleteThread,
+  fetchThreadMessages
+} from './api';
 import type {
   IChatMessage,
+  IChatThread,
   INotebookSnapshot,
   ISuggestedEditsSettings,
   IPrompt
@@ -18,6 +25,9 @@ import { CommandIDs } from './commands';
 
 export class ChatSidebar extends ReactWidget {
   private _messages: IChatMessage[] = [];
+  private _threads: IChatThread[] = [];
+  private _activeThreadId: string | null = null;
+  private _threadsLoaded = false;
   private _isStreaming = false;
   private _tracker: INotebookTracker | null = null;
   private _abortController: AbortController | null = null;
@@ -74,6 +84,7 @@ export class ChatSidebar extends ReactWidget {
         this._onDocumentSelectionChange
       );
     }
+    void this._loadThreads();
   }
 
   dispose(): void {
@@ -128,6 +139,94 @@ export class ChatSidebar extends ReactWidget {
 
   public get prompts(): IPrompt[] {
     return this._prompts;
+  }
+
+  // ------------------------------------------------------------------
+  // Thread management
+  // ------------------------------------------------------------------
+
+  private async _loadThreads(): Promise<void> {
+    try {
+      this._threads = await fetchThreads();
+      this._threadsLoaded = true;
+      // Auto-select the most recent thread if none is active
+      if (!this._activeThreadId && this._threads.length > 0) {
+        await this._selectThread(this._threads[0].id);
+      } else {
+        this.update();
+      }
+    } catch (err) {
+      console.error('Failed to load chat threads', err);
+      this._threadsLoaded = true;
+      this.update();
+    }
+  }
+
+  private async _refreshThreads(): Promise<void> {
+    try {
+      this._threads = await fetchThreads();
+      this._threadsLoaded = true;
+      if (
+        this._activeThreadId &&
+        !this._threads.some(t => t.id === this._activeThreadId)
+      ) {
+        this._activeThreadId = this._threads.length > 0 ? this._threads[0].id : null;
+      }
+      this.update();
+    } catch (err) {
+      console.error('Failed to refresh chat threads', err);
+    }
+  }
+
+  private async _selectThread(threadId: string): Promise<void> {
+    if (this._isStreaming) {
+      return;
+    }
+    this._activeThreadId = threadId;
+    this._messages = [];
+    this.update();
+    try {
+      this._messages = await fetchThreadMessages(threadId);
+    } catch (err) {
+      console.error('Failed to load thread messages', err);
+    }
+    this.update();
+  }
+
+  public async createNewThread(): Promise<void> {
+    if (this._isStreaming) {
+      return;
+    }
+    try {
+      const thread = await createThread();
+      this._threads = [thread, ...this._threads];
+      this._activeThreadId = thread.id;
+      this._messages = [];
+      this.update();
+    } catch (err) {
+      console.error('Failed to create thread', err);
+    }
+  }
+
+  public async deleteActiveThread(): Promise<void> {
+    if (!this._activeThreadId || this._isStreaming) {
+      return;
+    }
+    const idToDelete = this._activeThreadId;
+    try {
+      await deleteThread(idToDelete);
+      this._threads = this._threads.filter(t => t.id !== idToDelete);
+      this._messages = [];
+      this._activeThreadId =
+        this._threads.length > 0 ? this._threads[0].id : null;
+      if (this._activeThreadId) {
+        await this._selectThread(this._activeThreadId);
+      } else {
+        this.update();
+      }
+    } catch (err) {
+      console.error('Failed to delete thread', err);
+    }
   }
 
   setSettings(settings: ISuggestedEditsSettings): void {
@@ -210,7 +309,8 @@ export class ChatSidebar extends ReactWidget {
         content,
         this._getSnapshot(),
         this._settings,
-        this._abortController.signal
+        this._abortController.signal,
+        this._activeThreadId ?? undefined
       );
 
       for await (const event of stream) {
@@ -249,6 +349,9 @@ export class ChatSidebar extends ReactWidget {
     } finally {
       this._isStreaming = false;
       this._abortController = null;
+      if (this._activeThreadId) {
+        void this._refreshThreads();
+      }
       this.update();
     }
   }
@@ -259,7 +362,12 @@ export class ChatSidebar extends ReactWidget {
     }
     this._messages = [];
     this._isStreaming = false;
-    this.update();
+    // If there's an active thread, reload its messages from the DB
+    if (this._activeThreadId) {
+      void this._selectThread(this._activeThreadId);
+    } else {
+      this.update();
+    }
   }
 
   protected render(): JSX.Element {
@@ -273,6 +381,9 @@ export class ChatSidebar extends ReactWidget {
         settings={this._settings}
         selectedSnippetId={this._selectedSnippetId}
         selectedContextMenuId={this._selectedContextMenuId}
+        threads={this._threads}
+        activeThreadId={this._activeThreadId}
+        threadsLoaded={this._threadsLoaded}
         onViewChange={v => {
           this._view = v;
           this.update();
@@ -299,11 +410,124 @@ export class ChatSidebar extends ReactWidget {
           this._prompts = prompts;
           this._updateMenu();
         }}
+        onSelectThread={id => void this._selectThread(id)}
+        onCreateThread={() => void this.createNewThread()}
+        onDeleteThread={() => void this.deleteActiveThread()}
         cellContext={cellContext}
       />
     );
   }
 }
+
+/**
+ * Compact thread selector bar rendered at the top of the chat view.
+ */
+const ThreadSelector: React.FC<{
+  threads: IChatThread[];
+  activeThreadId: string | null;
+  threadsLoaded: boolean;
+  isStreaming: boolean;
+  onSelectThread: (id: string) => void;
+  onCreateThread: () => void;
+  onDeleteThread: () => void;
+}> = ({
+  threads,
+  activeThreadId,
+  threadsLoaded,
+  isStreaming,
+  onSelectThread,
+  onCreateThread,
+  onDeleteThread
+}) => {
+  const formatLastEdited = (timestampSeconds: number): string => {
+    const timestampMs = timestampSeconds * 1000;
+    const diffMs = Date.now() - timestampMs;
+
+    if (diffMs < 60 * 1000) {
+      return 'just now';
+    }
+
+    if (diffMs < 60 * 60 * 1000) {
+      const mins = Math.floor(diffMs / (60 * 1000));
+      return `${mins}m ago`;
+    }
+
+    if (diffMs < 24 * 60 * 60 * 1000) {
+      const hours = Math.floor(diffMs / (60 * 60 * 1000));
+      return `${hours}h ago`;
+    }
+
+    if (diffMs < 7 * 24 * 60 * 60 * 1000) {
+      const days = Math.floor(diffMs / (24 * 60 * 60 * 1000));
+      return `${days}d ago`;
+    }
+
+    return new Date(timestampMs).toLocaleDateString();
+  };
+
+  const activeThread = threads.find(t => t.id === activeThreadId) ?? null;
+
+  const handleSelectChange = useCallback(
+    (e: React.ChangeEvent<HTMLSelectElement>) => {
+      onSelectThread(e.target.value);
+    },
+    [onSelectThread]
+  );
+
+  return (
+    <div className="jp-selenepy-threadSelector">
+      <select
+        value={activeThreadId ?? ''}
+        onChange={handleSelectChange}
+        disabled={!threadsLoaded || isStreaming}
+        title="Select chat thread"
+        className="jp-selenepy-threadSelector-select"
+      >
+        {!threadsLoaded && <option value="">Loading chat history…</option>}
+        {threadsLoaded && threads.length === 0 && (
+          <option value="">No chat history</option>
+        )}
+        {threads.map(t => (
+          <option
+            key={t.id}
+            value={t.id}
+            title={`Last edited: ${new Date(t.updatedAt * 1000).toLocaleString()}`}
+          >
+            {`${t.title} (${t.messageCount}) - ${formatLastEdited(t.updatedAt)}`}
+          </option>
+        ))}
+      </select>
+
+      <button
+        title="New thread"
+        onClick={onCreateThread}
+        disabled={isStreaming}
+        className="jp-selenepy-action-button jp-selenepy-threadSelector-btn"
+      >
+        +
+      </button>
+
+      {activeThread && (
+        <button
+          title="Delete this thread"
+          onClick={() => {
+            if (
+              window.confirm(
+                `Delete thread "${activeThread.title}"? This cannot be undone.`
+              )
+            ) {
+              onDeleteThread();
+            }
+          }}
+          disabled={isStreaming}
+          className="jp-selenepy-action-button jp-selenepy-action-button--danger jp-selenepy-threadSelector-btn"
+        >
+          🗑
+        </button>
+      )}
+    </div>
+  );
+};
 
 /**
  * Functional component wrapper for ChatSidebar to use hooks.
@@ -316,6 +540,9 @@ const ChatSidebarContent: React.FC<{
   settings: ISuggestedEditsSettings | null;
   selectedSnippetId: string;
   selectedContextMenuId: string;
+  threads: IChatThread[];
+  activeThreadId: string | null;
+  threadsLoaded: boolean;
   onViewChange: (v: 'chat' | 'chat_snippet' | 'context_menu') => void;
   onSendMessage: (msg: string) => void;
   onClear: () => void;
@@ -323,6 +550,9 @@ const ChatSidebarContent: React.FC<{
   onSelectSnippet: (id: string) => void;
   onSelectContextMenu: (id: string) => void;
   onPromptsChanged: (prompts: IPrompt[]) => void;
+  onSelectThread: (id: string) => void;
+  onCreateThread: () => void;
+  onDeleteThread: () => void;
   cellContext: { cellNumber: number; excerpt?: string } | null;
 }> = props => {
   const promptCategories = useMemo<IPrompt['category'][]>(
@@ -398,16 +628,27 @@ const ChatSidebarContent: React.FC<{
 
       <div style={{ flex: 1, overflowY: 'auto' }}>
         {props.view === 'chat' && (
-          <ChatPanel
-            messages={props.messages}
-            isStreaming={props.isStreaming}
-            onSendMessage={props.onSendMessage}
-            onClear={props.onClear}
-            onStop={props.onStop}
-            hasApiKey={!!props.settings?.openaiApiKey}
-            snippets={snippets}
-            cellContext={props.cellContext}
-          />
+          <>
+            <ThreadSelector
+              threads={props.threads}
+              activeThreadId={props.activeThreadId}
+              threadsLoaded={props.threadsLoaded}
+              isStreaming={props.isStreaming}
+              onSelectThread={props.onSelectThread}
+              onCreateThread={props.onCreateThread}
+              onDeleteThread={props.onDeleteThread}
+            />
+            <ChatPanel
+              messages={props.messages}
+              isStreaming={props.isStreaming}
+              onSendMessage={props.onSendMessage}
+              onClear={props.onClear}
+              onStop={props.onStop}
+              hasApiKey={!!props.settings?.openaiApiKey}
+              snippets={snippets}
+              cellContext={props.cellContext}
+            />
+          </>
         )}
 
         {props.view === 'context_menu' && (

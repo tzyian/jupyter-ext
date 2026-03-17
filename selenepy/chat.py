@@ -1,16 +1,15 @@
-import asyncio
 import json
 import logging
 from typing import Annotated, Any, Mapping, TypedDict
 
 from jupyter_server.base.handlers import APIHandler
-from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage
+from langchain_core.messages import (AIMessage, BaseMessage, HumanMessage,
+                                     SystemMessage)
 from langchain_openai import ChatOpenAI
-
-from .utils import format_snapshot_for_prompt
 from langgraph.graph import END, StateGraph
 from langgraph.graph.message import add_messages
 
+from .utils import format_snapshot_for_prompt
 
 LOGGER = logging.getLogger(__name__)
 
@@ -82,33 +81,69 @@ def create_chat_graph():
 graph = create_chat_graph()
 
 
+def _build_history_messages(history: list[dict]) -> list[BaseMessage]:
+    """Convert stored chat history dicts to LangChain message objects."""
+    result: list[BaseMessage] = []
+    for item in history:
+        role = item.get("role", "user")
+        content = item.get("content", "")
+        if role == "user":
+            result.append(HumanMessage(content=content))
+        else:
+            result.append(AIMessage(content=content))
+    return result
+
+
 async def stream_chat_response(
-    message: str, writer: ChatStreamWriter, snapshot: dict = None, openai_api_key: str = None
-):
-    """Run graph and stream output."""
+    message: str,
+    writer: ChatStreamWriter,
+    snapshot: dict = None,
+    openai_api_key: str = None,
+    history: list[dict] = None,
+) -> str:
+    """Run the LangGraph agent and stream output to the client.
+
+    Returns the full AI response text so callers can persist it.
+    """
+    full_response = ""
     try:
         await writer.send_status("started")
 
+        history_msgs = _build_history_messages(history or [])
+
         if snapshot:
             LOGGER.info(
-                f"Chat received snapshot context for path: {snapshot.get('path', 'unknown')}"
+                "Chat received snapshot context for path: %s",
+                snapshot.get("path", "unknown"),
             )
             formatted_context = format_snapshot_for_prompt(snapshot)
-            context_msg = SystemMessage(content=f"You are a helpful coding assistant. Use the following notebook context to answer any questions or craft code modifications.\n\nNotebook context:\n{formatted_context}")
-            inputs = {"messages": [context_msg, HumanMessage(content=message)]}
+            context_msg = SystemMessage(
+                content=(
+                    "You are a helpful coding assistant. Use the following notebook"
+                    " context to answer any questions or craft code modifications.\n\n"
+                    f"Notebook context:\n{formatted_context}"
+                )
+            )
+            inputs = {
+                "messages": [context_msg]
+                + history_msgs
+                + [HumanMessage(content=message)]
+            }
         else:
-            inputs = {"messages": [HumanMessage(content=message)]}
+            inputs = {"messages": history_msgs + [HumanMessage(content=message)]}
 
-        config = {"configurable": {"openai_api_key": openai_api_key}} if openai_api_key else {}
+        config = (
+            {"configurable": {"openai_api_key": openai_api_key}}
+            if openai_api_key
+            else {}
+        )
 
-        # Stream using async events
         async for event in graph.astream_events(inputs, config=config, version="v1"):
             kind = event["event"]
-
             if kind == "on_chat_model_stream":
-                # Extract the token chunk from the model stream
                 content = event["data"]["chunk"].content
                 if content:
+                    full_response += content
                     await writer.send_chunk(content)
 
     except Exception as e:
@@ -117,3 +152,5 @@ async def stream_chat_response(
     finally:
         await writer.send_status("complete")
         await writer.close()
+
+    return full_response
