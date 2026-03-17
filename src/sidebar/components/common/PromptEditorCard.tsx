@@ -64,41 +64,66 @@ export const PromptEditorCard: React.FC<IPromptEditorCardProps> = ({
     }
   }, [selectedPromptId, prompts, isCreatingNew]);
 
-  const handleSave = async () => {
-    if (!name || !content) {
-      return;
-    }
-
-    if (isCreatingNew) {
-      const newId = await onCreatePrompt(name, content, description);
-      if (newId) {
-        onSelectPrompt(newId);
+  const handleSave = useCallback(
+    async (
+      currentName: string,
+      currentContent: string,
+      currentDescription: string
+    ) => {
+      if (!currentName || !currentContent) {
+        return;
       }
-    } else {
-      const found = prompts.find(p => p.id === selectedPromptId);
-      if (found && !found.isDefault) {
-        onUpdatePrompt(name, content, description, selectedPromptId);
+
+      if (isCreatingNew) {
+        const newId = await onCreatePrompt(
+          currentName,
+          currentContent,
+          currentDescription
+        );
+        if (newId) {
+          onSelectPrompt(newId);
+        }
+      } else {
+        const found = prompts.find(p => p.id === selectedPromptId);
+        if (found && !found.isDefault) {
+          onUpdatePrompt(
+            currentName,
+            currentContent,
+            currentDescription,
+            selectedPromptId
+          );
+        }
       }
-    }
 
-    setSaveStatus('Saved!');
-    setTimeout(() => setSaveStatus(''), 2000);
-  };
+      setSaveStatus('Saved!');
+      setTimeout(() => setSaveStatus(''), 2000);
+    },
+    [
+      isCreatingNew,
+      selectedPromptId,
+      onCreatePrompt,
+      onUpdatePrompt,
+      prompts,
+      onSelectPrompt
+    ]
+  );
 
-  const triggerAutoSave = useCallback(() => {
-    if (autoSaveTimer) {
-      window.clearTimeout(autoSaveTimer);
-    }
-    const timer = window.setTimeout(handleSave, 500);
-    setAutoSaveTimer(timer);
-  }, [
-    name,
-    description,
-    content,
-    isCreatingNew,
-    selectedPromptId,
-    autoSaveTimer
-  ]);
+  const triggerAutoSave = useCallback(
+    (
+      currentName: string,
+      currentContent: string,
+      currentDescription: string
+    ) => {
+      if (autoSaveTimer) {
+        window.clearTimeout(autoSaveTimer);
+      }
+      const timer = window.setTimeout(() => {
+        handleSave(currentName, currentContent, currentDescription);
+      }, 500);
+      setAutoSaveTimer(timer);
+    },
+    [autoSaveTimer, handleSave]
+  );
 
   useEffect(() => {
     return () => {
@@ -147,8 +172,9 @@ export const PromptEditorCard: React.FC<IPromptEditorCardProps> = ({
           placeholder="e.g. Optimize Code"
           value={name}
           onChange={e => {
-            setName(e.target.value);
-            triggerAutoSave();
+            const newName = e.target.value;
+            setName(newName);
+            triggerAutoSave(newName, content, description);
           }}
           disabled={!canEdit}
           className="jp-selenepy-promptInput"
@@ -162,8 +188,9 @@ export const PromptEditorCard: React.FC<IPromptEditorCardProps> = ({
               placeholder="e.g. Optimizes the selected code"
               value={description}
               onChange={e => {
-                setDescription(e.target.value);
-                triggerAutoSave();
+                const newDescription = e.target.value;
+                setDescription(newDescription);
+                triggerAutoSave(name, content, newDescription);
               }}
               disabled={!canEdit}
               className="jp-selenepy-promptInput"
@@ -176,8 +203,9 @@ export const PromptEditorCard: React.FC<IPromptEditorCardProps> = ({
           placeholder="System Prompt Content..."
           value={content}
           onChange={e => {
-            setContent(e.target.value);
-            triggerAutoSave();
+            const newContent = e.target.value;
+            setContent(newContent);
+            triggerAutoSave(name, newContent, description);
           }}
           disabled={!canEdit}
           className="jp-selenepy-promptTextarea"
