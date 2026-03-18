@@ -141,19 +141,11 @@ python -m py_compile selenepy/__init__.py  # Check single file for syntax errors
   - Constants: `PLUGIN_ID`, `COMMAND_ID`
 - **✅ Do**: Use 2-space indentation (Prettier default)
 - **❌ Don't**: Use lowercase_snake_case or inconsistent formatting
+- CSS should not be inline in TypeScript files; instead, use class names and define styles in `style/index.css`.
 
 ### Documentation
 
-**✅ Do**: Add JSDoc for TypeScript and docstrings for Python
-
-```typescript
-/**
- * Activates the extension plugin.
- * @param app - JupyterLab application instance
- */
-function activate(app: JupyterFrontEnd): void {}
-```
-
+**❌ Don't**: Don't add unnecessary comments that state the obvious. For example, avoid comments like `// This function handles GET requests` when the function name is already `handleGetRequest()`. Instead, focus on explaining the "why" behind complex logic or decisions.
 **❌ Don't**: Leave complex logic undocumented or use vague names like `MyRouteHandler` — prefer `DataUploadRouteHandler`
 
 ### Code Organization

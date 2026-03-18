@@ -11,6 +11,11 @@
 8. jupyter lab --port 8888 --IdentityProvider.token MY_TOKEN --ip 0.0.0.0
 
 
+pip install --editable ".[dev,test]" && jupyter server extension enable selenepy && jupyter labextension develop . --overwrite && jlpm run watch
+
+If you get this, `pip uninstall selenepy` and try again
+ERROR: Could not install packages due to an OSError: [Errno 2] No such file or directory: '\\jupyterlab-ext\\share\\jupyter\\labextensions\\selenejs\\install.json'
+
 
 
 [![Github Actions Status](/workflows/Build/badge.svg)](/actions/workflows/build.yml)
