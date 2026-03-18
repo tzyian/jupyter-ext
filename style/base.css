@@ -528,6 +528,24 @@
 
 .jp-selenepy-dashboard-header {
   margin-bottom: 16px;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.jp-selenepy-dashboard-header h2 {
+  white-space: normal;
+  flex: 1;
+  min-width: 0;
+}
+
+.jp-selenepy-dashboard-container {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+  width: 100%;
+  box-sizing: border-box;
+  overflow-x: hidden;
 }
 
 .jp-selenepy-dashboard-loading,
@@ -546,6 +564,8 @@
 .jp-selenepy-dashboard-select {
   width: auto;
   min-width: 150px;
+  max-width: 100%;
+  flex-shrink: 0;
 }
 
 .jp-selenepy-dashboard-grid {
@@ -566,11 +586,16 @@
   font-weight: 700;
   color: var(--jp-ui-font-color0);
   margin-bottom: 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .jp-selenepy-dashboard-subtitle {
   font-size: var(--js-code-font-size);
   color: var(--jp-ui-font-color2);
+  word-wrap: break-word;
+  overflow-wrap: break-word;
 }
 
 .jp-selenepy-dashboard-card-wide {
