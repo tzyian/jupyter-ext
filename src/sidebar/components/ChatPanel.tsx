@@ -1,6 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { MdMic, MdMicOff } from 'react-icons/md';
 import type { IChatMessage } from '../../types';
 import { Button } from './common/Button';
+import { useAudioRecorder } from '../hooks/useAudioRecorder';
+import { transcribeAudio } from '../api';
 
 interface ICellContext {
   cellNumber: number;
@@ -14,6 +17,7 @@ interface IChatPanelProps {
   onClear: () => void;
   onStop: () => void;
   hasApiKey: boolean;
+  openaiApiKey: string;
   snippets?: { id: string; name: string; content: string }[];
   cellContext?: ICellContext | null;
 }
@@ -25,11 +29,14 @@ export function ChatPanel({
   onClear,
   onStop,
   hasApiKey,
+  openaiApiKey,
   snippets,
   cellContext
 }: IChatPanelProps): JSX.Element {
   const [input, setInput] = useState('');
+  const [isTranscribing, setIsTranscribing] = useState(false);
   const endOfMessagesRef = useRef<HTMLDivElement>(null);
+  const { isRecording, startRecording, stopRecording } = useAudioRecorder();
 
   useEffect(() => {
     endOfMessagesRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -46,6 +53,40 @@ export function ChatPanel({
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSend();
+    }
+  };
+
+  const handleMicClick = async () => {
+    if (isRecording) {
+      setIsTranscribing(true);
+      try {
+        const audioBlob = await stopRecording();
+        if (audioBlob) {
+          const transcribedText = await transcribeAudio(
+            audioBlob,
+            openaiApiKey
+          );
+          setInput(prev =>
+            prev ? `${prev} ${transcribedText}` : transcribedText
+          );
+        }
+      } catch (error: any) {
+        console.error('Transcription error:', error);
+        window.alert(error && error.message ? error.message : String(error));
+      } finally {
+        setIsTranscribing(false);
+      }
+    } else {
+      try {
+        await startRecording();
+      } catch (error) {
+        console.error('Recording error:', error);
+        window.alert(
+          error && (error as any).message
+            ? (error as any).message
+            : String(error)
+        );
+      }
     }
   };
 
@@ -211,7 +252,7 @@ export function ChatPanel({
         )}
         <div
           className="jp-selenepy-chatInput"
-          style={{ display: 'flex', gap: '4px' }}
+          style={{ display: 'flex', gap: '4px', alignItems: 'flex-end' }}
         >
           <textarea
             value={input}
@@ -230,6 +271,34 @@ export function ChatPanel({
               borderRadius: '4px'
             }}
           />
+          <button
+            onClick={handleMicClick}
+            disabled={!hasApiKey || isStreaming || isTranscribing}
+            title={
+              isRecording
+                ? 'Click to stop recording'
+                : 'Click to start recording'
+            }
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: '36px',
+              height: '36px',
+              padding: 0,
+              backgroundColor: isRecording
+                ? 'var(--jp-error-color1)'
+                : 'var(--jp-layout-color2)',
+              color: 'var(--jp-ui-font-color1)',
+              border: '1px solid var(--jp-border-color1)',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              fontSize: '18px',
+              transition: 'background-color 0.2s'
+            }}
+          >
+            {isRecording ? <MdMicOff /> : <MdMic />}
+          </button>
           <Button
             variant="primary"
             onClick={handleSend}

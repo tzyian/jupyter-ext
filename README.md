@@ -7,7 +7,8 @@
 4. jupyter server extension enable selenepy
 5. jupyter labextension develop . --overwrite
 6. jlpm run watch
-7. jupyter lab --port 8888 --IdentityProvider.token MY_TOKEN --ip 0.0.0.0
+7. jupyter lab --port 8888 --IdentityProvider.token MY_TOKEN 
+8. jupyter lab --port 8888 --IdentityProvider.token MY_TOKEN --ip 0.0.0.0
 
 
 

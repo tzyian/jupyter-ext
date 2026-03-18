@@ -1,6 +1,8 @@
-"""Tornado route handlers for the selenepy JupyterLab extension."""
+import io
 import json
 import logging
+import os
+from logging.handlers import RotatingFileHandler
 from typing import Any, Mapping
 
 import tornado
@@ -17,6 +19,28 @@ from .utils import handle_exceptions, safe_int
 
 LOGGER = logging.getLogger(__name__)
 LOGGER.setLevel(logging.INFO)
+
+_LOG_DIR = os.path.join(os.path.expanduser("~"), ".selenepy", "logs")
+_LOG_FILE = os.path.join(_LOG_DIR, "routes.log")
+
+# Add a persistent file handler for backend diagnostics.
+os.makedirs(_LOG_DIR, exist_ok=True)
+if not any(
+    isinstance(handler, RotatingFileHandler)
+    and getattr(handler, "baseFilename", "") == os.path.abspath(_LOG_FILE)
+    for handler in LOGGER.handlers
+):
+    file_handler = RotatingFileHandler(
+        _LOG_FILE,
+        maxBytes=1_000_000,
+        backupCount=3,
+        encoding="utf-8",
+    )
+    file_handler.setLevel(logging.INFO)
+    file_handler.setFormatter(
+        logging.Formatter("%(asctime)s [%(levelname)s] %(name)s: %(message)s")
+    )
+    LOGGER.addHandler(file_handler)
 
 
 class PromptsHandler(APIHandler):
@@ -44,7 +68,9 @@ class PromptsHandler(APIHandler):
             self.finish(json.dumps({"error": "Name and content are required"}))
             return
 
-        saved_prompt = self.prompt_manager.save_prompt(name, content, prompt_id, description, category)
+        saved_prompt = self.prompt_manager.save_prompt(
+            name, content, prompt_id, description, category
+        )
         self.finish(json.dumps(saved_prompt))
 
     @tornado.web.authenticated
@@ -112,7 +138,7 @@ class SuggestedEditsStreamHandler(APIHandler):
             mode = "context"
         context_window = safe_int(settings.get("contextWindow"), 3)
         prompt_id = body.get("promptId", "default")
-        openai_api_key = settings.get("openaiApiKey", "")
+        openai_api_key = str(settings.get("openaiApiKey", "")).strip()
 
         return {
             "snapshot": snapshot,
@@ -369,11 +395,61 @@ class TelemetryRenameHandler(APIHandler):
         self.finish({"migrated_events": count})
 
 
+class TranscribeHandler(APIHandler):
+    @tornado.web.authenticated
+    @handle_exceptions
+    def post(self) -> None:
+        from openai import OpenAI
+
+        body = self.request.body_arguments
+        if "audio" not in self.request.files:
+            self.set_status(400)
+            self.finish(json.dumps({"error": "audio is required"}))
+            return
+
+        if "openaiApiKey" not in body:
+            self.set_status(400)
+            self.finish(json.dumps({"error": "openaiApiKey is required"}))
+            return
+
+        audio_info = self.request.files["audio"][0]
+        audio_data = audio_info["body"]
+        filename = audio_info["filename"]
+        content_type = audio_info["content_type"]
+
+        if not audio_data:
+            self.set_status(400)
+            self.finish(json.dumps({"error": "audio file is empty"}))
+            return
+
+        LOGGER.log(
+            logging.INFO,
+            f"Received audio file: {filename} ({content_type}, {len(audio_data)} bytes)",
+        )
+
+        api_key = body["openaiApiKey"][0].decode("utf-8")
+
+        try:
+            client = OpenAI(api_key=api_key)
+
+            audio_file = io.BytesIO(audio_data)
+            audio_file.name = filename or "audio.webm"
+
+            transcript = client.audio.transcriptions.create(
+                model="whisper-1", file=audio_file
+            )
+
+            self.finish(json.dumps({"text": transcript.text}))
+        except Exception as e:
+            LOGGER.error(f"Transcription error: {str(e)}")
+            self.set_status(500)
+            self.finish(json.dumps({"error": f"Transcription failed: {str(e)}"}))
+
+
 def setup_route_handlers(web_app):
     host_pattern = ".*$"
     base_url = web_app.settings["base_url"]
 
-    # Initialize services
     telemetry_db = TelemetryDB()
     prompt_manager = PromptManager()
     chat_db = ChatDB()
@@ -390,6 +466,7 @@ def setup_route_handlers(web_app):
         base_url, "selenepy", "telemetry", "rename"
     )
     prompts_route_pattern = url_path_join(base_url, "selenepy", "prompts")
+    transcribe_route_pattern = url_path_join(base_url, "selenepy", "transcribe")
 
     handlers = [
         (hello_route_pattern, HelloRouteHandler),
@@ -404,6 +481,7 @@ def setup_route_handlers(web_app):
         (chat_threads_route_pattern, ChatThreadsHandler, {"chat_db": chat_db}),
         (chat_thread_messages_pattern, ChatThreadMessagesHandler, {"chat_db": chat_db}),
         (chat_stream_route_pattern, ChatStreamHandler, {"chat_db": chat_db}),
+        (transcribe_route_pattern, TranscribeHandler),
     ]
 
     web_app.add_handlers(host_pattern, handlers)

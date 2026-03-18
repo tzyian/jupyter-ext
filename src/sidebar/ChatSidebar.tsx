@@ -170,7 +170,8 @@ export class ChatSidebar extends ReactWidget {
         this._activeThreadId &&
         !this._threads.some(t => t.id === this._activeThreadId)
       ) {
-        this._activeThreadId = this._threads.length > 0 ? this._threads[0].id : null;
+        this._activeThreadId =
+          this._threads.length > 0 ? this._threads[0].id : null;
       }
       this.update();
     } catch (err) {
@@ -645,6 +646,7 @@ const ChatSidebarContent: React.FC<{
               onClear={props.onClear}
               onStop={props.onStop}
               hasApiKey={!!props.settings?.openaiApiKey}
+              openaiApiKey={props.settings?.openaiApiKey}
               snippets={snippets}
               cellContext={props.cellContext}
             />

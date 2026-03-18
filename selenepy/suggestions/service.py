@@ -25,21 +25,16 @@ LOGGER = logging.getLogger(__name__)
 LOGGER.setLevel(logging.INFO)
 
 load_dotenv()
-_OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-
-if not _OPENAI_API_KEY:
-    LOGGER.warning(
-        "OPENAI_API_KEY environment variable is not set; live suggestions are disabled."
-    )
 
 
 @lru_cache(maxsize=1)
 def _get_openai_client() -> AsyncOpenAI:
-    if not _OPENAI_API_KEY:
+    env_key = os.getenv("OPENAI_API_KEY", "").strip()
+    if not env_key:
         raise RuntimeError(
             "OPENAI_API_KEY must be configured to use live LLM suggestions."
         )
-    return AsyncOpenAI(api_key=_OPENAI_API_KEY)
+    return AsyncOpenAI(api_key=env_key)
 
 
 def apply_scan_scope(
@@ -76,8 +71,9 @@ async def stream_live_suggestions(
     snapshot: Mapping[str, Any], mode: str, system_prompt: str | None = None, openai_api_key: str | None = None
 ) -> AsyncIterator[Mapping[str, Any]]:
     """Yield structured suggestions from the OpenAI Responses API."""
-    if openai_api_key:
-        client = AsyncOpenAI(api_key=openai_api_key)
+    settings_key = (openai_api_key or "").strip()
+    if settings_key:
+        client = AsyncOpenAI(api_key=settings_key)
     else:
         client = _get_openai_client()
     model_name = os.getenv("OPENAI_MODEL", "gpt-4o-mini")

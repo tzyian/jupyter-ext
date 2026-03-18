@@ -375,3 +375,50 @@ export async function fetchThreadMessages(
     timestamp: m.timestamp
   }));
 }
+
+function getAudioFileMetadata(blobType: string): { ext: string; mime: string } {
+  const type = blobType.toLowerCase();
+
+  if (type.includes('ogg')) {
+    return { ext: '.ogg', mime: 'audio/ogg' };
+  }
+
+  if (type.includes('wav')) {
+    return { ext: '.wav', mime: 'audio/wav' };
+  }
+
+  return { ext: '.webm', mime: 'audio/webm' };
+}
+
+export async function transcribeAudio(
+  audioBlob: Blob,
+  openaiApiKey: string
+): Promise<string> {
+  const { url, settings } = getApiSettings('transcribe');
+
+  const container = getAudioFileMetadata(audioBlob.type);
+  const file = new File([audioBlob], `audio${container.ext}`, {
+    type: audioBlob.type || container.mime
+  });
+
+  const formData = new FormData();
+  formData.append('audio', file, file.name);
+  formData.append('openaiApiKey', openaiApiKey);
+
+  const response = await ServerConnection.makeRequest(
+    url,
+    {
+      method: 'POST',
+      body: formData
+    },
+    settings
+  );
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new ServerConnection.ResponseError(response, errorText);
+  }
+
+  const data = await response.json();
+  return data.text;
+}
