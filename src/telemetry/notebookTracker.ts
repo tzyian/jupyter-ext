@@ -20,7 +20,7 @@ export class NotebookTelemetryTracker implements IDisposable {
   } | null = null;
   private _visibilityStartTime: number | null = null;
   private readonly _idleTimeoutMs = 60000; // 60 seconds
-  private _currentCellContentConnection: any = null; // Track cell listener for cleanup
+  private _currentCellModel: ICellModel | null = null; // Track cell model for content listener cleanup
 
   // Session tracking for notebook time
   private _notebookSessionStart: number | null = null;
@@ -143,9 +143,9 @@ export class NotebookTelemetryTracker implements IDisposable {
 
     // Attach DOM event listeners
     const node = content.node;
-    node.addEventListener('copy', this._onClipboardCopy);
-    node.addEventListener('cut', this._onClipboardCut);
-    node.addEventListener('paste', this._onClipboardPaste);
+    node.addEventListener('copy', this._onClipboard);
+    node.addEventListener('cut', this._onClipboard);
+    node.addEventListener('paste', this._onClipboard);
     node.addEventListener('scroll', this._onScroll);
   }
 
@@ -163,10 +163,19 @@ export class NotebookTelemetryTracker implements IDisposable {
     context.saveState.disconnect(this._onSaveStateChanged, this);
 
     const node = content.node;
-    node.removeEventListener('copy', this._onClipboardCopy);
-    node.removeEventListener('cut', this._onClipboardCut);
-    node.removeEventListener('paste', this._onClipboardPaste);
+    node.removeEventListener('copy', this._onClipboard);
+    node.removeEventListener('cut', this._onClipboard);
+    node.removeEventListener('paste', this._onClipboard);
     node.removeEventListener('scroll', this._onScroll);
+
+    // Disconnect any attached cell content listener
+    if (this._currentCellModel) {
+      this._currentCellModel.contentChanged.disconnect(
+        this._onCellContentChanged,
+        this
+      );
+      this._currentCellModel = null;
+    }
 
     this._endEditingSession();
     this._currentPanel = null;
@@ -190,11 +199,12 @@ export class NotebookTelemetryTracker implements IDisposable {
     this._endEditingSession();
 
     // Disconnect previous cell content listener to prevent memory leak
-    if (this._currentCellContentConnection) {
-      activeCell.model.contentChanged.disconnect(
+    if (this._currentCellModel) {
+      this._currentCellModel.contentChanged.disconnect(
         this._onCellContentChanged,
         this
       );
+      this._currentCellModel = null;
     }
 
     // Log cell change
@@ -205,8 +215,8 @@ export class NotebookTelemetryTracker implements IDisposable {
     });
 
     // Start tracking edits on this cell
-    this._currentCellContentConnection =
-      activeCell.model.contentChanged.connect(this._onCellContentChanged, this);
+    activeCell.model.contentChanged.connect(this._onCellContentChanged, this);
+    this._currentCellModel = activeCell.model;
   };
 
   private _onCellContentChanged = (): void => {
@@ -323,50 +333,31 @@ export class NotebookTelemetryTracker implements IDisposable {
       });
     }
   };
-
-  private _onClipboardCopy = (): void => {
+  private _onClipboard = (ev: Event): void => {
     if (!this._currentPanel) {
       return;
     }
 
     const activeCell = this._currentPanel.content.activeCell;
-    if (activeCell) {
-      this._telemetry.logEvent('ClipboardCopyEvent', {
-        cellId: activeCell.model.id,
-        cellIndex: this._currentPanel.content.activeCellIndex,
-        notebookPath: this._getCurrentNotebookPath()
-      });
-    }
-  };
-
-  private _onClipboardCut = (): void => {
-    if (!this._currentPanel) {
+    if (!activeCell) {
       return;
     }
 
-    const activeCell = this._currentPanel.content.activeCell;
-    if (activeCell) {
-      this._telemetry.logEvent('ClipboardCutEvent', {
-        cellId: activeCell.model.id,
-        cellIndex: this._currentPanel.content.activeCellIndex,
-        notebookPath: this._getCurrentNotebookPath()
-      });
-    }
-  };
+    const type = ev?.type ?? '';
+    const eventName =
+      type === 'copy'
+        ? 'ClipboardCopyEvent'
+        : type === 'cut'
+          ? 'ClipboardCutEvent'
+          : type === 'paste'
+            ? 'ClipboardPasteEvent'
+            : 'ClipboardEvent';
 
-  private _onClipboardPaste = (): void => {
-    if (!this._currentPanel) {
-      return;
-    }
-
-    const activeCell = this._currentPanel.content.activeCell;
-    if (activeCell) {
-      this._telemetry.logEvent('ClipboardPasteEvent', {
-        cellId: activeCell.model.id,
-        cellIndex: this._currentPanel.content.activeCellIndex,
-        notebookPath: this._getCurrentNotebookPath()
-      });
-    }
+    this._telemetry.logEvent(eventName, {
+      cellId: activeCell.model.id,
+      cellIndex: this._currentPanel.content.activeCellIndex,
+      notebookPath: this._getCurrentNotebookPath()
+    });
   };
 
   private _onScroll = (): void => {

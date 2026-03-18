@@ -10,7 +10,7 @@ from typing import Any, Mapping
 import tornado
 from jupyter_server.base.handlers import APIHandler
 from jupyter_server.utils import url_path_join
-from openai import OpenAI
+from langfuse.openai import OpenAI
 
 from .chat_db import ChatDB
 from .chat_langchain.service import EducatorNotebookService
@@ -129,6 +129,14 @@ class ChatStreamWriter:
 
     async def send_error(self, message: str) -> None:
         await self._send({"type": "error", "message": message})
+
+    async def send_metrics(self, tokens_used: int, tokens_sent: int, messages_sent: int) -> None:
+        await self._send({
+            "type": "metrics",
+            "tokensUsed": tokens_used,
+            "tokensSent": tokens_sent,
+            "messagesSent": messages_sent
+        })
 
     async def _send(self, payload: Mapping[str, Any]) -> None:
         if self._closed:
@@ -395,6 +403,12 @@ class ChatStreamHandler(APIHandler):
 
     def initialize(self, chat_db: ChatDB):
         self.chat_db = chat_db
+        self._client_disconnected = False
+
+    def on_connection_close(self) -> None:
+        """Track client disconnects so long-running chat tasks can be cancelled."""
+        self._client_disconnected = True
+        LOGGER.info("Client connection closed for chat stream")
 
     @tornado.web.authenticated
     async def post(self) -> None:
@@ -433,14 +447,35 @@ class ChatStreamHandler(APIHandler):
                 else f"adhoc:{uuid.uuid4().hex}"
             )
 
-            result = await service.chat_turn(
-                session_id=session_id,
-                user_message=message,
-                openai_api_key=openai_api_key,
-                notebook_path=notebook_path,
+            chat_task = asyncio.create_task(
+                service.chat_turn(
+                    session_id=session_id,
+                    user_message=message,
+                    openai_api_key=openai_api_key,
+                    notebook_path=notebook_path,
+                )
             )
 
+            while not chat_task.done():
+                if self._client_disconnected or writer.is_closed:
+                    chat_task.cancel()
+                    LOGGER.info("Cancelled backend chat task due to client disconnect")
+                    return
+                await asyncio.sleep(0.1)
+
+            result = await chat_task
+
             assistant_message = str(result.get("assistant_message", ""))
+            
+            prompt_tokens = result.get("prompt_tokens", 0)
+            total_tokens = result.get("total_tokens", 0)
+            
+            await writer.send_metrics(
+                tokens_used=total_tokens,
+                tokens_sent=prompt_tokens,
+                messages_sent=1
+            )
+
             await stream_final_chat_response(writer, assistant_message)
 
             if result.get("timeout"):
@@ -451,6 +486,9 @@ class ChatStreamHandler(APIHandler):
                 )
         except tornado.iostream.StreamClosedError:
             LOGGER.info("Client disconnected from chat stream.")
+        except asyncio.CancelledError:
+            LOGGER.info("Chat stream task cancelled after client disconnect")
+            return
         except Exception as error:  # pylint: disable=broad-except
             LOGGER.error("Error during chat stream", exc_info=error)
             await writer.send_error(str(error))

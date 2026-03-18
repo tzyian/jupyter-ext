@@ -197,26 +197,6 @@ export function ChatPanel({
         {messages.length === 0 && (
           <div className="jp-selenepy-chatEmpty">Ask me anything!</div>
         )}
-        <div className="jp-selenepy-chatTimers-row">
-          <span className="jp-selenepy-chatTimer-pill">
-            Streaming:{' '}
-            {isStreaming ? `${(responseElapsedTime / 1000).toFixed(1)}s` : 'Idle'}
-          </span>
-          <span className="jp-selenepy-chatTimer-pill">
-            Response:{' '}
-            {lastResponseDuration !== null
-              ? `${(lastResponseDuration / 1000).toFixed(1)}s`
-              : '--'}
-          </span>
-          <span className="jp-selenepy-chatTimer-pill">
-            Audio:{' '}
-            {isRecording
-              ? `${(recordingElapsedTime / 1000).toFixed(1)}s`
-              : lastRecordingDuration !== null
-                ? `${(lastRecordingDuration / 1000).toFixed(1)}s`
-                : '--'}
-          </span>
-        </div>
         {messages.map(msg => (
           <div
             key={msg.id}

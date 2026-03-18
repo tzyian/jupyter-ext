@@ -2,7 +2,6 @@ import React from 'react';
 import type { ITelemetryStats } from '../../telemetry/types';
 import { DashboardMetricCard } from './dashboard/DashboardMetricCard';
 import { LLMMetricsCard } from './dashboard/LLMMetricsCard';
-// import { ProductivityCard } from './dashboard/ProductivityCard';
 import { NotebookTableCard } from './dashboard/NotebookTableCard';
 import { formatDuration } from '../../utils/formatting';
 import { useTelemetryStats } from '../utils/useTelemetryStats';
@@ -140,8 +139,6 @@ export const DashboardView: React.FC<IDashboardViewProps> = ({
           value={`${stats.estimated_time_saved_minutes}m`}
           subtitle={`From ${stats.suggestions_applied} applied suggestions`}
         />
-
-        {/* <ProductivityCard score={stats.productivity_score} /> */}
       </div>
     </div>
   );

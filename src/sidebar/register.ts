@@ -10,7 +10,8 @@ import type { ISuggestedEditsSettings } from '../types';
 import {
   TelemetryService,
   NotebookTelemetryTracker,
-  SidebarTelemetryTracker
+  SidebarTelemetryTracker,
+  ChatTelemetryTracker
 } from '../telemetry';
 import { TelemetrySidebar } from './TelemetrySidebar';
 import { ChatSidebar } from './ChatSidebar';
@@ -28,6 +29,7 @@ export interface ISuggestedEditsSidebarRegistration {
   readonly telemetryService: TelemetryService;
   readonly notebookTracker: NotebookTelemetryTracker;
   readonly sidebarTracker: SidebarTelemetryTracker;
+  readonly chatTracker: ChatTelemetryTracker;
   readonly telemetrySidebar: TelemetrySidebar;
 }
 
@@ -70,6 +72,7 @@ export function registerSuggestedEditsSidebar(options: {
   telemetrySidebar.title.iconClass = 'jp-SpreadsheetIcon';
 
   const chatSidebar = new ChatSidebar(tracker);
+  const chatTracker = new ChatTelemetryTracker(chatSidebar, telemetryService);
 
   registerCommands(app, sidebar, controller, chatSidebar);
 
@@ -98,6 +101,7 @@ export function registerSuggestedEditsSidebar(options: {
     telemetryService,
     notebookTracker,
     sidebarTracker,
+    chatTracker,
     telemetrySidebar
   };
 }

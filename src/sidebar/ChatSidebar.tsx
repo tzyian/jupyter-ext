@@ -1,4 +1,5 @@
 import { ReactWidget } from '@jupyterlab/apputils';
+import { Signal, type ISignal } from '@lumino/signaling';
 import React from 'react';
 import {
   streamChat,
@@ -21,6 +22,47 @@ import { CommandIDs } from './commands';
 import { ChatSidebarContent } from './components/ChatSidebarContent';
 
 export class ChatSidebar extends ReactWidget {
+  private readonly _messageSent = new Signal<
+    ChatSidebar,
+    { isContextMenu: boolean }
+  >(this);
+  private readonly _chatCleared = new Signal<ChatSidebar, void>(this);
+  private readonly _chatStopped = new Signal<ChatSidebar, void>(this);
+  private readonly _metricsReceived = new Signal<
+    ChatSidebar,
+    { tokensUsed: number; tokensSent: number; messagesSent: number }
+  >(this);
+  private readonly _threadCreated = new Signal<
+    ChatSidebar,
+    { threadId: string }
+  >(this);
+  private readonly _threadDeleted = new Signal<
+    ChatSidebar,
+    { threadId: string }
+  >(this);
+
+  get messageSent(): ISignal<ChatSidebar, { isContextMenu: boolean }> {
+    return this._messageSent;
+  }
+  get chatCleared(): ISignal<ChatSidebar, void> {
+    return this._chatCleared;
+  }
+  get chatStopped(): ISignal<ChatSidebar, void> {
+    return this._chatStopped;
+  }
+  get metricsReceived(): ISignal<
+    ChatSidebar,
+    { tokensUsed: number; tokensSent: number; messagesSent: number }
+  > {
+    return this._metricsReceived;
+  }
+  get threadCreated(): ISignal<ChatSidebar, { threadId: string }> {
+    return this._threadCreated;
+  }
+  get threadDeleted(): ISignal<ChatSidebar, { threadId: string }> {
+    return this._threadDeleted;
+  }
+
   private _messages: IChatMessage[] = [];
   private _threads: IChatThread[] = [];
   private _activeThreadId: string | null = null;
@@ -200,6 +242,7 @@ export class ChatSidebar extends ReactWidget {
       this._threads = [thread, ...this._threads];
       this._activeThreadId = thread.id;
       this._messages = [];
+      this._threadCreated.emit({ threadId: thread.id });
       this.update();
     } catch (err) {
       console.error('Failed to create thread', err);
@@ -214,6 +257,7 @@ export class ChatSidebar extends ReactWidget {
     try {
       await deleteThread(idToDelete);
       this._threads = this._threads.filter(t => t.id !== idToDelete);
+      this._threadDeleted.emit({ threadId: idToDelete });
       this._messages = [];
       this._activeThreadId =
         this._threads.length > 0 ? this._threads[0].id : null;
@@ -287,10 +331,14 @@ export class ChatSidebar extends ReactWidget {
 
   public async executeContextMenuPrompt(promptText: string) {
     this._view = 'chat';
-    await this._handleSendMessage(this._buildContextMenuMessage(promptText));
+    await this._handleSendMessage(
+      this._buildContextMenuMessage(promptText),
+      true
+    );
   }
 
-  private async _handleSendMessage(content: string) {
+  private async _handleSendMessage(content: string, isContextMenu = false) {
+    this._messageSent.emit({ isContextMenu });
     const userMsgTimestamp = Date.now() / 1000;
     const userMsgId = Date.now().toString();
     this._messages.push({
@@ -342,6 +390,8 @@ export class ChatSidebar extends ReactWidget {
             };
           }
           this.update();
+        } else if (event.type === 'metrics') {
+          this._metricsReceived.emit(event);
         }
       }
     } catch (err: any) {
@@ -369,6 +419,7 @@ export class ChatSidebar extends ReactWidget {
     if (this._abortController) {
       this._abortController.abort();
     }
+    this._chatCleared.emit(void 0);
     this._messages = [];
     this._isStreaming = false;
     // If there's an active thread, reload its messages from the DB
@@ -402,6 +453,7 @@ export class ChatSidebar extends ReactWidget {
       this._abortController.abort();
       this._abortController = null;
     }
+    this._chatStopped.emit(void 0);
     this._markStoppedOnLastAssistantMessage();
     this._isStreaming = false;
     this.update();

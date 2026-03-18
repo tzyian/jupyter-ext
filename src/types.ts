@@ -120,4 +120,10 @@ export type ChatStreamEvent =
   | {
       readonly type: 'error';
       readonly message: string;
+    }
+  | {
+      readonly type: 'metrics';
+      readonly tokensUsed: number;
+      readonly tokensSent: number;
+      readonly messagesSent: number;
     };

@@ -1,4 +1,6 @@
 import importlib
+import asyncio
+import time
 import inspect
 import json
 import logging
@@ -166,8 +168,6 @@ class EducatorNotebookService:
         max_minutes: int = 5,
         max_turns: int = 3,
     ):
-        import asyncio
-        import time
 
         history_messages = self._build_history_messages(history or [])
 
@@ -243,11 +243,25 @@ class EducatorNotebookService:
 
         messages = result.get("messages") or []
         assistant_message = ""
+        prompt_tokens = 0
+        completion_tokens = 0
+        total_tokens = 0
+        
         if messages:
-            assistant_message = getattr(messages[-1], "content", str(messages[-1]))
+            last_msg = messages[-1]
+            assistant_message = getattr(last_msg, "content", str(last_msg))
+            response_metadata = getattr(last_msg, "response_metadata", {})
+            token_usage = response_metadata.get("token_usage", {})
+            if token_usage:
+                prompt_tokens = token_usage.get("prompt_tokens", 0)
+                completion_tokens = token_usage.get("completion_tokens", 0)
+                total_tokens = token_usage.get("total_tokens", 0)
 
         return {
             "assistant_message": assistant_message,
+            "prompt_tokens": prompt_tokens,
+            "completion_tokens": completion_tokens,
+            "total_tokens": total_tokens,
             "research_notes": result.get("research_notes", ""),
             "notebook_path": result.get("notebook_path", notebook_path),
             "phase": str(result.get("phase", "")),
