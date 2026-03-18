@@ -16,6 +16,8 @@ export function useAudioRecorder(): IUseAudioRecorderReturn {
     const candidates = [
       'audio/webm;codecs=opus',
       'audio/webm',
+      'audio/mp4',
+      'audio/m4a',
       'audio/ogg;codecs=opus',
       'audio/ogg'
     ];

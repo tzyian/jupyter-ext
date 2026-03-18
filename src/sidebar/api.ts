@@ -374,12 +374,25 @@ export async function fetchThreadMessages(
 function getAudioFileMetadata(blobType: string): { ext: string; mime: string } {
   const type = blobType.toLowerCase();
 
+  if (type.includes('webm')) {
+    return { ext: '.webm', mime: 'audio/webm' };
+  }
+
+  if (type.includes('mp4') || type.includes('m4a')) {
+    // Whisper supports m4a and mp4. It infers format from extension.
+    return { ext: '.m4a', mime: 'audio/mp4' };
+  }
+
   if (type.includes('ogg')) {
-    return { ext: '.ogg', mime: 'audio/ogg' };
+    return { ext: '.oga', mime: 'audio/ogg' };
   }
 
   if (type.includes('wav')) {
     return { ext: '.wav', mime: 'audio/wav' };
+  }
+  
+  if (type.includes('mpeg') || type.includes('mp3')) {
+    return { ext: '.mp3', mime: 'audio/mpeg' };
   }
 
   return { ext: '.webm', mime: 'audio/webm' };
