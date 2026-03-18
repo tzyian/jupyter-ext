@@ -1,4 +1,5 @@
 import io
+from openai import OpenAI
 import json
 import logging
 import os
@@ -19,6 +20,8 @@ from .utils import handle_exceptions, safe_int
 
 LOGGER = logging.getLogger(__name__)
 LOGGER.setLevel(logging.INFO)
+
+OPENAI_API_KEY_ENV_VAR = "OPENAI_API_KEY"
 
 _LOG_DIR = os.path.join(os.path.expanduser("~"), ".selenepy", "logs")
 _LOG_FILE = os.path.join(_LOG_DIR, "routes.log")
@@ -41,6 +44,49 @@ if not any(
         logging.Formatter("%(asctime)s [%(levelname)s] %(name)s: %(message)s")
     )
     LOGGER.addHandler(file_handler)
+
+
+def _normalize_api_key(value: Any) -> str:
+    """Normalize an API key value to a stripped string."""
+    if value is None:
+        return ""
+    if isinstance(value, bytes):
+        return value.decode("utf-8", errors="ignore").strip()
+    return str(value).strip()
+
+
+def resolve_openai_api_key(
+    *,
+    settings: Mapping[str, Any] | None = None,
+    body: Mapping[str, Any] | None = None,
+    body_arguments: Mapping[str, Any] | None = None,
+) -> str:
+    """Resolve OpenAI API key from frontend payload first, then environment."""
+    frontend_key = ""
+
+    if settings:
+        frontend_key = _normalize_api_key(settings.get("openaiApiKey"))
+
+    if not frontend_key and body:
+        frontend_key = _normalize_api_key(body.get("openaiApiKey"))
+
+    if not frontend_key and body_arguments:
+        values = body_arguments.get("openaiApiKey")
+        if isinstance(values, list) and values:
+            frontend_key = _normalize_api_key(values[0])
+
+    if frontend_key:
+        return frontend_key
+
+    return _normalize_api_key(os.getenv(OPENAI_API_KEY_ENV_VAR, ""))
+
+
+def set_sse_headers(handler: APIHandler) -> None:
+    """Apply standard Server-Sent Events headers."""
+    handler.set_header("Content-Type", "text/event-stream")
+    handler.set_header("Cache-Control", "no-cache")
+    handler.set_header("X-Accel-Buffering", "no")
+    handler.set_header("Connection", "keep-alive")
 
 
 class PromptsHandler(APIHandler):
@@ -120,10 +166,7 @@ class SuggestedEditsStreamHandler(APIHandler):
 
     @tornado.web.authenticated
     async def post(self) -> None:
-        self.set_header("Content-Type", "text/event-stream")
-        self.set_header("Cache-Control", "no-cache")
-        self.set_header("X-Accel-Buffering", "no")
-        self.set_header("Connection", "keep-alive")
+        set_sse_headers(self)
 
         params = self._parse_request_params()
         await self._run_suggestion_stream(params)
@@ -138,7 +181,7 @@ class SuggestedEditsStreamHandler(APIHandler):
             mode = "context"
         context_window = safe_int(settings.get("contextWindow"), 3)
         prompt_id = body.get("promptId", "default")
-        openai_api_key = str(settings.get("openaiApiKey", "")).strip()
+        openai_api_key = resolve_openai_api_key(settings=settings, body=body)
 
         return {
             "snapshot": snapshot,
@@ -282,21 +325,18 @@ class ChatStreamHandler(APIHandler):
 
     @tornado.web.authenticated
     async def post(self) -> None:
-        self.set_header("Content-Type", "text/event-stream")
-        self.set_header("Cache-Control", "no-cache")
-        self.set_header("X-Accel-Buffering", "no")
-        self.set_header("Connection", "keep-alive")
+        set_sse_headers(self)
 
         body = self.get_json_body() or {}
         message = body.get("message", "")
         snapshot = body.get("snapshot")
         settings = body.get("settings", {})
         thread_id = body.get("thread_id")
-        openai_api_key = settings.get("openaiApiKey", "")
+        openai_api_key = resolve_openai_api_key(settings=settings, body=body)
 
         if not message:
             self.set_status(400)
-            self.finish({"error": "Message is required"})
+            self.finish(json.dumps({"error": "Message is required"}))
             return
 
         # Load history and persist user message when a valid thread is given
@@ -399,17 +439,11 @@ class TranscribeHandler(APIHandler):
     @tornado.web.authenticated
     @handle_exceptions
     def post(self) -> None:
-        from openai import OpenAI
 
         body = self.request.body_arguments
         if "audio" not in self.request.files:
             self.set_status(400)
             self.finish(json.dumps({"error": "audio is required"}))
-            return
-
-        if "openaiApiKey" not in body:
-            self.set_status(400)
-            self.finish(json.dumps({"error": "openaiApiKey is required"}))
             return
 
         audio_info = self.request.files["audio"][0]
@@ -422,12 +456,24 @@ class TranscribeHandler(APIHandler):
             self.finish(json.dumps({"error": "audio file is empty"}))
             return
 
-        LOGGER.log(
-            logging.INFO,
+        LOGGER.info(
             f"Received audio file: {filename} ({content_type}, {len(audio_data)} bytes)",
         )
 
-        api_key = body["openaiApiKey"][0].decode("utf-8")
+        api_key = resolve_openai_api_key(body_arguments=body)
+        if not api_key:
+            self.set_status(400)
+            self.finish(
+                json.dumps(
+                    {
+                        "error": (
+                            "OpenAI API key is required. Provide openaiApiKey "
+                            "from the frontend or set OPENAI_API_KEY in the environment."
+                        )
+                    }
+                )
+            )
+            return
 
         try:
             client = OpenAI(api_key=api_key)

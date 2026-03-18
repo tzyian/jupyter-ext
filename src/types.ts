@@ -68,7 +68,7 @@ export interface ISuggestedEditsSettings {
   readonly debounceMs: number;
   readonly maxCellCharacters: number;
   readonly contextWindow: number;
-  readonly openaiApiKey?: string;
+  readonly openaiApiKey: string;
 }
 
 export interface ISuggestionRequest {

@@ -95,7 +95,13 @@ export async function* streamSuggestions(
 
   const init: RequestInit = {
     method: 'POST',
-    body: JSON.stringify({ snapshot, settings: configuration, mode, promptId }),
+    body: JSON.stringify({
+      snapshot,
+      settings: configuration,
+      openaiApiKey: configuration.openaiApiKey,
+      mode,
+      promptId
+    }),
     headers: {
       'Content-Type': 'application/json',
       ...(settings.init?.headers ?? {})
@@ -184,6 +190,7 @@ export async function* streamChat(
       message,
       snapshot,
       settings: clientSettings,
+      openaiApiKey: clientSettings?.openaiApiKey ?? '',
       thread_id: threadId ?? null
     }),
     headers: {
@@ -255,12 +262,9 @@ function parseChatEventLine(
 }
 
 // ---------------------------------------------------------------------------
-// Thread management
+// Chat Thread management
 // ---------------------------------------------------------------------------
 
-/**
- * List all chat threads, ordered newest-first.
- */
 export async function fetchThreads(): Promise<IChatThread[]> {
   const { url, settings } = getApiSettings(CHAT_THREADS_PATH);
   const response = await ServerConnection.makeRequest(url, {}, settings);
@@ -311,9 +315,6 @@ export async function createThread(title = 'New Chat'): Promise<IChatThread> {
   };
 }
 
-/**
- * Delete a thread by ID.
- */
 export async function deleteThread(id: string): Promise<void> {
   const { url: base, settings } = getApiSettings(CHAT_THREADS_PATH);
   const url = `${base}?id=${encodeURIComponent(id)}`;
@@ -327,9 +328,6 @@ export async function deleteThread(id: string): Promise<void> {
   }
 }
 
-/**
- * Rename a thread.
- */
 export async function renameThread(id: string, title: string): Promise<void> {
   const { url: base, settings } = getApiSettings(CHAT_THREADS_PATH);
   const url = `${base}?id=${encodeURIComponent(id)}`;
@@ -346,9 +344,6 @@ export async function renameThread(id: string, title: string): Promise<void> {
   }
 }
 
-/**
- * Fetch all persisted messages for a thread.
- */
 export async function fetchThreadMessages(
   threadId: string
 ): Promise<import('../types').IChatMessage[]> {
@@ -392,7 +387,7 @@ function getAudioFileMetadata(blobType: string): { ext: string; mime: string } {
 
 export async function transcribeAudio(
   audioBlob: Blob,
-  openaiApiKey: string
+  openaiApiKey?: string
 ): Promise<string> {
   const { url, settings } = getApiSettings('transcribe');
 
@@ -403,7 +398,9 @@ export async function transcribeAudio(
 
   const formData = new FormData();
   formData.append('audio', file, file.name);
-  formData.append('openaiApiKey', openaiApiKey);
+  if (openaiApiKey) {
+    formData.append('openaiApiKey', openaiApiKey);
+  }
 
   const response = await ServerConnection.makeRequest(
     url,

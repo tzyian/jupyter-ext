@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { MdMic, MdMicOff } from 'react-icons/md';
 import type { IChatMessage } from '../../types';
 import { Button } from './common/Button';
-import { useAudioRecorder } from '../hooks/useAudioRecorder';
+import { useAudioRecorder } from '../utils/useAudioRecorder';
 import { transcribeAudio } from '../api';
 
 interface ICellContext {
@@ -17,7 +17,7 @@ interface IChatPanelProps {
   onClear: () => void;
   onStop: () => void;
   hasApiKey: boolean;
-  openaiApiKey: string;
+  openaiApiKey?: string;
   snippets?: { id: string; name: string; content: string }[];
   cellContext?: ICellContext | null;
 }
@@ -43,7 +43,12 @@ export function ChatPanel({
   }, [messages, isStreaming]);
 
   const handleSend = () => {
-    if (input.trim() && !isStreaming) {
+    if (isStreaming) {
+      onStop();
+      return;
+    }
+
+    if (input.trim()) {
       onSendMessage(input.trim());
       setInput('');
     }
@@ -302,10 +307,10 @@ export function ChatPanel({
           <Button
             variant="primary"
             onClick={handleSend}
-            disabled={!input.trim() || isStreaming}
+            disabled={!input.trim() && !isStreaming}
             style={{ padding: '0 12px' }}
           >
-            Send
+            {isStreaming ? 'Stop' : 'Send'}
           </Button>
         </div>
       </div>

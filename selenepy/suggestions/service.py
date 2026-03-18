@@ -13,7 +13,7 @@ from dotenv import load_dotenv
 from openai import AsyncOpenAI
 from openai.types.responses.response_input_param import ResponseInputItemParam
 
-from ..utils import safe_int, format_snapshot_for_prompt
+from ..utils import format_snapshot_for_prompt, safe_int
 from .models import (
     SYSTEM_PROMPT,
     SuggestedEditModel,
@@ -24,15 +24,34 @@ from .models import (
 LOGGER = logging.getLogger(__name__)
 LOGGER.setLevel(logging.INFO)
 
+OPENAI_API_KEY_ENV_VAR = "OPENAI_API_KEY"
+OPENAI_MODEL_ENV_VAR = "OPENAI_MODEL"
+DEFAULT_OPENAI_MODEL = "gpt-4o-mini"
+
 load_dotenv()
+
+
+def _normalize_api_key(value: Any) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, bytes):
+        return value.decode("utf-8", errors="ignore").strip()
+    return str(value).strip()
+
+
+def _resolve_openai_api_key(preferred_key: str | None = None) -> str:
+    key = _normalize_api_key(preferred_key)
+    if key:
+        return key
+    return _normalize_api_key(os.getenv(OPENAI_API_KEY_ENV_VAR, ""))
 
 
 @lru_cache(maxsize=1)
 def _get_openai_client() -> AsyncOpenAI:
-    env_key = os.getenv("OPENAI_API_KEY", "").strip()
+    env_key = _resolve_openai_api_key()
     if not env_key:
         raise RuntimeError(
-            "OPENAI_API_KEY must be configured to use live LLM suggestions."
+            f"{OPENAI_API_KEY_ENV_VAR} must be configured to use live LLM suggestions."
         )
     return AsyncOpenAI(api_key=env_key)
 
@@ -68,15 +87,21 @@ def apply_scan_scope(
 
 
 async def stream_live_suggestions(
-    snapshot: Mapping[str, Any], mode: str, system_prompt: str | None = None, openai_api_key: str | None = None
+    snapshot: Mapping[str, Any],
+    mode: str,
+    system_prompt: str | None = None,
+    openai_api_key: str | None = None,
 ) -> AsyncIterator[Mapping[str, Any]]:
     """Yield structured suggestions from the OpenAI Responses API."""
-    settings_key = (openai_api_key or "").strip()
-    if settings_key:
+    settings_key = _normalize_api_key(openai_api_key)
+    env_key = _normalize_api_key(os.getenv(OPENAI_API_KEY_ENV_VAR, ""))
+
+    if settings_key and settings_key != env_key:
         client = AsyncOpenAI(api_key=settings_key)
     else:
         client = _get_openai_client()
-    model_name = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+
+    model_name = os.getenv(OPENAI_MODEL_ENV_VAR, DEFAULT_OPENAI_MODEL)
     prompt = format_snapshot_for_prompt(snapshot)
     LOGGER.info("LLM PROMPT:\n%s", prompt)
 

@@ -371,6 +371,34 @@ export class ChatSidebar extends ReactWidget {
     }
   }
 
+  private _markStoppedOnLastAssistantMessage() {
+    const aiMsg = this._messages[this._messages.length - 1];
+    if (!aiMsg || aiMsg.role !== 'ai') {
+      return;
+    }
+
+    const marker = '[Stopped]';
+    const trimmed = aiMsg.content.trim();
+    if (trimmed.endsWith(marker)) {
+      return;
+    }
+
+    this._messages[this._messages.length - 1] = {
+      ...aiMsg,
+      content: trimmed ? `${trimmed}\n${marker}` : marker
+    };
+  }
+
+  private _handleStop() {
+    if (this._abortController) {
+      this._abortController.abort();
+      this._abortController = null;
+    }
+    this._markStoppedOnLastAssistantMessage();
+    this._isStreaming = false;
+    this.update();
+  }
+
   protected render(): JSX.Element {
     const cellContext = this._getActiveCellContext();
     return (
@@ -391,14 +419,7 @@ export class ChatSidebar extends ReactWidget {
         }}
         onSendMessage={msg => void this._handleSendMessage(msg)}
         onClear={() => this._handleClear()}
-        onStop={() => {
-          if (this._abortController) {
-            this._abortController.abort();
-            this._abortController = null;
-          }
-          this._isStreaming = false;
-          this.update();
-        }}
+        onStop={() => this._handleStop()}
         onSelectSnippet={id => {
           this._selectedSnippetId = id;
           this.update();
