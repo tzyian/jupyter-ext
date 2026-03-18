@@ -193,9 +193,15 @@
   overflow-wrap: break-word;
 }
 
+.jp-selenepy-suggestedEdits-container {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding-right: 8px;
+}
+
 .jp-selenepy-suggestedEdits-header h2 {
   margin-bottom: 8px;
-  /* Extra margin for buttons below */
 }
 
 .jp-selenepy-suggestedEdits-buttonGroup {
@@ -898,6 +904,25 @@
   align-self: flex-start;
   color: var(--jp-ui-font-color2);
   font-style: italic;
+  font-size: var(--js-small-font-size);
+  margin-top: 4px;
+}
+
+.jp-selenepy-chatTimer {
+  font-weight: 600;
+  color: var(--js-chat-color);
+  font-family: var(--jp-code-font-family);
+}
+
+.jp-selenepy-chatDuration-info {
+  align-self: center;
+  font-size: 10px;
+  color: var(--jp-ui-font-color3);
+  font-style: italic;
+  margin: 4px 0;
+  padding: 2px 8px;
+  background: var(--jp-layout-color2);
+  border-radius: 10px;
 }
 
 .jp-selenepy-chatContext-box {

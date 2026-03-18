@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { MdMic, MdMicOff, MdSend, MdStop } from 'react-icons/md';
+import { showDialog } from '@jupyterlab/apputils';
 import type { IChatMessage } from '../../types';
 import { Button } from './common/Button';
 import { useAudioRecorder } from '../utils/useAudioRecorder';
@@ -35,8 +36,32 @@ export function ChatPanel({
 }: IChatPanelProps): JSX.Element {
   const [input, setInput] = useState('');
   const [isTranscribing, setIsTranscribing] = useState(false);
+  const [elapsedTime, setElapsedTime] = useState<number>(0);
+  const [lastDuration, setLastDuration] = useState<number | null>(null);
   const endOfMessagesRef = useRef<HTMLDivElement>(null);
   const { isRecording, startRecording, stopRecording } = useAudioRecorder();
+
+  useEffect(() => {
+    let interval: any;
+    if (isStreaming) {
+      const startTime = Date.now();
+      setElapsedTime(0);
+      setLastDuration(null);
+      interval = setInterval(() => {
+        setElapsedTime(Date.now() - startTime);
+      }, 100);
+    } else {
+      if (elapsedTime > 0) {
+        setLastDuration(elapsedTime);
+        setElapsedTime(0);
+      }
+    }
+    return () => {
+      if (interval) {
+        clearInterval(interval);
+      }
+    };
+  }, [isStreaming]);
 
   useEffect(() => {
     endOfMessagesRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -77,7 +102,10 @@ export function ChatPanel({
         }
       } catch (error: any) {
         console.error('Transcription error:', error);
-        window.alert(error && error.message ? error.message : String(error));
+        void showDialog({
+          title: 'Transcription Error',
+          body: error && error.message ? error.message : String(error)
+        });
       } finally {
         setIsTranscribing(false);
       }
@@ -86,11 +114,13 @@ export function ChatPanel({
         await startRecording();
       } catch (error) {
         console.error('Recording error:', error);
-        window.alert(
-          error && (error as any).message
-            ? (error as any).message
-            : String(error)
-        );
+        void showDialog({
+          title: 'Recording Error',
+          body:
+            error && (error as any).message
+              ? (error as any).message
+              : String(error)
+        });
       }
     }
   };
@@ -144,7 +174,15 @@ export function ChatPanel({
         ))}
         {isStreaming && (
           <div className="jp-selenepy-chatStreaming-indicator">
-            Agent is typing...
+            Agent is typing...{' '}
+            <span className="jp-selenepy-chatTimer">
+              ({(elapsedTime / 1000).toFixed(1)}s)
+            </span>
+          </div>
+        )}
+        {!isStreaming && lastDuration !== null && (
+          <div className="jp-selenepy-chatDuration-info">
+            Response took {(lastDuration / 1000).toFixed(1)}s
           </div>
         )}
         <div ref={endOfMessagesRef} />
