@@ -27,10 +27,7 @@ export const Button: React.FC<IButtonProps> = ({
       disabled={disabled}
       title={title}
       className={`jp-selenepy-button ${variantClass} ${className}`}
-      style={{
-        cursor: disabled ? 'not-allowed' : 'pointer',
-        ...style
-      }}
+      style={style}
     >
       {children}
     </button>

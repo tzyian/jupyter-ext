@@ -208,8 +208,11 @@ export const PromptEditorCard: React.FC<IPromptEditorCardProps> = ({
             triggerAutoSave(name, newContent, description);
           }}
           disabled={!canEdit}
-          className="jp-selenepy-promptTextarea"
-          style={{ minHeight: showDescription ? '120px' : '180px' }}
+          className={`jp-selenepy-promptTextarea ${
+            showDescription
+              ? 'jp-selenepy-promptTextarea-short'
+              : 'jp-selenepy-promptTextarea-long'
+          }`}
         />
 
         <div className="jp-selenepy-promptCard-actions">

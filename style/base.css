@@ -15,6 +15,10 @@
   --js-suggestions-color: var(--jp-brand-color1); /* Blue */
   --js-chat-color: #8a2be2; /* Purple */
   --js-dashboard-color: #2e7d32; /* Green */
+
+  /* Chat Colors */
+  --js-chat-user-bg: var(--jp-layout-color2);
+  --js-chat-agent-bg: var(--jp-layout-color1);
 }
 
 .jp-selenepy-card {
@@ -61,6 +65,13 @@
   color: var(--jp-ui-font-color1);
   cursor: pointer;
   outline: none;
+}
+
+.jp-selenepy-select-inline {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
 }
 
 .jp-selenepy-select-input:focus {
@@ -143,6 +154,28 @@
   font-size: var(--js-header-font-size);
   font-weight: 600;
   white-space: nowrap;
+}
+
+.jp-selenepy-sidebar-wrapper {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden; /* Prevent parent scrollbars */
+}
+
+.jp-selenepy-sidebar-header-row {
+  padding: 4px;
+  border-bottom: 1px solid var(--jp-border-color2);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.jp-selenepy-sidebar-content {
+  flex: 1;
+  min-height: 0; /* Important for flex-grow with overflow */
+  display: flex;
+  flex-direction: column;
 }
 
 .jp-selenepy-suggestedEdits-item,
@@ -479,14 +512,12 @@
   border-top: 1px solid var(--jp-border-color2);
 }
 
-/* Telemetry Dashboard */
-.jp-selenepy-telemetry {
+.jp-selenepy-telemetry,
+.jp-selenepy-suggestedEdits,
+.jp-selenepy-promptSettings {
   padding: 0 16px;
-  overflow-x: hidden;
-}
-
-.jp-selenepy-dashboard-container {
-  padding: 12px 0;
+  overflow-y: auto;
+  flex: 1;
 }
 
 .jp-selenepy-dashboard-header {
@@ -504,6 +535,11 @@
 
 .jp-selenepy-dashboard-error {
   color: var(--jp-error-color1);
+}
+
+.jp-selenepy-dashboard-select {
+  width: auto;
+  min-width: 150px;
 }
 
 .jp-selenepy-dashboard-grid {
@@ -603,6 +639,7 @@
   background: white;
   border-radius: 4px;
   transition: width 0.5s ease;
+  width: var(--productivity-score, 0%);
 }
 
 /* Full-width card for per-notebook breakdown */
@@ -784,6 +821,14 @@
   resize: vertical;
 }
 
+.jp-selenepy-promptTextarea-short {
+  min-height: 120px;
+}
+
+.jp-selenepy-promptTextarea-long {
+  min-height: 180px;
+}
+
 .jp-selenepy-promptTextarea:disabled {
   background: var(--jp-layout-color2);
   color: var(--jp-ui-font-color3);
@@ -798,8 +843,158 @@
 .jp-selenepy-promptCard-actions {
   display: flex;
   align-items: center;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+/* Chat Panel */
+.jp-selenepy-chatPanel {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  padding: 8px;
+}
+
+.jp-selenepy-chatMessages {
+  flex-grow: 1;
+  overflow-y: auto;
+  margin-bottom: 12px;
+  display: flex;
+  flex-direction: column;
   gap: 8px;
+}
+
+.jp-selenepy-chatEmpty {
+  text-align: center;
+  color: var(--jp-ui-font-color2);
+  margin-top: 20px;
+}
+
+.jp-selenepy-chatMessage {
+  padding: 8px;
+  border-radius: 4px;
+  border: 1px solid var(--jp-border-color1);
+  max-width: 90%;
+  word-break: break-word;
+  white-space: pre-wrap;
+}
+
+.jp-selenepy-chatMessage-user {
+  background-color: var(--js-chat-user-bg);
+  align-self: flex-end;
+}
+
+.jp-selenepy-chatMessage-agent {
+  background-color: var(--js-chat-agent-bg);
+  align-self: flex-start;
+}
+
+.jp-selenepy-chatMessage-body {
   margin-top: 4px;
+}
+
+.jp-selenepy-chatStreaming-indicator {
+  align-self: flex-start;
+  color: var(--jp-ui-font-color2);
+  font-style: italic;
+}
+
+.jp-selenepy-chatContext-box {
+  font-size: 0.72rem;
+  padding: 2px 6px;
+  background-color: var(--jp-layout-color2);
+  border: 1px solid var(--jp-border-color1);
+  border-radius: 4px;
+  color: var(--jp-ui-font-color2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.jp-selenepy-chatInput-container {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.jp-selenepy-chatSnippets-container {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.jp-selenepy-chatSnippets-label {
+  font-size: 0.72rem;
+  color: var(--jp-ui-font-color2);
+  padding-left: 2px;
+}
+
+.jp-selenepy-chatSnippets-row {
+  display: flex;
+  gap: 4px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+
+.jp-selenepy-chatInput-row {
+  display: flex;
+  gap: 4px;
+  align-items: flex-end;
+}
+
+.jp-selenepy-chatInput-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.jp-selenepy-chatFooter {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.jp-selenepy-chatTextarea {
+  flex-grow: 1;
+  resize: none;
+  height: 60px;
+  padding: 4px;
+  font-family: inherit;
+  background-color: var(--jp-layout-color1);
+  color: var(--jp-ui-font-color1);
+  border: 1px solid var(--jp-border-color1);
+  border-radius: 4px;
+}
+
+.jp-selenepy-chatMic-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  background-color: var(--jp-layout-color2);
+  color: var(--jp-ui-font-color1);
+  border: 1px solid var(--jp-border-color1);
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 16px;
+  transition: background-color 0.2s;
+}
+
+.jp-selenepy-chatMic-btn.is-recording {
+  background-color: var(--jp-error-color1);
+  color: white;
+}
+
+.jp-selenepy-chatSend-btn {
+  width: 32px;
+  height: 32px;
+  min-width: 32px;
+  padding: 0;
+  font-size: 16px;
+  border-radius: 4px;
 }
 
 .jp-selenepy-promptCard-status {

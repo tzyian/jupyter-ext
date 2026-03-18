@@ -229,19 +229,8 @@ const SuggestedEditsSidebarContent: React.FC<{
     usePrompts('suggestion');
 
   return (
-    <div
-      className="jp-selenepy-suggestedEdits-wrapper"
-      style={{ display: 'flex', flexDirection: 'column', height: '100%' }}
-    >
-      <div
-        style={{
-          padding: '4px',
-          borderBottom: '1px solid var(--jp-border-color2)',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center'
-        }}
-      >
+    <div className="jp-selenepy-sidebar-wrapper">
+      <div className="jp-selenepy-sidebar-header-row">
         <Select
           label="View:"
           value={props.view === 'home' ? 'suggestions' : 'settings'}
@@ -256,16 +245,11 @@ const SuggestedEditsSidebarContent: React.FC<{
             { value: 'suggestions', label: 'Suggestions' },
             { value: 'settings', label: 'Manage Prompts' }
           ]}
-          style={{
-            flexDirection: 'row',
-            alignItems: 'center',
-            gap: '8px',
-            width: '100%'
-          }}
+          className="jp-selenepy-select-inline"
         />
       </div>
 
-      <div style={{ flex: 1, overflowY: 'auto' }}>
+      <div className="jp-selenepy-sidebar-content">
         {props.view === 'settings' ? (
           <PromptSettingsPanel
             prompts={prompts}

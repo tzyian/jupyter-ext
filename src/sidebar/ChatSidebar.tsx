@@ -615,19 +615,8 @@ const ChatSidebarContent: React.FC<{
   }, [contextMenus, props.selectedContextMenuId]);
 
   return (
-    <div
-      className="jp-selenepy-chatSidebar-wrapper"
-      style={{ display: 'flex', flexDirection: 'column', height: '100%' }}
-    >
-      <div
-        style={{
-          padding: '4px',
-          borderBottom: '1px solid var(--jp-border-color2)',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center'
-        }}
-      >
+    <div className="jp-selenepy-sidebar-wrapper">
+      <div className="jp-selenepy-sidebar-header-row">
         <Select
           label="View:"
           value={props.view}
@@ -639,16 +628,11 @@ const ChatSidebarContent: React.FC<{
             { value: 'chat_snippet', label: 'Manage Chat Snippets' },
             { value: 'context_menu', label: 'Manage Context Menus' }
           ]}
-          style={{
-            flexDirection: 'row',
-            alignItems: 'center',
-            gap: '8px',
-            width: '100%'
-          }}
+          className="jp-selenepy-select-inline"
         />
       </div>
 
-      <div style={{ flex: 1, overflowY: 'auto' }}>
+      <div className="jp-selenepy-sidebar-content">
         {props.view === 'chat' && (
           <>
             <ThreadSelector

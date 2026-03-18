@@ -64,7 +64,6 @@ export const DashboardView: React.FC<IDashboardViewProps> = ({
           onChange={setSelectedNotebook}
           options={notebookOptions}
           hideLabel={true}
-          style={{ width: 'auto', minWidth: '150px' }}
         />
       </header>
 

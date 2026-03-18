@@ -35,7 +35,7 @@ export const ProductivityCard: React.FC<IProductivityCardProps> = ({
       <div className="jp-selenepy-dashboard-progress-bar">
         <div
           className="jp-selenepy-dashboard-progress-fill"
-          style={{ width: `${score}%` }}
+          style={{ '--productivity-score': `${score}%` } as React.CSSProperties}
         />
       </div>
     </div>
