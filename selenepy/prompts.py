@@ -10,6 +10,45 @@ from .suggestions.models import SYSTEM_PROMPT as DEFAULT_SYSTEM_PROMPT
 
 LOGGER = logging.getLogger(__name__)
 
+SAMPLE_PROMPTS = [
+    {
+        "name": "Documentation Specialist",
+        "description": "Focuses on providing missing docstrings and comments.",
+        "content": "You are a Python documentation expert. When suggesting changes, prioritize adding high-quality PEP 257 compliant docstrings and helpful inline comments to explain complex logic.",
+        "category": "suggestion",
+    },
+    {
+        "name": "Complete Type Hints",
+        "description": "Adds missing type annotations to the selected code.",
+        "content": "You are a Python type system expert. Analyze the following code and add comprehensive PEP 484 type hints to all function signatures and variables where they are missing. Return only the improved code.",
+        "category": "context_menu",
+    },
+    {
+        "name": "Generate Docstring",
+        "description": "Generates a Google-style docstring for the selected function.",
+        "content": "Generate a comprehensive Google-style docstring for the following function, including Args, Returns, and Raises sections if applicable. Return only the docstring.",
+        "category": "context_menu",
+    },
+    {
+        "name": "Optimize Performance",
+        "description": "Suggests performance optimizations.",
+        "content": "Can you optimize this code for better performance? Explain why the new version is faster.",
+        "category": "chat_snippet",
+    },
+    {
+        "name": "Fix Security Issues",
+        "description": "Reviews code for security vulnerabilities.",
+        "content": "Review this code for common security vulnerabilities like SQL injection or XSS. If you find any, suggest fixes.",
+        "category": "chat_snippet",
+    },
+    {
+        "name": "Add Unit Tests",
+        "description": "Generates unit tests for the selected code.",
+        "content": "Please generate a set of `pytest` unit tests for the following code, covering both happy path and edge cases.",
+        "category": "chat_snippet",
+    },
+]
+
 class PromptManager:
     """Manages custom system prompts, storing them in a SQLite database."""
 
@@ -58,6 +97,7 @@ class PromptManager:
 
         self._init_db()
         self._migrate_from_json()
+        self._seed_samples()
 
     def _init_db(self) -> None:
         """Create the prompts table if it doesn't exist."""
@@ -160,6 +200,41 @@ class PromptManager:
 
         except Exception as e:
             LOGGER.error(f"Failed to migrate prompts from JSON: {e}")
+
+    def _seed_samples(self) -> None:
+        """Seed the database with sample prompts if it's empty."""
+        with sqlite3.connect(str(self.db_path)) as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT COUNT(*) FROM prompts")
+            count = cursor.fetchone()[0]
+
+            if count > 0:
+                # DB already has data, don't seed
+                return
+
+            now = time.time()
+            rows = []
+            for sample in SAMPLE_PROMPTS:
+                rows.append(
+                    (
+                        uuid.uuid4().hex,
+                        sample["name"],
+                        sample["content"],
+                        0,  # is_default (not hardcoded default, but seeded sample)
+                        sample.get("description"),
+                        sample.get("category"),
+                        now,
+                        now,
+                    )
+                )
+
+            if rows:
+                cursor.executemany(
+                    "INSERT INTO prompts (id, name, content, is_default, description, category, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                    rows,
+                )
+                conn.commit()
+                LOGGER.info(f"[PromptManager] Seeded {len(rows)} sample prompts")
 
     def get_all_prompts(self) -> List[Dict[str, Any]]:
         """Get all prompts including the default ones."""

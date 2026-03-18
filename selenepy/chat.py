@@ -1,6 +1,5 @@
 import json
 import logging
-import os
 from typing import Annotated, Any, Mapping, TypedDict
 
 from jupyter_server.base.handlers import APIHandler
@@ -13,30 +12,6 @@ from langgraph.graph.message import add_messages
 from .utils import format_snapshot_for_prompt
 
 LOGGER = logging.getLogger(__name__)
-
-OPENAI_API_KEY_ENV_VAR = "OPENAI_API_KEY"
-OPENAI_MODEL_ENV_VAR = "OPENAI_MODEL"
-DEFAULT_OPENAI_MODEL = "gpt-4o-mini"
-
-
-def _normalize_api_key(value: Any) -> str:
-    if value is None:
-        return ""
-    if isinstance(value, bytes):
-        return value.decode("utf-8", errors="ignore").strip()
-    return str(value).strip()
-
-
-def _resolve_openai_api_key(preferred_key: str | None = None) -> str:
-    key = _normalize_api_key(preferred_key)
-    if key:
-        return key
-    return _normalize_api_key(os.getenv(OPENAI_API_KEY_ENV_VAR, ""))
-
-
-def _resolve_model_name() -> str:
-    model_name = str(os.getenv(OPENAI_MODEL_ENV_VAR, DEFAULT_OPENAI_MODEL)).strip()
-    return model_name or DEFAULT_OPENAI_MODEL
 
 
 class ChatStreamWriter:
@@ -80,23 +55,18 @@ class AgentState(TypedDict):
     messages: Annotated[list[BaseMessage], add_messages]
 
 
-async def call_model(state: AgentState, config: Mapping[str, Any] | None = None):
-    """Model node that executes chat completions with OpenAI."""
+async def call_model(state: AgentState, config: dict = None):
+    """Real model node that chats with Claude."""
     messages = state.get("messages", [])
 
-    configurable = config.get("configurable") if config else None
-    preferred_key = (
-        configurable.get("openai_api_key")
-        if isinstance(configurable, Mapping)
-        else None
-    )
-    api_key = _resolve_openai_api_key(preferred_key)
-    model_name = _resolve_model_name()
+    api_key = None
+    if config and "configurable" in config:
+        api_key = config["configurable"].get("openai_api_key")
 
     if api_key:
-        model = ChatOpenAI(model=model_name, streaming=True, api_key=api_key)
+        model = ChatOpenAI(model="gpt-4o-mini", streaming=True, api_key=api_key)
     else:
-        model = ChatOpenAI(model=model_name, streaming=True)
+        model = ChatOpenAI(model="gpt-4o-mini", streaming=True)
     response = await model.ainvoke(messages)
 
     return {"messages": [response]}
@@ -131,9 +101,9 @@ def _build_history_messages(history: list[dict]) -> list[BaseMessage]:
 async def stream_chat_response(
     message: str,
     writer: ChatStreamWriter,
-    snapshot: Mapping[str, Any] | None = None,
-    openai_api_key: str | None = None,
-    history: list[dict[str, Any]] | None = None,
+    snapshot: dict = None,
+    openai_api_key: str = None,
+    history: list[dict] = None,
 ) -> str:
     """Run the LangGraph agent and stream output to the client.
 
@@ -166,10 +136,9 @@ async def stream_chat_response(
         else:
             inputs = {"messages": history_msgs + [HumanMessage(content=message)]}
 
-        resolved_api_key = _resolve_openai_api_key(openai_api_key)
         config = (
-            {"configurable": {"openai_api_key": resolved_api_key}}
-            if resolved_api_key
+            {"configurable": {"openai_api_key": openai_api_key}}
+            if openai_api_key
             else {}
         )
 

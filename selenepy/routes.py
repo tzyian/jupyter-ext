@@ -1,17 +1,19 @@
+import asyncio
 import io
-from openai import OpenAI
 import json
 import logging
 import os
+import uuid
 from logging.handlers import RotatingFileHandler
 from typing import Any, Mapping
 
 import tornado
 from jupyter_server.base.handlers import APIHandler
 from jupyter_server.utils import url_path_join
+from openai import OpenAI
 
-from .chat import ChatStreamWriter, stream_chat_response
 from .chat_db import ChatDB
+from .chat_langchain.service import EducatorNotebookService
 from .prompts import PromptManager
 from .streaming import SuggestionStreamWriter
 from .suggestions import apply_scan_scope, stream_live_suggestions
@@ -22,6 +24,9 @@ LOGGER = logging.getLogger(__name__)
 LOGGER.setLevel(logging.INFO)
 
 OPENAI_API_KEY_ENV_VAR = "OPENAI_API_KEY"
+
+_chat_langchain_service: EducatorNotebookService | None = None
+_chat_langchain_service_init_lock = asyncio.Lock()
 
 _LOG_DIR = os.path.join(os.path.expanduser("~"), ".selenepy", "logs")
 _LOG_FILE = os.path.join(_LOG_DIR, "routes.log")
@@ -87,6 +92,71 @@ def set_sse_headers(handler: APIHandler) -> None:
     handler.set_header("Cache-Control", "no-cache")
     handler.set_header("X-Accel-Buffering", "no")
     handler.set_header("Connection", "keep-alive")
+
+
+async def get_chat_langchain_service() -> EducatorNotebookService:
+    """Lazily create and initialize a shared chat_langchain service instance."""
+    global _chat_langchain_service
+
+    if _chat_langchain_service is not None:
+        return _chat_langchain_service
+
+    async with _chat_langchain_service_init_lock:
+        if _chat_langchain_service is None:
+            service = EducatorNotebookService()
+            await service.initialize()
+            _chat_langchain_service = service
+
+    return _chat_langchain_service
+
+
+class ChatStreamWriter:
+    """Writes Server-Sent Events to the client for chat streaming."""
+
+    def __init__(self, handler: APIHandler) -> None:
+        self._handler = handler
+        self._closed = False
+
+    @property
+    def is_closed(self) -> bool:
+        return self._closed
+
+    async def send_status(self, phase: str) -> None:
+        await self._send({"type": "status", "phase": phase})
+
+    async def send_chunk(self, content: str) -> None:
+        await self._send({"type": "chunk", "content": content})
+
+    async def send_error(self, message: str) -> None:
+        await self._send({"type": "error", "message": message})
+
+    async def _send(self, payload: Mapping[str, Any]) -> None:
+        if self._closed:
+            return
+        try:
+            chunk = f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
+            self._handler.write(chunk)
+            await self._handler.flush()
+        except Exception:
+            self._closed = True
+
+    async def close(self) -> None:
+        if self._closed:
+            return
+        self._closed = True
+        self._handler.finish()
+
+
+async def stream_final_chat_response(writer: ChatStreamWriter, text: str) -> str:
+    """Stream a completed assistant response in chunks to preserve SSE UX."""
+    payload = (text or "").strip()
+    if not payload:
+        return ""
+
+    chunk_size = 120
+    for index in range(0, len(payload), chunk_size):
+        await writer.send_chunk(payload[index : index + chunk_size])
+    return payload
 
 
 class PromptsHandler(APIHandler):
@@ -307,13 +377,16 @@ class ChatThreadMessagesHandler(APIHandler):
         self.chat_db = chat_db
 
     @tornado.web.authenticated
-    def get(self, thread_id: str):
+    async def get(self, thread_id: str):
         """Return all messages for the given thread."""
         if not self.chat_db.thread_exists(thread_id):
             self.set_status(404)
             self.finish(json.dumps({"error": "Thread not found"}))
             return
-        messages = self.chat_db.get_messages(thread_id)
+
+        service = await get_chat_langchain_service()
+        checkpoint_thread_id = f"thread:{thread_id}"
+        messages = await service.get_thread_messages(checkpoint_thread_id)
         self.finish(json.dumps({"messages": messages}))
 
 
@@ -332,6 +405,7 @@ class ChatStreamHandler(APIHandler):
         snapshot = body.get("snapshot")
         settings = body.get("settings", {})
         thread_id = body.get("thread_id")
+        thread_id_str = str(thread_id) if thread_id is not None else None
         openai_api_key = resolve_openai_api_key(settings=settings, body=body)
 
         if not message:
@@ -339,22 +413,52 @@ class ChatStreamHandler(APIHandler):
             self.finish(json.dumps({"error": "Message is required"}))
             return
 
-        # Load history and persist user message when a valid thread is given
-        history: list[dict] = []
-        persist = thread_id and self.chat_db.thread_exists(thread_id)
+        persist = bool(thread_id_str) and self.chat_db.thread_exists(thread_id_str)
         if persist:
-            raw = self.chat_db.get_messages(thread_id)
-            history = [{"role": m["role"], "content": m["content"]} for m in raw]
-            self.chat_db.add_message(thread_id, "user", message)
+            assert thread_id_str is not None
+            self.chat_db.touch_thread(thread_id_str)
 
         writer = ChatStreamWriter(self)
-        ai_response = await stream_chat_response(
-            message, writer, snapshot, openai_api_key=openai_api_key, history=history
-        )
+        await writer.send_status("started")
 
-        # Persist AI response
-        if persist and ai_response:
-            self.chat_db.add_message(thread_id, "ai", ai_response)
+        try:
+            service = await get_chat_langchain_service()
+            notebook_path = ""
+            if isinstance(snapshot, Mapping):
+                notebook_path = str(snapshot.get("path", "")).strip()
+
+            session_id = (
+                f"thread:{thread_id_str}"
+                if persist and thread_id_str
+                else f"adhoc:{uuid.uuid4().hex}"
+            )
+
+            result = await service.chat_turn(
+                session_id=session_id,
+                user_message=message,
+                openai_api_key=openai_api_key,
+                notebook_path=notebook_path,
+            )
+
+            assistant_message = str(result.get("assistant_message", ""))
+            await stream_final_chat_response(writer, assistant_message)
+
+            if result.get("timeout"):
+                await writer.send_error("chat_langchain timed out before completion")
+            elif result.get("max_turns"):
+                await writer.send_error(
+                    "chat_langchain reached the max turn limit before completion"
+                )
+        except tornado.iostream.StreamClosedError:
+            LOGGER.info("Client disconnected from chat stream.")
+        except Exception as error:  # pylint: disable=broad-except
+            LOGGER.error("Error during chat stream", exc_info=error)
+            await writer.send_error(str(error))
+        finally:
+            await writer.send_status("complete")
+            await writer.close()
+
+
 
 
 class TelemetryHandler(APIHandler):

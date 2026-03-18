@@ -33,24 +33,6 @@ class ChatDB:
                 )
                 """
             )
-            conn.execute(
-                """
-                CREATE TABLE IF NOT EXISTS chat_messages (
-                    id TEXT PRIMARY KEY,
-                    thread_id TEXT NOT NULL
-                        REFERENCES chat_threads(id) ON DELETE CASCADE,
-                    role TEXT NOT NULL,
-                    content TEXT NOT NULL,
-                    timestamp REAL NOT NULL
-                )
-                """
-            )
-            conn.execute(
-                """
-                CREATE INDEX IF NOT EXISTS idx_messages_thread_ts
-                ON chat_messages(thread_id, timestamp)
-                """
-            )
             conn.commit()
 
     # ------------------------------------------------------------------
@@ -82,12 +64,10 @@ class ChatDB:
             conn.row_factory = sqlite3.Row
             rows = conn.execute(
                 """
-                SELECT t.id, t.title, t.created_at, t.updated_at,
-                       COUNT(m.id) AS message_count
-                FROM chat_threads t
-                LEFT JOIN chat_messages m ON m.thread_id = t.id
-                GROUP BY t.id
-                ORDER BY t.updated_at DESC
+                SELECT id, title, created_at, updated_at,
+                       0 AS message_count
+                FROM chat_threads
+                ORDER BY updated_at DESC
                 """
             ).fetchall()
         return [dict(row) for row in rows]
@@ -123,41 +103,13 @@ class ChatDB:
     # Message operations
     # ------------------------------------------------------------------
 
-    def get_messages(self, thread_id: str) -> list:
-        """Return all messages for a thread in chronological order."""
-        with sqlite3.connect(str(self.db_path)) as conn:
-            conn.row_factory = sqlite3.Row
-            rows = conn.execute(
-                """
-                SELECT id, thread_id, role, content, timestamp
-                FROM chat_messages
-                WHERE thread_id = ?
-                ORDER BY timestamp ASC
-                """,
-                (thread_id,),
-            ).fetchall()
-        return [dict(row) for row in rows]
-
-    def add_message(self, thread_id: str, role: str, content: str) -> dict:
-        """Persist a message and bump the thread's updated_at timestamp."""
-        msg_id = str(uuid.uuid4())
+    def touch_thread(self, thread_id: str) -> bool:
+        """Bump the updated_at timestamp for a thread. Returns True if updated."""
         now = time.time()
         with sqlite3.connect(str(self.db_path)) as conn:
-            conn.execute("PRAGMA foreign_keys = ON")
-            conn.execute(
-                "INSERT INTO chat_messages (id, thread_id, role, content, timestamp)"
-                " VALUES (?, ?, ?, ?, ?)",
-                (msg_id, thread_id, role, content, now),
-            )
-            conn.execute(
+            cursor = conn.execute(
                 "UPDATE chat_threads SET updated_at = ? WHERE id = ?",
                 (now, thread_id),
             )
             conn.commit()
-        return {
-            "id": msg_id,
-            "thread_id": thread_id,
-            "role": role,
-            "content": content,
-            "timestamp": now,
-        }
+        return cursor.rowcount > 0
