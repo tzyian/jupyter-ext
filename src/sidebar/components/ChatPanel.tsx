@@ -6,6 +6,15 @@ import { Button } from './common/Button';
 import { useAudioRecorder } from '../utils/useAudioRecorder';
 import { transcribeAudio } from '../api';
 
+function formatMessageTime(timestamp?: number): string {
+  if (timestamp === undefined || Number.isNaN(timestamp)) {
+    return '--';
+  }
+
+  const asMs = timestamp < 1_000_000_000_000 ? timestamp * 1000 : timestamp;
+  return new Date(asMs).toLocaleTimeString();
+}
+
 interface ICellContext {
   cellNumber: number;
   excerpt?: string;
@@ -36,32 +45,61 @@ export function ChatPanel({
 }: IChatPanelProps): JSX.Element {
   const [input, setInput] = useState('');
   const [isTranscribing, setIsTranscribing] = useState(false);
-  const [elapsedTime, setElapsedTime] = useState<number>(0);
-  const [lastDuration, setLastDuration] = useState<number | null>(null);
+  const [responseElapsedTime, setResponseElapsedTime] = useState<number>(0);
+  const [lastResponseDuration, setLastResponseDuration] = useState<
+    number | null
+  >(null);
+  const [recordingElapsedTime, setRecordingElapsedTime] = useState<number>(0);
+  const [lastRecordingDuration, setLastRecordingDuration] = useState<
+    number | null
+  >(null);
   const endOfMessagesRef = useRef<HTMLDivElement>(null);
   const { isRecording, startRecording, stopRecording } = useAudioRecorder();
 
   useEffect(() => {
-    let interval: any;
+    let interval: number | null = null;
     if (isStreaming) {
       const startTime = Date.now();
-      setElapsedTime(0);
-      setLastDuration(null);
-      interval = setInterval(() => {
-        setElapsedTime(Date.now() - startTime);
+      setResponseElapsedTime(0);
+      setLastResponseDuration(null);
+      interval = window.setInterval(() => {
+        setResponseElapsedTime(Date.now() - startTime);
       }, 100);
     } else {
-      if (elapsedTime > 0) {
-        setLastDuration(elapsedTime);
-        setElapsedTime(0);
+      if (responseElapsedTime > 0) {
+        setLastResponseDuration(responseElapsedTime);
+        setResponseElapsedTime(0);
       }
     }
     return () => {
-      if (interval) {
-        clearInterval(interval);
+      if (interval !== null) {
+        window.clearInterval(interval);
       }
     };
   }, [isStreaming]);
+
+  useEffect(() => {
+    let interval: number | null = null;
+    if (isRecording) {
+      const startTime = Date.now();
+      setRecordingElapsedTime(0);
+      setLastRecordingDuration(null);
+      interval = window.setInterval(() => {
+        setRecordingElapsedTime(Date.now() - startTime);
+      }, 100);
+    } else {
+      if (recordingElapsedTime > 0) {
+        setLastRecordingDuration(recordingElapsedTime);
+        setRecordingElapsedTime(0);
+      }
+    }
+
+    return () => {
+      if (interval !== null) {
+        window.clearInterval(interval);
+      }
+    };
+  }, [isRecording]);
 
   useEffect(() => {
     endOfMessagesRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -159,6 +197,26 @@ export function ChatPanel({
         {messages.length === 0 && (
           <div className="jp-selenepy-chatEmpty">Ask me anything!</div>
         )}
+        <div className="jp-selenepy-chatTimers-row">
+          <span className="jp-selenepy-chatTimer-pill">
+            Streaming:{' '}
+            {isStreaming ? `${(responseElapsedTime / 1000).toFixed(1)}s` : 'Idle'}
+          </span>
+          <span className="jp-selenepy-chatTimer-pill">
+            Response:{' '}
+            {lastResponseDuration !== null
+              ? `${(lastResponseDuration / 1000).toFixed(1)}s`
+              : '--'}
+          </span>
+          <span className="jp-selenepy-chatTimer-pill">
+            Audio:{' '}
+            {isRecording
+              ? `${(recordingElapsedTime / 1000).toFixed(1)}s`
+              : lastRecordingDuration !== null
+                ? `${(lastRecordingDuration / 1000).toFixed(1)}s`
+                : '--'}
+          </span>
+        </div>
         {messages.map(msg => (
           <div
             key={msg.id}
@@ -168,7 +226,12 @@ export function ChatPanel({
                 : 'jp-selenepy-chatMessage-agent'
             }`}
           >
-            <strong>{msg.role === 'user' ? 'You' : 'Agent'}:</strong>
+            <div className="jp-selenepy-chatMessage-meta">
+              <strong>{msg.role === 'user' ? 'You' : 'Agent'}:</strong>
+              <span className="jp-selenepy-chatMessage-time">
+                Sent {formatMessageTime(msg.timestamp)}
+              </span>
+            </div>
             <div className="jp-selenepy-chatMessage-body">{msg.content}</div>
           </div>
         ))}
@@ -176,13 +239,13 @@ export function ChatPanel({
           <div className="jp-selenepy-chatStreaming-indicator">
             Agent is typing...{' '}
             <span className="jp-selenepy-chatTimer">
-              ({(elapsedTime / 1000).toFixed(1)}s)
+              ({(responseElapsedTime / 1000).toFixed(1)}s)
             </span>
           </div>
         )}
-        {!isStreaming && lastDuration !== null && (
+        {!isStreaming && lastResponseDuration !== null && (
           <div className="jp-selenepy-chatDuration-info">
-            Response took {(lastDuration / 1000).toFixed(1)}s
+            Response took {(lastResponseDuration / 1000).toFixed(1)}s
           </div>
         )}
         <div ref={endOfMessagesRef} />
@@ -233,6 +296,16 @@ export function ChatPanel({
               className="jp-selenepy-chatTextarea"
             />
             <div className="jp-selenepy-chatInput-buttons">
+              {isRecording && (
+                <div className="jp-selenepy-chatRecording-info">
+                  Recording {(recordingElapsedTime / 1000).toFixed(1)}s
+                </div>
+              )}
+              {!isRecording && lastRecordingDuration !== null && (
+                <div className="jp-selenepy-chatRecording-info">
+                  Recorded {(lastRecordingDuration / 1000).toFixed(1)}s
+                </div>
+              )}
               <button
                 onClick={handleMicClick}
                 disabled={!hasApiKey || isStreaming || isTranscribing}

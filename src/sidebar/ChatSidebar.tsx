@@ -291,11 +291,22 @@ export class ChatSidebar extends ReactWidget {
   }
 
   private async _handleSendMessage(content: string) {
+    const userMsgTimestamp = Date.now() / 1000;
     const userMsgId = Date.now().toString();
-    this._messages.push({ id: userMsgId, role: 'user', content });
+    this._messages.push({
+      id: userMsgId,
+      role: 'user',
+      content,
+      timestamp: userMsgTimestamp
+    });
 
     const agentMsgId = (Date.now() + 1).toString();
-    this._messages.push({ id: agentMsgId, role: 'ai', content: '' });
+    this._messages.push({
+      id: agentMsgId,
+      role: 'ai',
+      content: '',
+      timestamp: Date.now() / 1000
+    });
 
     this._isStreaming = true;
     this.update();
