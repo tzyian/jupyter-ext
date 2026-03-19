@@ -1,10 +1,8 @@
 import asyncio
 import io
 import json
-import logging
 import os
 import uuid
-from logging.handlers import RotatingFileHandler
 from typing import Any, Mapping
 
 import tornado
@@ -14,41 +12,19 @@ from langfuse.openai import OpenAI
 
 from .chat_db import ChatDB
 from .chat_langchain.service import EducatorNotebookService
+from .logging import get_logger
 from .prompts import PromptManager
 from .streaming import SuggestionStreamWriter
 from .suggestions import apply_scan_scope, stream_live_suggestions
 from .telemetry_db import TelemetryDB
 from .utils import handle_exceptions, safe_int
 
-LOGGER = logging.getLogger(__name__)
-LOGGER.setLevel(logging.INFO)
+LOGGER = get_logger(__name__)
 
 OPENAI_API_KEY_ENV_VAR = "OPENAI_API_KEY"
 
 _chat_langchain_service: EducatorNotebookService | None = None
 _chat_langchain_service_init_lock = asyncio.Lock()
-
-_LOG_DIR = os.path.join(os.path.expanduser("~"), ".selenepy", "logs")
-_LOG_FILE = os.path.join(_LOG_DIR, "routes.log")
-
-# Add a persistent file handler for backend diagnostics.
-os.makedirs(_LOG_DIR, exist_ok=True)
-if not any(
-    isinstance(handler, RotatingFileHandler)
-    and getattr(handler, "baseFilename", "") == os.path.abspath(_LOG_FILE)
-    for handler in LOGGER.handlers
-):
-    file_handler = RotatingFileHandler(
-        _LOG_FILE,
-        maxBytes=1_000_000,
-        backupCount=3,
-        encoding="utf-8",
-    )
-    file_handler.setLevel(logging.INFO)
-    file_handler.setFormatter(
-        logging.Formatter("%(asctime)s [%(levelname)s] %(name)s: %(message)s")
-    )
-    LOGGER.addHandler(file_handler)
 
 
 def _normalize_api_key(value: Any) -> str:
