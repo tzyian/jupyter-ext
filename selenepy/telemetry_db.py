@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any, Optional
 
 from .logging import get_logger
+from .paths import get_telemetry_db_path
 
 LOGGER = get_logger(__name__)
 
@@ -16,10 +17,10 @@ class TelemetryDB:
         """Initialize the telemetry database.
 
         Args:
-            db_path: Path to the SQLite database file. If None, uses .telemetry.db in the current directory.
+            db_path: Path to the SQLite database file. If None, uses the default path in ~/.selenepy.
         """
         if db_path is None:
-            db_path = Path.cwd() / ".telemetry.db"
+            db_path = get_telemetry_db_path()
 
         self.db_path = db_path
         self._init_db()

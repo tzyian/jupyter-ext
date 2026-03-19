@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from .logging import get_logger
+from .paths import get_prompts_db_path, get_custom_prompts_json_path
 from .suggestions.models import SYSTEM_PROMPT as DEFAULT_SYSTEM_PROMPT
 
 LOGGER = get_logger(__name__)
@@ -54,7 +55,7 @@ class PromptManager:
 
     def __init__(self, db_path: Optional[Path] = None):
         if db_path is None:
-            db_path = Path.cwd() / ".prompts.db"
+            db_path = get_prompts_db_path()
 
         self.db_path = db_path
 
@@ -150,7 +151,12 @@ class PromptManager:
 
     def _migrate_from_json(self) -> None:
         """Migrate existing custom_prompts.json data to database on first run."""
-        json_path = Path.cwd() / "custom_prompts.json"
+        json_path = get_custom_prompts_json_path()
+
+        # Also check current directory for legacy files that might need migration
+        current_dir_json = Path.cwd() / "custom_prompts.json"
+        if not json_path.exists() and current_dir_json.exists():
+            json_path = current_dir_json
 
         if not json_path.exists():
             return

@@ -4,11 +4,10 @@ import sys
 from logging.handlers import RotatingFileHandler
 from typing import Optional
 
-_LOG_DIR = os.path.join(os.path.expanduser("~"), ".selenepy", "logs")
-_LOG_FILE = os.path.join(_LOG_DIR, "selenepy.log")
+from .paths import get_logs_dir
 
-# Create log directory if it doesn't exist
-os.makedirs(_LOG_DIR, exist_ok=True)
+_LOG_DIR = str(get_logs_dir())
+_LOG_FILE = os.path.join(_LOG_DIR, "selenepy.log")
 
 def get_logger(name: Optional[str] = None) -> logging.Logger:
     """

@@ -4,7 +4,6 @@ import inspect
 import json
 import sqlite3
 import time
-from pathlib import Path
 from typing import Any, cast
 
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
@@ -15,6 +14,7 @@ from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph.message import AnyMessage
 
 from ..logging import get_logger
+from ..paths import get_langgraph_checkpoint_path
 from .models import AgentState, EditStatus, ErrorType, Phase, Progress
 from .servers import servers
 from .telemetry import callbacks_config
@@ -96,7 +96,7 @@ class EducatorNotebookService:
         if self.checkpointer is not None:
             return
 
-        sqlite_db_path = Path.cwd() / ".langgraph_checkpoints.sqlite"
+        sqlite_db_path = get_langgraph_checkpoint_path()
         async_cls, sync_cls = _load_checkpointer_classes()
 
         if async_cls is not None:

@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Optional
 
 from .logging import get_logger
+from .paths import get_chat_db_path
 
 LOGGER = get_logger(__name__)
 
@@ -14,7 +15,7 @@ class ChatDB:
 
     def __init__(self, db_path: Optional[Path] = None):
         if db_path is None:
-            db_path = Path.cwd() / ".chat.db"
+            db_path = get_chat_db_path()
         self.db_path = db_path
         self._init_db()
         LOGGER.info("[ChatDB] Initialized database at %s", self.db_path)
