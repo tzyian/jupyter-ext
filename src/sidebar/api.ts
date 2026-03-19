@@ -385,43 +385,14 @@ export async function fetchThreadMessages(
   }));
 }
 
-function getAudioFileMetadata(blobType: string): { ext: string; mime: string } {
-  const type = blobType.toLowerCase();
-
-  if (type.includes('webm')) {
-    return { ext: '.webm', mime: 'audio/webm' };
-  }
-
-  if (type.includes('mp4') || type.includes('m4a')) {
-    // Whisper supports m4a and mp4. It infers format from extension.
-    return { ext: '.m4a', mime: 'audio/mp4' };
-  }
-
-  if (type.includes('ogg')) {
-    return { ext: '.oga', mime: 'audio/ogg' };
-  }
-
-  if (type.includes('wav')) {
-    return { ext: '.wav', mime: 'audio/wav' };
-  }
-
-  if (type.includes('mpeg') || type.includes('mp3')) {
-    return { ext: '.mp3', mime: 'audio/mpeg' };
-  }
-
-  return { ext: '.webm', mime: 'audio/webm' };
-}
-
 export async function transcribeAudio(
   audioBlob: Blob,
   openaiApiKey?: string
 ): Promise<string> {
   const { url, settings } = getApiSettings('transcribe');
 
-  const container = getAudioFileMetadata(audioBlob.type);
-  const file = new File([audioBlob], `audio${container.ext}`, {
-    type: audioBlob.type || container.mime
-  });
+  const mimeType = (audioBlob.type || 'audio/webm').split(';')[0];
+  const file = new File([audioBlob], 'audio.webm', { type: mimeType });
 
   const formData = new FormData();
   formData.append('audio', file, file.name);

@@ -598,6 +598,14 @@ class TranscribeHandler(APIHandler):
             self.finish(json.dumps({"error": "audio file is empty"}))
             return
 
+        # try:
+        #     os.makedirs("audiodumps", exist_ok=True)
+        #     _dump_path = os.path.join("audiodumps", f"audio-{time.time_ns()}" + ".webm")
+        #     with open(_dump_path, "wb") as _f:
+        #         _f.write(audio_data)
+        # except Exception as _e:
+        #     LOGGER.warning(f"Failed to save debug audio: {_e}")
+
         LOGGER.info(
             f"Received audio file: {filename} ({content_type}, {len(audio_data)} bytes)",
         )
@@ -626,6 +634,7 @@ class TranscribeHandler(APIHandler):
             transcript = client.audio.transcriptions.create(
                 model="whisper-1", file=audio_file
             )
+            LOGGER.info(f"Transcript: {transcript.text}")
 
             self.finish(json.dumps({"text": transcript.text}))
         except Exception as e:

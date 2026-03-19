@@ -10,26 +10,6 @@ export function useAudioRecorder(): IUseAudioRecorderReturn {
   const [isRecording, setIsRecording] = useState(false);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
-  const recordingMimeTypeRef = useRef<string>('audio/webm');
-
-  const getPreferredMimeType = useCallback((): string | undefined => {
-    const candidates = [
-      'audio/webm;codecs=opus',
-      'audio/webm',
-      'audio/mp4',
-      'audio/m4a',
-      'audio/ogg;codecs=opus',
-      'audio/ogg'
-    ];
-
-    for (const mimeType of candidates) {
-      if (MediaRecorder.isTypeSupported(mimeType)) {
-        return mimeType;
-      }
-    }
-
-    return undefined;
-  }, []);
 
   const startRecording = useCallback(async () => {
     // Feature detection
@@ -50,10 +30,7 @@ export function useAudioRecorder(): IUseAudioRecorderReturn {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       let mediaRecorder: MediaRecorder;
       try {
-        const preferredMimeType = getPreferredMimeType();
-        mediaRecorder = preferredMimeType
-          ? new MediaRecorder(stream, { mimeType: preferredMimeType })
-          : new MediaRecorder(stream);
+        mediaRecorder = new MediaRecorder(stream);
       } catch (err) {
         // If MediaRecorder construction fails, stop tracks and propagate error
         stream.getTracks().forEach(track => track.stop());
@@ -62,7 +39,6 @@ export function useAudioRecorder(): IUseAudioRecorderReturn {
       }
 
       chunksRef.current = [];
-      recordingMimeTypeRef.current = mediaRecorder.mimeType || 'audio/webm';
 
       mediaRecorder.ondataavailable = event => {
         if (event.data && event.data.size > 0) {
@@ -73,12 +49,12 @@ export function useAudioRecorder(): IUseAudioRecorderReturn {
       mediaRecorder.start();
       mediaRecorderRef.current = mediaRecorder;
       setIsRecording(true);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error accessing microphone:', error);
-      const message =
-        error && error.message
-          ? `Could not access microphone: ${error.message}`
-          : 'Could not access microphone. Please check permissions.';
+      const errorMessage = error instanceof Error ? error.message : undefined;
+      const message = errorMessage
+        ? `Could not access microphone: ${errorMessage}`
+        : 'Could not access microphone. Please check permissions.';
       throw new Error(message);
     }
   }, []);
@@ -93,10 +69,7 @@ export function useAudioRecorder(): IUseAudioRecorderReturn {
       }
 
       mediaRecorder.onstop = () => {
-        const mimeType =
-          recordingMimeTypeRef.current ||
-          chunksRef.current[0]?.type ||
-          'audio/webm';
+        const mimeType = mediaRecorder.mimeType || chunksRef.current[0]?.type;
         const blob = new Blob(chunksRef.current, { type: mimeType });
         // Stop all tracks to release microphone
         mediaRecorder.stream.getTracks().forEach(track => track.stop());
@@ -113,11 +86,11 @@ export function useAudioRecorder(): IUseAudioRecorderReturn {
         mediaRecorder.stream.getTracks().forEach(track => track.stop());
         mediaRecorderRef.current = null;
         setIsRecording(false);
-        reject(
-          new Error(
-            `Recording error: ${(event as any).error || 'Unknown error'}`
-          )
-        );
+        const recorderError =
+          event instanceof ErrorEvent && event.error
+            ? String(event.error)
+            : 'Unknown error';
+        reject(new Error(`Recording error: ${recorderError}`));
       };
 
       mediaRecorder.stop();
