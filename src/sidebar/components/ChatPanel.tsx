@@ -30,6 +30,9 @@ interface IChatPanelProps {
   openaiApiKey?: string;
   snippets?: { id: string; name: string; content: string }[];
   cellContext?: ICellContext | null;
+  lastResponseDuration?: number;
+  onUpdateResponseDuration: (duration: number) => void;
+  activeThreadId?: string | null;
 }
 
 export function ChatPanel({
@@ -41,14 +44,17 @@ export function ChatPanel({
   hasApiKey,
   openaiApiKey,
   snippets,
-  cellContext
+  cellContext,
+  lastResponseDuration,
+  onUpdateResponseDuration,
+  activeThreadId
 }: IChatPanelProps): JSX.Element {
   const [input, setInput] = useState('');
   const [isTranscribing, setIsTranscribing] = useState(false);
   const [responseElapsedTime, setResponseElapsedTime] = useState<number>(0);
-  const [lastResponseDuration, setLastResponseDuration] = useState<
+  const [lastResponseDurationLocal, setLastResponseDurationLocal] = useState<
     number | null
-  >(null);
+  >(lastResponseDuration ?? null);
   const [recordingElapsedTime, setRecordingElapsedTime] = useState<number>(0);
   const [lastRecordingDuration, setLastRecordingDuration] = useState<
     number | null
@@ -56,18 +62,25 @@ export function ChatPanel({
   const endOfMessagesRef = useRef<HTMLDivElement>(null);
   const { isRecording, startRecording, stopRecording } = useAudioRecorder();
 
+  // Update local state when props change (thread switch)
+  useEffect(() => {
+    setLastResponseDurationLocal(lastResponseDuration ?? null);
+    setResponseElapsedTime(0);
+  }, [activeThreadId, lastResponseDuration]);
+
   useEffect(() => {
     let interval: number | null = null;
     if (isStreaming) {
       const startTime = Date.now();
       setResponseElapsedTime(0);
-      setLastResponseDuration(null);
+      setLastResponseDurationLocal(null);
       interval = window.setInterval(() => {
         setResponseElapsedTime(Date.now() - startTime);
       }, 100);
     } else {
       if (responseElapsedTime > 0) {
-        setLastResponseDuration(responseElapsedTime);
+        setLastResponseDurationLocal(responseElapsedTime);
+        onUpdateResponseDuration(responseElapsedTime);
         setResponseElapsedTime(0);
       }
     }
@@ -223,9 +236,9 @@ export function ChatPanel({
             </span>
           </div>
         )}
-        {!isStreaming && lastResponseDuration !== null && (
+        {!isStreaming && lastResponseDurationLocal !== null && (
           <div className="jp-selenepy-chatDuration-info">
-            Response took {(lastResponseDuration / 1000).toFixed(1)}s
+            Response took {(lastResponseDurationLocal / 1000).toFixed(1)}s
           </div>
         )}
         <div ref={endOfMessagesRef} />

@@ -191,7 +191,8 @@ export async function* streamChat(
       snapshot,
       settings: clientSettings,
       openaiApiKey: clientSettings?.openaiApiKey ?? '',
-      thread_id: threadId ?? null
+      thread_id: threadId ?? null,
+      chatSystemPrompt: clientSettings?.chatSystemPrompt ?? ''
     }),
     headers: {
       'Content-Type': 'application/json',
@@ -279,13 +280,15 @@ export async function fetchThreads(): Promise<IChatThread[]> {
       created_at: number;
       updated_at: number;
       message_count: number;
+      last_response_duration?: number;
     }>
   ).map(t => ({
     id: t.id,
     title: t.title,
     createdAt: t.created_at,
     updatedAt: t.updated_at,
-    messageCount: t.message_count
+    messageCount: t.message_count,
+    lastResponseDuration: t.last_response_duration
   }));
 }
 
@@ -311,7 +314,8 @@ export async function createThread(title = 'New Chat'): Promise<IChatThread> {
     title: t.title,
     createdAt: t.created_at,
     updatedAt: t.updated_at,
-    messageCount: t.message_count ?? 0
+    messageCount: t.message_count ?? 0,
+    lastResponseDuration: t.last_response_duration
   };
 }
 
@@ -328,20 +332,30 @@ export async function deleteThread(id: string): Promise<void> {
   }
 }
 
-export async function renameThread(id: string, title: string): Promise<void> {
+export async function updateThread(
+  id: string,
+  metadata: { title?: string; lastResponseDuration?: number }
+): Promise<void> {
   const { url: base, settings } = getApiSettings(CHAT_THREADS_PATH);
   const url = `${base}?id=${encodeURIComponent(id)}`;
   const response = await ServerConnection.makeRequest(
     url,
     {
       method: 'PATCH',
-      body: JSON.stringify({ title })
+      body: JSON.stringify({
+        title: metadata.title,
+        last_response_duration: metadata.lastResponseDuration
+      })
     },
     settings
   );
   if (!response.ok) {
     throw new ServerConnection.ResponseError(response, await response.text());
   }
+}
+
+export async function renameThread(id: string, title: string): Promise<void> {
+  return updateThread(id, { title });
 }
 
 export async function fetchThreadMessages(
@@ -390,7 +404,7 @@ function getAudioFileMetadata(blobType: string): { ext: string; mime: string } {
   if (type.includes('wav')) {
     return { ext: '.wav', mime: 'audio/wav' };
   }
-  
+
   if (type.includes('mpeg') || type.includes('mp3')) {
     return { ext: '.mp3', mime: 'audio/mpeg' };
   }
