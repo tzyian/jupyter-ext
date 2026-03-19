@@ -272,6 +272,7 @@
   color: var(--jp-error-color1, #d32f2f);
   border-color: var(--jp-error-color1, #d32f2f);
 }
+
 .jp-selenepy-action-button-danger:hover:not(:disabled) {
   background: var(--jp-error-color1, #d32f2f);
   color: white;
@@ -355,6 +356,7 @@
   word-wrap: break-word;
   overflow-wrap: break-word;
 }
+
 .jp-selenepy-suggestedEdits-slotGroup {
   display: flex;
   flex-direction: column;

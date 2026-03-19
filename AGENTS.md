@@ -26,7 +26,6 @@ You are able to use the context7 tools to access these resources.
 
 1. **JupyterLab Extension Developer Guide**
    - URL: https://jupyterlab.readthedocs.io/en/stable/extension/extension_dev.html
-   - Context7 link: https://context7.com/websites/jupyterlab_readthedocs_io-en-stable-api-modules.html/llms.txt?tokens=100000
    - Use for: Extension patterns, architecture overview, development workflow, and best practices
    - **Action**: Use web search or documentation tools to retrieve specific sections when needed
 
@@ -177,7 +176,7 @@ python -m py_compile selenepy/__init__.py  # Check single file for syntax errors
 
 **NPM package**:
 
-- **✅ Do**: Use `jlpm` 
+- **✅ Do**: Use `jlpm`
 - **✅ Do**: Use lowercase with dashes: `"jupyterlab-myext"` or scoped `"@org/myext"`
 - **❌ Don't**: Use `npm`
 - **❌ Don't**: Mix naming styles between package.json and pyproject.toml
