@@ -1,7 +1,10 @@
 /**
  * Format a duration in seconds to a human-readable string (e.g. "1h 30m" or "45m").
  */
-export const formatDuration = (seconds: number): string => {
+export const formatDuration = (seconds: number | undefined): string => {
+  if (seconds === undefined) {
+    return 'No data available';
+  }
   const hours = Math.floor(seconds / 3600);
   const minutes = Math.floor((seconds % 3600) / 60);
   if (hours > 0) {

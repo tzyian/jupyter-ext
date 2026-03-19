@@ -4,6 +4,7 @@ import { NotebookActions } from '@jupyterlab/notebook';
 import type { ICellModel } from '@jupyterlab/cells';
 import type { IObservableList } from '@jupyterlab/observables';
 import type { TelemetryService } from './telemetryService';
+import type { JupyterFrontEnd } from '@jupyterlab/application';
 
 import { Contents } from '@jupyterlab/services';
 
@@ -29,7 +30,9 @@ export class NotebookTelemetryTracker implements IDisposable {
   constructor(
     private readonly _tracker: INotebookTracker,
     private readonly _telemetry: TelemetryService,
-    private readonly _contents: Contents.IManager
+    private readonly _contents: Contents.IManager,
+    // Optional app to observe Lumino shell signals (preferred over document events)
+    private readonly _app?: JupyterFrontEnd
   ) {
     // Track when notebooks are opened/closed
     this._tracker.widgetAdded.connect(this._onNotebookAdded, this);
@@ -38,8 +41,23 @@ export class NotebookTelemetryTracker implements IDisposable {
     // Track cell execution
     NotebookActions.executed.connect(this._onCellExecuted, this);
 
-    // Track visibility changes (tab switching)
-    document.addEventListener('visibilitychange', this._onVisibilityChange);
+    // Track visibility changes using the Lumino shell currentChanged signal
+    // if the application is available. This avoids relying on global
+    // document visibility events and uses widget-level signals instead.
+    if (this._app) {
+      // `currentChanged` provides { oldValue, newValue } where the values
+      // are the current widget in the shell. We use this to detect when the
+      // user's active widget changes away from or back to the tracked notebook.
+      // Use `any` for the signal payload to avoid tight coupling to shell typings.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (this._app.shell.currentChanged as any).connect(
+        this._onShellCurrentChanged,
+        this
+      );
+    } else {
+      // Fallback to document visibility change when app is not provided
+      document.addEventListener('visibilitychange', this._onVisibilityChange);
+    }
 
     // Track file renames
     this._contents.fileChanged.connect(this._onFileChanged, this);
@@ -67,7 +85,18 @@ export class NotebookTelemetryTracker implements IDisposable {
     this._tracker.widgetAdded.disconnect(this._onNotebookAdded, this);
     this._tracker.currentChanged.disconnect(this._onCurrentChanged, this);
     NotebookActions.executed.disconnect(this._onCellExecuted, this);
-    document.removeEventListener('visibilitychange', this._onVisibilityChange);
+    if (this._app) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (this._app.shell.currentChanged as any).disconnect(
+        this._onShellCurrentChanged,
+        this
+      );
+    } else {
+      document.removeEventListener(
+        'visibilitychange',
+        this._onVisibilityChange
+      );
+    }
     this._contents.fileChanged.disconnect(this._onFileChanged, this);
   }
 
@@ -423,6 +452,46 @@ export class NotebookTelemetryTracker implements IDisposable {
           this._currentNotebookPath = this._currentPanel.context.path;
         }
       }
+    }
+  };
+
+  // Handler for Lumino shell currentChanged signal. Uses `any` for the
+  // payload since the exact shape depends on the shell implementation.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private _onShellCurrentChanged = (_: any, args: any): void => {
+    try {
+      const newWidget = args?.newValue ?? null;
+      const now = Date.now() / 1000;
+
+      // If the active widget switched away from the tracked notebook
+      if (this._currentPanel && newWidget !== this._currentPanel) {
+        if (this._visibilityStartTime === null) {
+          this._visibilityStartTime = now;
+          this._telemetry.logEvent('NotebookHiddenEvent', {
+            notebookPath: this._getCurrentNotebookPath()
+          });
+          // Pause notebook session
+          this._endNotebookSession();
+        }
+      }
+
+      // If the active widget became the tracked notebook again
+      if (this._currentPanel && newWidget === this._currentPanel) {
+        if (this._visibilityStartTime !== null) {
+          const duration = now - this._visibilityStartTime;
+          this._telemetry.logEvent('NotebookVisibleEvent', {
+            duration,
+            notebookPath: this._getCurrentNotebookPath()
+          });
+          this._visibilityStartTime = null;
+          // Resume notebook session
+          this._notebookSessionStart = now;
+          this._currentNotebookPath = this._currentPanel.context.path;
+        }
+      }
+    } catch (err) {
+      // Swallow errors from shell signal handling to not break the app
+      console.error('Error in shell currentChanged handler', err);
     }
   };
 }

@@ -80,7 +80,8 @@ export const DashboardView: React.FC<IDashboardViewProps> = ({
         <DashboardMetricCard
           title="🌐 Time on JupyterLab"
           value={formatDuration(
-            stats.total_notebook_session_seconds + stats.total_away_time_seconds
+            stats.total_notebook_session_seconds! +
+              stats.total_away_time_seconds!
           )}
           subtitle="Total session time"
         />
@@ -131,7 +132,7 @@ export const DashboardView: React.FC<IDashboardViewProps> = ({
         />
         <DashboardMetricCard
           title="📊 Execution Success"
-          value={`${stats.execution_success_rate.toFixed(1)}%`}
+          value={`${stats.execution_success_rate?.toFixed(1)}%`}
           subtitle={`✅ ${stats.cells_executed_successfully} / ❌ ${stats.cells_executed_failed}`}
         />
         <DashboardMetricCard

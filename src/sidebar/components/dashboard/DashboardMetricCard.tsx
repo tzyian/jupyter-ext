@@ -2,7 +2,7 @@ import React from 'react';
 
 export interface IDashboardMetricCardProps {
   title: string;
-  value: string | number;
+  value: string | number | undefined;
   subtitle: React.ReactNode;
   className?: string;
 }
@@ -16,7 +16,11 @@ export const DashboardMetricCard: React.FC<IDashboardMetricCardProps> = ({
   return (
     <div className={`jp-selenepy-dashboard-card ${className}`}>
       <h3>{title}</h3>
-      <div className="jp-selenepy-dashboard-value">{value}</div>
+      {value === undefined ? (
+        <div className="jp-selenepy-dashboard-value">No data available</div>
+      ) : (
+        <div className="jp-selenepy-dashboard-value">{value}</div>
+      )}
       <div className="jp-selenepy-dashboard-subtitle">{subtitle}</div>
     </div>
   );

@@ -6,8 +6,8 @@ export interface ILLMMetricsCardProps {
 }
 
 export const LLMMetricsCard: React.FC<ILLMMetricsCardProps> = ({ stats }) => {
-  const applied = stats.event_counts['SuggestionAppliedEvent'] || 0;
-  const dismissed = stats.event_counts['SuggestionDismissedEvent'] || 0;
+  const applied = stats.event_counts?.['SuggestionAppliedEvent'] || 0;
+  const dismissed = stats.event_counts?.['SuggestionDismissedEvent'] || 0;
   const total = applied + dismissed;
   const acceptanceRate =
     total > 0 ? `${Math.round((applied / total) * 100)}%` : 'N/A';
