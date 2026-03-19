@@ -84,7 +84,9 @@
   border-radius: 3px;
   border: 1px solid var(--jp-border-color1);
   cursor: pointer;
-  transition: background-color 0.2s, color 0.2s;
+  transition:
+    background-color 0.2s,
+    color 0.2s;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -185,6 +187,7 @@
   border-radius: 6px;
   background: var(--jp-layout-color1);
 }
+
 /* Suggested Edits Sidebar */
 .jp-selenepy-suggestedEdits {
   padding: 0 16px;
@@ -237,6 +240,7 @@
   color: var(--js-suggestions-color);
   border-color: var(--js-suggestions-color);
 }
+
 .jp-selenepy-action-button.js-primary-suggestions:hover:not(:disabled) {
   background: var(--js-suggestions-color);
   color: white;
@@ -247,6 +251,7 @@
   color: var(--js-chat-color);
   border-color: var(--js-chat-color);
 }
+
 .jp-selenepy-action-button.js-primary-chat:hover:not(:disabled) {
   background: var(--js-chat-color);
   color: white;
@@ -257,16 +262,17 @@
   color: var(--js-dashboard-color);
   border-color: var(--js-dashboard-color);
 }
+
 .jp-selenepy-action-button.js-primary-dashboard:hover:not(:disabled) {
   background: var(--js-dashboard-color);
   color: white;
 }
 
-.jp-selenepy-action-button--danger {
+.jp-selenepy-action-button-danger {
   color: var(--jp-error-color1, #d32f2f);
   border-color: var(--jp-error-color1, #d32f2f);
 }
-.jp-selenepy-action-button--danger:hover:not(:disabled) {
+.jp-selenepy-action-button-danger:hover:not(:disabled) {
   background: var(--jp-error-color1, #d32f2f);
   color: white;
 }
@@ -295,6 +301,7 @@
   padding: 2px 6px;
   font-size: 0.78rem;
 }
+
 .jp-selenepy-suggestedEdits-status {
   padding: 8px 0;
   font-size: var(--js-base-font-size);
@@ -303,7 +310,7 @@
 }
 
 .jp-selenepy-suggestedEdits-sectionHeader {
-  margin: 16px 0 8px 0;
+  margin: 16px 0 8px;
   font-size: var(--js-base-font-size);
   font-weight: 600;
   text-transform: uppercase;
@@ -315,6 +322,39 @@
   margin-bottom: 20px;
 }
 
+.jp-selenepy-suggestedEdits-item {
+  padding: 12px;
+}
+
+.jp-selenepy-suggestedEdits-item-body h3 {
+  margin: 0 0 8px;
+  font-size: 14px;
+  font-weight: 600;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+}
+
+.jp-selenepy-suggestedEdits-item-body p {
+  margin: 0 0 8px;
+  font-size: var(--js-base-font-size);
+  line-height: 1.5;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  white-space: pre-wrap;
+}
+
+.jp-selenepy-suggestedEdits-item-body pre {
+  margin: 8px 0;
+  padding: 8px;
+  background: var(--jp-layout-color2);
+  border-radius: 3px;
+  font-size: var(--js-code-font-size);
+  line-height: 1.4;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+}
 .jp-selenepy-suggestedEdits-slotGroup {
   display: flex;
   flex-direction: column;
@@ -340,44 +380,10 @@
   background: var(--jp-layout-color2);
 }
 
-.jp-selenepy-suggestedEdits-item {
-  padding: 12px;
-}
-
-.jp-selenepy-suggestedEdits-item-body h3 {
-  margin: 0 0 8px 0;
-  font-size: 14px;
-  font-weight: 600;
-  word-wrap: break-word;
-  overflow-wrap: break-word;
-}
-
-.jp-selenepy-suggestedEdits-item-body p {
-  margin: 0 0 8px 0;
-  font-size: var(--js-base-font-size);
-  line-height: 1.5;
-  word-wrap: break-word;
-  overflow-wrap: break-word;
-  white-space: pre-wrap;
-}
-
-.jp-selenepy-suggestedEdits-item-body pre {
-  margin: 8px 0;
-  padding: 8px;
-  background: var(--jp-layout-color2);
-  border-radius: 3px;
-  font-size: var(--js-code-font-size);
-  line-height: 1.4;
-  overflow-x: auto;
-  white-space: pre-wrap;
-  word-wrap: break-word;
-  overflow-wrap: break-word;
-}
-
 /* View Toggles */
 .jp-selenepy-view-toggle {
   display: flex;
-  margin: 12px 0 8px 0;
+  margin: 12px 0 8px;
   border: 1px solid var(--jp-border-color1);
   border-radius: 4px;
   overflow: hidden;
@@ -429,14 +435,15 @@
 
 /* Preview Views */
 .jp-selenepy-suggestion-preview .jp-selenepy-preview-original {
-  background-color: rgba(255, 0, 0, 0.1);
+  background-color: rgb(255 0 0 / 10%);
   color: var(--jp-error-color1);
 }
 
 .jp-selenepy-suggestion-preview .jp-selenepy-preview-proposed {
-  background-color: rgba(0, 255, 0, 0.1);
+  background-color: rgb(0 255 0 / 10%);
   color: var(--jp-success-color1);
 }
+
 /* Diff Table Styling */
 .jp-selenepy-diff-table {
   width: 100%;
@@ -483,16 +490,18 @@
 }
 
 .jp-selenepy-diff-row-added {
-  background-color: rgba(0, 255, 0, 0.1);
+  background-color: rgb(0 255 0 / 10%);
 }
+
 .jp-selenepy-diff-row-added .jp-selenepy-diff-gutter,
 .jp-selenepy-diff-row-added .jp-selenepy-diff-code {
   color: var(--jp-success-color1);
 }
 
 .jp-selenepy-diff-row-removed {
-  background-color: rgba(255, 0, 0, 0.1);
+  background-color: rgb(255 0 0 / 10%);
 }
+
 .jp-selenepy-diff-row-removed .jp-selenepy-diff-gutter,
 .jp-selenepy-diff-row-removed .jp-selenepy-diff-code {
   color: var(--jp-error-color1);
@@ -500,8 +509,9 @@
 }
 
 .jp-selenepy-diff-row-modified {
-  background-color: rgba(0, 100, 255, 0.05);
+  background-color: rgb(0 100 255 / 5%);
 }
+
 .jp-selenepy-diff-row-modified .jp-selenepy-diff-gutter {
   color: var(--jp-brand-color1);
 }
@@ -575,7 +585,7 @@
 }
 
 .jp-selenepy-dashboard-card h3 {
-  margin: 0 0 12px 0;
+  margin: 0 0 12px;
   font-size: var(--js-base-font-size);
   font-weight: 600;
   color: var(--jp-ui-font-color2);
@@ -642,7 +652,7 @@
 }
 
 .jp-selenepy-dashboard-card-highlight .jp-selenepy-dashboard-subtitle {
-  color: rgba(255, 255, 255, 0.9);
+  color: rgb(255 255 255 / 90%);
 }
 
 .jp-selenepy-dashboard-card-highlight .jp-selenepy-dashboard-value {
@@ -659,7 +669,7 @@
 .jp-selenepy-dashboard-progress-bar {
   width: 100%;
   height: 8px;
-  background: rgba(255, 255, 255, 0.3);
+  background: rgb(255 255 255 / 30%);
   border-radius: 4px;
   margin-top: 12px;
   overflow: hidden;
@@ -715,6 +725,7 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
 /* Prompt Settings */
 .jp-selenepy-promptSettings {
   padding: 0 16px;
@@ -1035,6 +1046,7 @@
   min-height: 14px;
   font-family: var(--jp-code-font-family);
 }
+
 .jp-selenepy-chatFooter {
   display: flex;
   flex-direction: column;
