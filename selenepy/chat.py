@@ -1,5 +1,4 @@
 import json
-import logging
 from typing import Annotated, Any, Mapping, TypedDict
 
 from jupyter_server.base.handlers import APIHandler
@@ -9,9 +8,10 @@ from langchain_openai import ChatOpenAI
 from langgraph.graph import END, StateGraph
 from langgraph.graph.message import add_messages
 
+from .logging import get_logger
 from .utils import format_snapshot_for_prompt
 
-LOGGER = logging.getLogger(__name__)
+LOGGER = get_logger(__name__)
 
 
 class ChatStreamWriter:

@@ -106,13 +106,17 @@ class ChatStreamWriter:
     async def send_error(self, message: str) -> None:
         await self._send({"type": "error", "message": message})
 
-    async def send_metrics(self, tokens_used: int, tokens_sent: int, messages_sent: int) -> None:
-        await self._send({
-            "type": "metrics",
-            "tokensUsed": tokens_used,
-            "tokensSent": tokens_sent,
-            "messagesSent": messages_sent
-        })
+    async def send_metrics(
+        self, tokens_used: int, tokens_sent: int, messages_sent: int
+    ) -> None:
+        await self._send(
+            {
+                "type": "metrics",
+                "tokensUsed": tokens_used,
+                "tokensSent": tokens_sent,
+                "messagesSent": messages_sent,
+            }
+        )
 
     async def _send(self, payload: Mapping[str, Any]) -> None:
         if self._closed:
@@ -318,19 +322,27 @@ class ChatThreadsHandler(APIHandler):
 
     @tornado.web.authenticated
     def patch(self):
-        """Rename a thread."""
+        """Update a thread (rename or update metadata)."""
         thread_id = self.get_argument("id", None)
         if not thread_id:
             self.set_status(400)
             self.finish(json.dumps({"error": "Thread ID is required"}))
             return
+
         body = self.get_json_body() or {}
-        title = body.get("title")
-        if not title:
+        updates = {}
+
+        if "title" in body:
+            updates["title"] = body["title"]
+        if "last_response_duration" in body:
+            updates["last_response_duration"] = body["last_response_duration"]
+
+        if not updates:
             self.set_status(400)
-            self.finish(json.dumps({"error": "title is required"}))
+            self.finish(json.dumps({"error": "No updates provided"}))
             return
-        success = self.chat_db.rename_thread(thread_id, title)
+
+        success = self.chat_db.update_thread(thread_id, **updates)
         if success:
             self.finish(json.dumps({"ok": True}))
         else:
@@ -429,6 +441,7 @@ class ChatStreamHandler(APIHandler):
                     user_message=message,
                     openai_api_key=openai_api_key,
                     notebook_path=notebook_path,
+                    system_prompt=str(settings.get("chatSystemPrompt", "")),
                 )
             )
 

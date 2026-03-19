@@ -1,14 +1,14 @@
 import json
-import logging
 import sqlite3
 import time
 import uuid
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from .logging import get_logger
 from .suggestions.models import SYSTEM_PROMPT as DEFAULT_SYSTEM_PROMPT
 
-LOGGER = logging.getLogger(__name__)
+LOGGER = get_logger(__name__)
 
 SAMPLE_PROMPTS = [
     {
@@ -92,6 +92,15 @@ class PromptManager:
             "description": "Suggests refactoring the selected code for better readability and performance",
             "content": "You are a helpful coding assistant. Suggest a refactoring for the following code to improve readability, performance, and best practices. Explain the changes you made.",
             "category": "chat",
+            "isDefault": True,
+        }
+
+        self._default_chat_system_prompt = {
+            "id": "default_chat_system",
+            "name": "Default Chat System",
+            "description": "Default system prompt for the chat assistant",
+            "content": "You are a helpful coding assistant.",
+            "category": "chat_system_prompt",
             "isDefault": True,
         }
 
@@ -267,6 +276,7 @@ class PromptManager:
             self._default_global_prompt,
             self._default_explain_prompt,
             self._default_refactor_prompt,
+            self._default_chat_system_prompt,
         ] + custom_prompts
 
     def get_prompt_by_id(self, prompt_id: str) -> Optional[Dict[str, Any]]:
@@ -279,6 +289,8 @@ class PromptManager:
             return self._default_explain_prompt
         if prompt_id == "default_refactor":
             return self._default_refactor_prompt
+        if prompt_id == "default_chat_system":
+            return self._default_chat_system_prompt
         # Legacy support for old "default" ID
         if prompt_id == "default":
             return self._default_local_prompt

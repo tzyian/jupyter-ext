@@ -1,9 +1,4 @@
-"""Suggestion generation service using OpenAI structured outputs."""
-
-from __future__ import annotations
-
 import asyncio
-import logging
 import os
 import uuid
 from functools import lru_cache
@@ -13,6 +8,7 @@ from dotenv import load_dotenv
 from openai import AsyncOpenAI
 from openai.types.responses.response_input_param import ResponseInputItemParam
 
+from ..logging import get_logger
 from ..utils import format_snapshot_for_prompt, safe_int
 from .models import (
     SYSTEM_PROMPT,
@@ -21,8 +17,7 @@ from .models import (
     SuggestionContextType,
 )
 
-LOGGER = logging.getLogger(__name__)
-LOGGER.setLevel(logging.INFO)
+LOGGER = get_logger(__name__)
 
 OPENAI_API_KEY_ENV_VAR = "OPENAI_API_KEY"
 OPENAI_MODEL_ENV_VAR = "OPENAI_MODEL"

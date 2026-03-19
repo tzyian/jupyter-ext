@@ -1,11 +1,12 @@
 """Utility functions for the selenepy extension."""
 import functools
 import json
-import logging
 import traceback
 from typing import Any, Callable, Mapping, Sequence
 
-LOGGER = logging.getLogger(__name__)
+from .logging import get_logger
+
+LOGGER = get_logger(__name__)
 
 
 def safe_int(value: Any, fallback: int = 0) -> int:

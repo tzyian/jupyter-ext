@@ -1,4 +1,3 @@
-import logging
 import os
 from pathlib import Path
 from typing import Literal, Mapping
@@ -12,6 +11,7 @@ from langchain_openai import ChatOpenAI
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import END, START, StateGraph
 
+from ..logging import get_logger
 from .models import (
     AgentName,
     AgentState,
@@ -25,8 +25,7 @@ from .prompts import NOTEBOOK_EDITOR_SYSTEM, RESEARCH_SYSTEM
 
 load_dotenv()
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+LOGGER = get_logger(__name__)
 
 
 class EducatorNotebookWorkflow:
@@ -55,6 +54,14 @@ class EducatorNotebookWorkflow:
 
         return None
 
+    def _get_system_prompt(self, config: RunnableConfig | None = None) -> str:
+        configurable = (
+            config.get("configurable") if isinstance(config, Mapping) else None
+        )
+        if isinstance(configurable, Mapping):
+            return str(configurable.get("chat_system_prompt", "")).strip()
+        return ""
+
     def _build_research_agent(self, config: RunnableConfig | None = None):
         api_key = self._resolve_openai_api_key(config)
         llm = ChatOpenAI(
@@ -62,10 +69,15 @@ class EducatorNotebookWorkflow:
             api_key=api_key,
             temperature=0.1,
         )
+        user_system_prompt = self._get_system_prompt(config)
+        system_prompt = RESEARCH_SYSTEM
+        if user_system_prompt:
+            system_prompt += f"\n\nAdditional User Instructions:\n{user_system_prompt}"
+
         return create_agent(
             llm,
             tools=self.arxiv_tools,
-            system_prompt=RESEARCH_SYSTEM,
+            system_prompt=system_prompt,
         )
 
     def _build_notebook_editor_agent(self, config: RunnableConfig | None = None):
@@ -75,10 +87,15 @@ class EducatorNotebookWorkflow:
             api_key=api_key,
             temperature=0.1,
         )
+        user_system_prompt = self._get_system_prompt(config)
+        system_prompt = NOTEBOOK_EDITOR_SYSTEM
+        if user_system_prompt:
+            system_prompt += f"\n\nAdditional User Instructions:\n{user_system_prompt}"
+
         return create_agent(
             llm,
             tools=self.jupyter_tools,
-            system_prompt=NOTEBOOK_EDITOR_SYSTEM,
+            system_prompt=system_prompt,
         )
 
     @staticmethod
@@ -165,7 +182,7 @@ class EducatorNotebookWorkflow:
         return (EditStatus.SUCCESS, False, False, ErrorType.NONE)
 
     async def supervisor(self, state: AgentState, config: RunnableConfig) -> AgentState:
-        logger.info("Supervisor received state")
+        LOGGER.info("Supervisor received state")
 
         user_request = state.get("user_request", "")
         research_done = state.get("research_done", False)
@@ -209,8 +226,8 @@ class EducatorNotebookWorkflow:
                 route_reason = Progress.ALL_REQUIRED_WORK_COMPLETED
                 phase = Phase.DONE
 
-        logger.info("Supervisor routed to: %s", decision)
-        logger.info(
+        LOGGER.info("Supervisor routed to: %s", decision)
+        LOGGER.info(
             "Supervisor state: research_done=%s research_rounds=%s needs_refresh=%s "
             "editor_done=%s editor_failed=%s editor_attempts=%s max_editor_attempts=%s needs_edit=%s",
             research_done,
@@ -238,7 +255,7 @@ class EducatorNotebookWorkflow:
     async def run_research_agent(
         self, state: AgentState, config: RunnableConfig
     ) -> AgentState:
-        logger.info("Research agent received state")
+        LOGGER.info("Research agent received state")
 
         retry_count_by_agent = self._increment_retry_count(
             state.get("retry_count_by_agent", {}), "research_agent"
@@ -268,14 +285,14 @@ class EducatorNotebookWorkflow:
             last_error_message = ""
             retryable = False
         except ToolException as exc:
-            logger.warning("Research agent tool error: %s", exc)
+            LOGGER.warning("Research agent tool error: %s", exc)
             content = f"Research tool error: {exc}"
             progress = Progress.RESEARCH_FAILED_PROCEEDING
             last_error_type = ErrorType.TOOL_ERROR
             last_error_message = str(exc)
             retryable = True
         except Exception as exc:
-            logger.exception("Research agent unexpected error")
+            LOGGER.exception("Research agent unexpected error")
             content = f"Research unexpected error: {exc}"
             progress = Progress.RESEARCH_FAILED_PROCEEDING
             last_error_type = ErrorType.UNEXPECTED_ERROR
@@ -304,7 +321,7 @@ class EducatorNotebookWorkflow:
     async def run_notebook_editor_agent(
         self, state: AgentState, config: RunnableConfig
     ) -> AgentState:
-        logger.info("Notebook editor agent received state")
+        LOGGER.info("Notebook editor agent received state")
 
         retry_count_by_agent = self._increment_retry_count(
             state.get("retry_count_by_agent", {}), "notebook_editor_agent"
@@ -316,7 +333,7 @@ class EducatorNotebookWorkflow:
         Path(notebook_path).parent.mkdir(parents=True, exist_ok=True)
 
         notebook_name = os.path.basename(notebook_path)
-        logger.info(
+        LOGGER.info(
             "[notebook_editor] notebook_path=%r  notebook_name=%r",
             notebook_path,
             notebook_name,
@@ -349,7 +366,7 @@ class EducatorNotebookWorkflow:
             )
             last_error_message = ""
         except ToolException as exc:
-            logger.warning("Notebook editor tool error: %s", exc)
+            LOGGER.warning("Notebook editor tool error: %s", exc)
             content = f"Notebook tool error: {exc}"
             edit_status = EditStatus.RETRYABLE_FAILURE
             retryable = True
@@ -357,7 +374,7 @@ class EducatorNotebookWorkflow:
             last_error_type = ErrorType.TRANSIENT_TOOL_ERROR
             last_error_message = str(exc)
         except Exception as exc:
-            logger.exception("Notebook editor unexpected error")
+            LOGGER.exception("Notebook editor unexpected error")
             content = f"Notebook unexpected error: {exc}"
             edit_status = EditStatus.FATAL_FAILURE
             retryable = False

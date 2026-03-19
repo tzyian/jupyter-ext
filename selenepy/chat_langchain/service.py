@@ -1,10 +1,9 @@
-import importlib
 import asyncio
-import time
+import importlib
 import inspect
 import json
-import logging
 import sqlite3
+import time
 from pathlib import Path
 from typing import Any, cast
 
@@ -15,12 +14,13 @@ from langchain_mcp_adapters.tools import load_mcp_tools
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph.message import AnyMessage
 
+from ..logging import get_logger
 from .models import AgentState, EditStatus, ErrorType, Phase, Progress
 from .servers import servers
 from .telemetry import callbacks_config
 from .workflow import EducatorNotebookWorkflow
 
-LOGGER = logging.getLogger(__name__)
+LOGGER = get_logger(__name__)
 
 
 def _load_checkpointer_classes() -> tuple[type[Any] | None, type[Any] | None]:
@@ -151,6 +151,14 @@ class EducatorNotebookService:
         arxiv_tools = await load_mcp_tools(arxiv_session)
         jupyter_tools = await load_mcp_tools(jupyter_session)
 
+        excluded_tools = [
+            "insert_execute_code_cell",
+            "execute_cell",
+            "execute_cell",
+            "list_kernels",
+        ]
+        jupyter_tools = [t for t in jupyter_tools if t.name not in excluded_tools]
+
         self.workflow = EducatorNotebookWorkflow(
             arxiv_tools=arxiv_tools,
             jupyter_tools=jupyter_tools,
@@ -167,6 +175,7 @@ class EducatorNotebookService:
         history: list[dict[str, Any]] | None = None,
         max_minutes: int = 5,
         max_turns: int = 3,
+        system_prompt: str = "",
     ):
 
         history_messages = self._build_history_messages(history or [])
@@ -209,6 +218,7 @@ class EducatorNotebookService:
 
         configurable: dict[str, Any] = {
             "openai_api_key": openai_api_key or "",
+            "chat_system_prompt": system_prompt,
         }
         if self._use_thread_checkpoint:
             configurable["thread_id"] = session_id

@@ -1,11 +1,12 @@
 import json
-import logging
 import os
 import sqlite3
 from pathlib import Path
 from typing import Any, Optional
 
-LOGGER = logging.getLogger(__name__)
+from .logging import get_logger
+
+LOGGER = get_logger(__name__)
 
 
 class TelemetryDB:

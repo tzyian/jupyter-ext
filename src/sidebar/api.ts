@@ -46,7 +46,8 @@ export async function savePrompt(
     | 'suggestion'
     | 'chat'
     | 'chat_snippet'
-    | 'context_menu' = 'suggestion'
+    | 'context_menu'
+    | 'chat_system_prompt' = 'suggestion'
 ): Promise<IPrompt> {
   const { url, settings } = getApiSettings(PROMPTS_PATH);
 

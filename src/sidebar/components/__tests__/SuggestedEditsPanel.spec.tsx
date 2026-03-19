@@ -29,7 +29,9 @@ describe('SuggestedEditsPanel', () => {
   });
 
   it('should show "Resume" when paused', () => {
-    const { getByText } = render(<SuggestedEditsPanel {...mockProps} isPaused={true} />);
+    const { getByText } = render(
+      <SuggestedEditsPanel {...mockProps} isPaused={true} />
+    );
     expect(getByText('Resume')).toBeDefined();
   });
 });

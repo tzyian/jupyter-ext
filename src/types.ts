@@ -60,7 +60,12 @@ export interface IPrompt {
   readonly content: string;
   readonly isDefault: boolean;
   readonly description?: string;
-  readonly category?: 'suggestion' | 'chat' | 'chat_snippet' | 'context_menu';
+  readonly category?:
+    | 'suggestion'
+    | 'chat'
+    | 'chat_snippet'
+    | 'context_menu'
+    | 'chat_system_prompt';
 }
 
 export interface ISuggestedEditsSettings {
@@ -69,6 +74,7 @@ export interface ISuggestedEditsSettings {
   readonly maxCellCharacters: number;
   readonly contextWindow: number;
   readonly openaiApiKey: string;
+  readonly chatSystemPrompt: string;
 }
 
 export interface ISuggestionRequest {
@@ -106,6 +112,7 @@ export interface IChatThread {
   readonly createdAt: number;
   readonly updatedAt: number;
   readonly messageCount: number;
+  readonly lastResponseDuration?: number;
 }
 
 export type ChatStreamEvent =

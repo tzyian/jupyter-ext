@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { MdMic, MdMicOff, MdSend, MdStop } from 'react-icons/md';
 import { showDialog } from '@jupyterlab/apputils';
-import type { IChatMessage } from '../../types';
+import type { IChatMessage, ISuggestedEditsSettings } from '../../types';
 import { Button } from './common/Button';
 import { useAudioRecorder } from '../utils/useAudioRecorder';
 import { transcribeAudio } from '../api';
@@ -33,6 +33,8 @@ interface IChatPanelProps {
   lastResponseDuration?: number;
   onUpdateResponseDuration: (duration: number) => void;
   activeThreadId?: string | null;
+  settings?: ISuggestedEditsSettings | null;
+  onSettingsChanged?: (settings: Partial<ISuggestedEditsSettings>) => void;
 }
 
 export function ChatPanel({
@@ -47,7 +49,9 @@ export function ChatPanel({
   cellContext,
   lastResponseDuration,
   onUpdateResponseDuration,
-  activeThreadId
+  activeThreadId,
+  settings,
+  onSettingsChanged
 }: IChatPanelProps): JSX.Element {
   const [input, setInput] = useState('');
   const [isTranscribing, setIsTranscribing] = useState(false);

@@ -1,13 +1,12 @@
-"""SQLite persistence for chat threads and messages."""
-
-import logging
 import sqlite3
 import time
 import uuid
 from pathlib import Path
 from typing import Optional
 
-LOGGER = logging.getLogger(__name__)
+from .logging import get_logger
+
+LOGGER = get_logger(__name__)
 
 
 class ChatDB:
@@ -33,6 +32,14 @@ class ChatDB:
                 )
                 """
             )
+            # Add last_response_duration column if it doesn't exist
+            try:
+                conn.execute(
+                    "ALTER TABLE chat_threads ADD COLUMN last_response_duration REAL"
+                )
+            except sqlite3.OperationalError:
+                # Column already exists
+                pass
             conn.commit()
 
     # ------------------------------------------------------------------
@@ -45,9 +52,9 @@ class ChatDB:
         now = time.time()
         with sqlite3.connect(str(self.db_path)) as conn:
             conn.execute(
-                "INSERT INTO chat_threads (id, title, created_at, updated_at)"
-                " VALUES (?, ?, ?, ?)",
-                (thread_id, title, now, now),
+                "INSERT INTO chat_threads (id, title, created_at, updated_at, last_response_duration)"
+                " VALUES (?, ?, ?, ?, ?)",
+                (thread_id, title, now, now, None),
             )
             conn.commit()
         return {
@@ -56,6 +63,7 @@ class ChatDB:
             "created_at": now,
             "updated_at": now,
             "message_count": 0,
+            "last_response_duration": None,
         }
 
     def list_threads(self) -> list:
@@ -64,7 +72,7 @@ class ChatDB:
             conn.row_factory = sqlite3.Row
             rows = conn.execute(
                 """
-                SELECT id, title, created_at, updated_at,
+                SELECT id, title, created_at, updated_at, last_response_duration,
                        0 AS message_count
                 FROM chat_threads
                 ORDER BY updated_at DESC
@@ -74,12 +82,28 @@ class ChatDB:
 
     def rename_thread(self, thread_id: str, title: str) -> bool:
         """Rename a thread. Returns True if a row was updated."""
-        now = time.time()
+        return self.update_thread(thread_id, title=title)
+
+    def update_thread(self, thread_id: str, **kwargs) -> bool:
+        """Update arbitrary thread fields. Returns True if a row was updated."""
+        if not kwargs:
+            return False
+
+        fields = []
+        values = []
+        for k, v in kwargs.items():
+            fields.append(f"{k} = ?")
+            values.append(v)
+
+        values.append(time.time())  # updated_at
+        values.append(thread_id)
+
+        query = (
+            f"UPDATE chat_threads SET {', '.join(fields)}, updated_at = ? WHERE id = ?"
+        )
+
         with sqlite3.connect(str(self.db_path)) as conn:
-            cursor = conn.execute(
-                "UPDATE chat_threads SET title = ?, updated_at = ? WHERE id = ?",
-                (title, now, thread_id),
-            )
+            cursor = conn.execute(query, tuple(values))
             conn.commit()
         return cursor.rowcount > 0
 

@@ -50,13 +50,13 @@ describe('diff utility', () => {
     const original = 'line 1\nline 2\nline 3';
     const replacement = 'line 1\nline 2 modified\nline 4';
     const segments = buildDiffSegments(original, replacement);
-    
+
     // Line 1: unchanged
     // Line 2: removed
     // Line 2 mod: added
     // Line 3: removed
     // Line 4: added
-    
+
     const types = segments.map(s => s.type);
     expect(types).toContain('unchanged');
     expect(types).toContain('removed');

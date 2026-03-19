@@ -1,4 +1,4 @@
-import { ReactWidget } from '@jupyterlab/apputils';
+import { ReactWidget, InputDialog } from '@jupyterlab/apputils';
 import { Signal, type ISignal } from '@lumino/signaling';
 import React from 'react';
 import {
@@ -6,6 +6,8 @@ import {
   fetchThreads,
   createThread,
   deleteThread,
+  renameThread,
+  updateThread,
   fetchThreadMessages
 } from './api';
 import type {
@@ -71,7 +73,11 @@ export class ChatSidebar extends ReactWidget {
   private _tracker: INotebookTracker | null = null;
   private _abortController: AbortController | null = null;
   private _settings: ISuggestedEditsSettings | null = null;
-  private _view: 'chat' | 'chat_snippet' | 'context_menu' = 'chat';
+  private _onSettingsChanged:
+    | ((settings: Partial<ISuggestedEditsSettings>) => void)
+    | null = null;
+  private _view: 'chat' | 'chat_snippet' | 'context_menu' | 'settings' | 'chat_system_prompt' = 'chat';
+
   private _prompts: IPrompt[] = [];
   private _chatMenu: Menu | null = null;
   private _selectedSnippetId: string = '__CREATE_NEW__';
@@ -271,9 +277,49 @@ export class ChatSidebar extends ReactWidget {
     }
   }
 
+  public async renameActiveThread(): Promise<void> {
+    if (!this._activeThreadId || this._isStreaming) {
+      return;
+    }
+    const currentThread = this._threads.find(
+      t => t.id === this._activeThreadId
+    );
+    if (!currentThread) {
+      return;
+    }
+
+    const result = await InputDialog.getText({
+      title: 'Rename Thread',
+      text: currentThread.title
+    });
+
+    if (
+      result.button.accept &&
+      result.value &&
+      result.value.trim() !== currentThread.title
+    ) {
+      const newTitle = result.value.trim();
+      try {
+        await renameThread(this._activeThreadId, newTitle);
+        this._threads = this._threads.map(t =>
+          t.id === this._activeThreadId ? { ...t, title: newTitle } : t
+        );
+        this.update();
+      } catch (err) {
+        console.error('Failed to rename thread', err);
+      }
+    }
+  }
+
   setSettings(settings: ISuggestedEditsSettings): void {
     this._settings = settings;
     this.update();
+  }
+
+  setOnSettingsChanged(
+    callback: (settings: Partial<ISuggestedEditsSettings>) => void
+  ): void {
+    this._onSettingsChanged = callback;
   }
 
   private _getActiveCellContext(): {
@@ -362,10 +408,19 @@ export class ChatSidebar extends ReactWidget {
     this._abortController = new AbortController();
 
     try {
+      // Resolve the system prompt content from its ID before passing to the backend
+      const systemPromptId = this._settings?.chatSystemPrompt || 'default_chat_system';
+      const promptObj = this._prompts.find(p => p.id === systemPromptId);
+      const systemPromptContent = promptObj ? promptObj.content : 'You are a helpful coding assistant.';
+      const settingsWithResolvedPrompt = { 
+        ...(this._settings || {}), 
+        chatSystemPrompt: systemPromptContent 
+      } as ISuggestedEditsSettings;
+
       const stream = streamChat(
         content,
         this._getSnapshot(),
-        this._settings,
+        settingsWithResolvedPrompt,
         this._abortController.signal,
         this._activeThreadId ?? undefined
       );
@@ -494,10 +549,33 @@ export class ChatSidebar extends ReactWidget {
         onSelectThread={id => void this._selectThread(id)}
         onCreateThread={() => void this.createNewThread()}
         onDeleteThread={() => void this.deleteActiveThread()}
+        onRenameThread={() => void this.renameActiveThread()}
         cellContext={cellContext}
+        onSettingsChanged={(newSettings: Partial<ISuggestedEditsSettings>) => {
+          if (this._onSettingsChanged) {
+            this._onSettingsChanged(newSettings);
+          }
+        }}
+        lastResponseDuration={
+          this._threads.find(t => t.id === this._activeThreadId)
+            ?.lastResponseDuration
+        }
+        onUpdateResponseDuration={(duration: number) => {
+          if (this._activeThreadId) {
+            void updateThread(this._activeThreadId, {
+              lastResponseDuration: duration
+            }).then(() => {
+              // Update local threads state
+              this._threads = this._threads.map(t =>
+                t.id === this._activeThreadId
+                  ? { ...t, lastResponseDuration: duration }
+                  : t
+              );
+              this.update();
+            });
+          }
+        }}
       />
     );
   }
 }
-
-

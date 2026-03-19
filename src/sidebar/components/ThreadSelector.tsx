@@ -10,6 +10,7 @@ interface IThreadSelectorProps {
   onSelectThread: (id: string) => void;
   onCreateThread: () => void;
   onDeleteThread: () => void;
+  onRenameThread: () => void;
 }
 
 function formatLastEdited(timestampSeconds: number): string {
@@ -48,7 +49,8 @@ export const ThreadSelector: React.FC<IThreadSelectorProps> = ({
   isStreaming,
   onSelectThread,
   onCreateThread,
-  onDeleteThread
+  onDeleteThread,
+  onRenameThread
 }) => {
   const activeThread = threads.find(t => t.id === activeThreadId) ?? null;
 
@@ -107,14 +109,24 @@ export const ThreadSelector: React.FC<IThreadSelectorProps> = ({
       </button>
 
       {activeThread && (
-        <button
-          title="Delete this thread"
-          onClick={() => void handleDeleteClick()}
-          disabled={isStreaming}
-          className="jp-selenepy-action-button jp-selenepy-action-button--danger jp-selenepy-threadSelector-btn"
-        >
-          🗑
-        </button>
+        <>
+          <button
+            title="Rename this thread"
+            onClick={onRenameThread}
+            disabled={isStreaming}
+            className="jp-selenepy-action-button jp-selenepy-threadSelector-btn"
+          >
+            ✎
+          </button>
+          <button
+            title="Delete this thread"
+            onClick={() => void handleDeleteClick()}
+            disabled={isStreaming}
+            className="jp-selenepy-action-button jp-selenepy-action-button-danger jp-selenepy-threadSelector-btn"
+          >
+            🗑
+          </button>
+        </>
       )}
     </div>
   );

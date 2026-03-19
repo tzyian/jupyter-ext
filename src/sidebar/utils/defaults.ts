@@ -9,6 +9,7 @@ export function defaultSettings(): ISuggestedEditsSettings {
     debounceMs: 5000,
     maxCellCharacters: 3000,
     contextWindow: 3,
-    openaiApiKey: ''
+    openaiApiKey: '',
+    chatSystemPrompt: ''
   };
 }
