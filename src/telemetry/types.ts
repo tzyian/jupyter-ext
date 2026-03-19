@@ -11,31 +11,36 @@ export interface ITelemetryEvent {
  * Dashboard statistics from the backend.
  */
 export interface ITelemetryStats {
-  event_counts: Record<string, number>;
-  total_editing_time_seconds: number;
-  total_away_time_seconds: number;
-  total_notebook_session_seconds: number;
+  // Overall counts keyed by event name
+  event_counts?: Record<string, number>;
 
-  // Existing metrics
-  cells_executed: number;
-  cells_deleted: number;
-  paste_events: number;
-  times_left_tab: number;
+  // Aggregate durations (seconds)
+  total_editing_time_seconds?: number;
+  total_away_time_seconds?: number;
+  total_notebook_session_seconds?: number;
 
-  // New metrics
-  cells_created: number;
-  notebooks_opened: number;
-  notebooks_saved: number;
-  unique_notebooks: number;
-  cells_executed_successfully: number;
-  cells_executed_failed: number;
-  execution_success_rate: number;
-  suggestions_applied: number;
-  suggestions_dismissed: number;
-  estimated_time_saved_minutes: number;
-  productivity_score: number;
-  per_notebook_breakdown: INotebookBreakdown[];
-  available_notebooks: { path: string; filename: string }[];
+  // Common counters
+  cells_executed?: number;
+  cells_deleted?: number;
+  paste_events?: number;
+  times_left_tab?: number;
+
+  // Additional metrics (ptional / future-proofed)
+  cells_created?: number;
+  notebooks_opened?: number;
+  notebooks_saved?: number;
+  unique_notebooks?: number;
+  cells_executed_successfully?: number;
+  cells_executed_failed?: number;
+  execution_success_rate?: number; // 0..1
+  suggestions_applied?: number;
+  suggestions_dismissed?: number;
+  estimated_time_saved_minutes?: number;
+  productivity_score?: number;
+
+  // Per-notebook breakdown and available notebook metadata
+  per_notebook_breakdown?: INotebookBreakdown[];
+  available_notebooks?: Array<{ path: string; filename: string }>;
 }
 
 /**

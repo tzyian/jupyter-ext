@@ -76,7 +76,12 @@ export class ChatSidebar extends ReactWidget {
   private _onSettingsChanged:
     | ((settings: Partial<ISuggestedEditsSettings>) => void)
     | null = null;
-  private _view: 'chat' | 'chat_snippet' | 'context_menu' | 'settings' | 'chat_system_prompt' = 'chat';
+  private _view:
+    | 'chat'
+    | 'chat_snippet'
+    | 'context_menu'
+    | 'settings'
+    | 'chat_system_prompt' = 'chat';
 
   private _prompts: IPrompt[] = [];
   private _chatMenu: Menu | null = null;
@@ -409,12 +414,15 @@ export class ChatSidebar extends ReactWidget {
 
     try {
       // Resolve the system prompt content from its ID before passing to the backend
-      const systemPromptId = this._settings?.chatSystemPrompt || 'default_chat_system';
+      const systemPromptId =
+        this._settings?.chatSystemPrompt || 'default_chat_system';
       const promptObj = this._prompts.find(p => p.id === systemPromptId);
-      const systemPromptContent = promptObj ? promptObj.content : 'You are a helpful coding assistant.';
-      const settingsWithResolvedPrompt = { 
-        ...(this._settings || {}), 
-        chatSystemPrompt: systemPromptContent 
+      const systemPromptContent = promptObj
+        ? promptObj.content
+        : 'You are a helpful coding assistant.';
+      const settingsWithResolvedPrompt = {
+        ...(this._settings || {}),
+        chatSystemPrompt: systemPromptContent
       } as ISuggestedEditsSettings;
 
       const stream = streamChat(

@@ -12,7 +12,12 @@ import { Select } from './common/Select';
 import { ThreadSelector } from './ThreadSelector';
 
 interface IChatSidebarContentProps {
-  view: 'chat' | 'chat_snippet' | 'context_menu' | 'settings' | 'chat_system_prompt';
+  view:
+    | 'chat'
+    | 'chat_snippet'
+    | 'context_menu'
+    | 'settings'
+    | 'chat_system_prompt';
   messages: IChatMessage[];
   isStreaming: boolean;
   settings: ISuggestedEditsSettings | null;
@@ -21,7 +26,9 @@ interface IChatSidebarContentProps {
   threads: IChatThread[];
   activeThreadId: string | null;
   threadsLoaded: boolean;
-  onViewChange: (v: 'chat' | 'chat_snippet' | 'context_menu' | 'chat_system_prompt') => void;
+  onViewChange: (
+    v: 'chat' | 'chat_snippet' | 'context_menu' | 'chat_system_prompt'
+  ) => void;
   onSendMessage: (msg: string) => void;
   onClear: () => void;
   onStop: () => void;
@@ -89,7 +96,13 @@ export const ChatSidebarContent: React.FC<IChatSidebarContentProps> = props => {
           label="View:"
           value={props.view}
           onChange={val =>
-            props.onViewChange(val as 'chat' | 'chat_snippet' | 'context_menu' | 'chat_system_prompt')
+            props.onViewChange(
+              val as
+                | 'chat'
+                | 'chat_snippet'
+                | 'context_menu'
+                | 'chat_system_prompt'
+            )
           }
           options={[
             { value: 'chat', label: 'Chat' },
@@ -156,7 +169,9 @@ export const ChatSidebarContent: React.FC<IChatSidebarContentProps> = props => {
             <PromptEditorCard
               title="Chat System Prompts"
               prompts={systemPrompts}
-              selectedPromptId={props.settings?.chatSystemPrompt || 'default_chat_system'}
+              selectedPromptId={
+                props.settings?.chatSystemPrompt || 'default_chat_system'
+              }
               onSelectPrompt={id => {
                 if (props.onSettingsChanged) {
                   props.onSettingsChanged({ chatSystemPrompt: id });
