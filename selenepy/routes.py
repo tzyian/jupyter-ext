@@ -8,8 +8,10 @@ from typing import Any, Mapping
 import tornado
 from jupyter_server.base.handlers import APIHandler
 from jupyter_server.utils import url_path_join
-from langfuse.openai import OpenAI
-
+try:
+    from langfuse.openai import OpenAI
+except ImportError:
+    from openai import OpenAI
 from .chat_db import ChatDB
 from .chat_langchain.service import EducatorNotebookService
 from .logging import get_logger
