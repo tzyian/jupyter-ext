@@ -55,6 +55,10 @@ export async function savePrompt(
     url,
     {
       method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(settings.init?.headers ?? {})
+      },
       body: JSON.stringify({ name, content, id, description, category })
     },
     settings

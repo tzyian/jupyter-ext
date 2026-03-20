@@ -142,13 +142,6 @@ async function loadSettings(
 
     settings.changed.connect(applySettings);
     applySettings();
-
-    chatSidebar.setOnSettingsChanged(newSettings => {
-      void settings.set(
-        'chatSystemPrompt',
-        newSettings.chatSystemPrompt ?? merged.chatSystemPrompt
-      );
-    });
   } catch (error) {
     console.error('Failed to load selenejs settings.', error);
     controller.updateSettings(merged);

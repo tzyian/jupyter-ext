@@ -73,9 +73,6 @@ export class ChatSidebar extends ReactWidget {
   private _tracker: INotebookTracker | null = null;
   private _abortController: AbortController | null = null;
   private _settings: ISuggestedEditsSettings | null = null;
-  private _onSettingsChanged:
-    | ((settings: Partial<ISuggestedEditsSettings>) => void)
-    | null = null;
   private _view:
     | 'chat'
     | 'chat_snippet'
@@ -87,6 +84,7 @@ export class ChatSidebar extends ReactWidget {
   private _chatMenu: Menu | null = null;
   private _selectedSnippetId: string = '__CREATE_NEW__';
   private _selectedContextMenuId: string = '__CREATE_NEW__';
+  private _selectedSystemPromptId: string = 'default_chat_system';
   private _menuFingerprint = '';
   private _onDocumentSelectionChange = () => {
     const notebookNode = this._tracker?.currentWidget?.content.node;
@@ -321,12 +319,6 @@ export class ChatSidebar extends ReactWidget {
     this.update();
   }
 
-  setOnSettingsChanged(
-    callback: (settings: Partial<ISuggestedEditsSettings>) => void
-  ): void {
-    this._onSettingsChanged = callback;
-  }
-
   private _getActiveCellContext(): {
     cellNumber: number;
     excerpt?: string;
@@ -414,8 +406,7 @@ export class ChatSidebar extends ReactWidget {
 
     try {
       // Resolve the system prompt content from its ID before passing to the backend
-      const systemPromptId =
-        this._settings?.chatSystemPrompt || 'default_chat_system';
+      const systemPromptId = this._selectedSystemPromptId;
       const promptObj = this._prompts.find(p => p.id === systemPromptId);
       const systemPromptContent = promptObj
         ? promptObj.content
@@ -550,8 +541,18 @@ export class ChatSidebar extends ReactWidget {
           this._selectedContextMenuId = id;
           this.update();
         }}
+        onSelectSystemPrompt={id => {
+          this._selectedSystemPromptId = id;
+          this.update();
+        }}
         onPromptsChanged={prompts => {
           this._prompts = prompts;
+          const hasSelectedSystemPrompt = prompts.some(
+            p => p.id === this._selectedSystemPromptId
+          );
+          if (!hasSelectedSystemPrompt) {
+            this._selectedSystemPromptId = 'default_chat_system';
+          }
           this._updateMenu();
         }}
         onSelectThread={id => void this._selectThread(id)}
@@ -559,11 +560,7 @@ export class ChatSidebar extends ReactWidget {
         onDeleteThread={() => void this.deleteActiveThread()}
         onRenameThread={() => void this.renameActiveThread()}
         cellContext={cellContext}
-        onSettingsChanged={(newSettings: Partial<ISuggestedEditsSettings>) => {
-          if (this._onSettingsChanged) {
-            this._onSettingsChanged(newSettings);
-          }
-        }}
+        selectedSystemPromptId={this._selectedSystemPromptId}
         lastResponseDuration={
           this._threads.find(t => t.id === this._activeThreadId)
             ?.lastResponseDuration

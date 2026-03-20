@@ -34,13 +34,14 @@ interface IChatSidebarContentProps {
   onStop: () => void;
   onSelectSnippet: (id: string) => void;
   onSelectContextMenu: (id: string) => void;
+  onSelectSystemPrompt: (id: string) => void;
   onPromptsChanged: (prompts: IPrompt[]) => void;
   onSelectThread: (id: string) => void;
   onCreateThread: () => void;
   onDeleteThread: () => void;
   onRenameThread: () => void;
   cellContext: { cellNumber: number; excerpt?: string } | null;
-  onSettingsChanged: (settings: Partial<ISuggestedEditsSettings>) => void;
+  selectedSystemPromptId: string;
   lastResponseDuration?: number;
   onUpdateResponseDuration: (duration: number) => void;
 }
@@ -141,7 +142,6 @@ export const ChatSidebarContent: React.FC<IChatSidebarContentProps> = props => {
               onUpdateResponseDuration={props.onUpdateResponseDuration}
               activeThreadId={props.activeThreadId}
               settings={props.settings}
-              onSettingsChanged={props.onSettingsChanged}
             />
           </>
         )}
@@ -169,14 +169,8 @@ export const ChatSidebarContent: React.FC<IChatSidebarContentProps> = props => {
             <PromptEditorCard
               title="Chat System Prompts"
               prompts={systemPrompts}
-              selectedPromptId={
-                props.settings?.chatSystemPrompt || 'default_chat_system'
-              }
-              onSelectPrompt={id => {
-                if (props.onSettingsChanged) {
-                  props.onSettingsChanged({ chatSystemPrompt: id });
-                }
-              }}
+              selectedPromptId={props.selectedSystemPromptId}
+              onSelectPrompt={props.onSelectSystemPrompt}
               onUpdatePrompt={(n, c, d, i) =>
                 updatePrompt(n, c, d, i, 'chat_system_prompt')
               }
