@@ -172,6 +172,7 @@ class EducatorNotebookService:
         user_message: str,
         openai_api_key: str | None = None,
         notebook_path: str = "",
+        notebook_context: str = "",
         history: list[dict[str, Any]] | None = None,
         max_minutes: int = 5,
         max_turns: int = 3,
@@ -193,6 +194,7 @@ class EducatorNotebookService:
             "intent_confidence": 0.0,
             "research_notes": "",
             "notebook_path": notebook_path,
+            "notebook_context": notebook_context,
             "edit_result": "",
             "edit_status": EditStatus.NOT_STARTED,
             "retry_count_by_agent": {},
@@ -204,6 +206,7 @@ class EducatorNotebookService:
         configurable: dict[str, Any] = {
             "openai_api_key": openai_api_key or "",
             "chat_system_prompt": system_prompt,
+            "notebook_context": notebook_context,
         }
         if self._use_thread_checkpoint:
             configurable["thread_id"] = session_id

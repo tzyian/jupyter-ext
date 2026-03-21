@@ -37,6 +37,7 @@ class AgentState(TypedDict, total=False):
 
     research_notes: str
     notebook_path: str
+    notebook_context: str
     edit_result: str
 
     edit_status: EditStatus

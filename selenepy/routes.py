@@ -22,7 +22,7 @@ from .prompts import PromptManager
 from .streaming import SuggestionStreamWriter
 from .suggestions import apply_scan_scope, stream_live_suggestions
 from .telemetry_db import TelemetryDB
-from .utils import handle_exceptions, safe_int
+from .utils import format_snapshot_for_prompt, handle_exceptions, safe_int
 
 LOGGER = get_logger(__name__)
 
@@ -431,8 +431,14 @@ class ChatStreamHandler(APIHandler):
         try:
             service = await get_chat_langchain_service()
             notebook_path = ""
+            notebook_context = ""
             if isinstance(snapshot, Mapping):
                 notebook_path = str(snapshot.get("path", "")).strip()
+                try:
+                    notebook_context = format_snapshot_for_prompt(snapshot)
+                except Exception as e:
+                    LOGGER.warning("Failed to format notebook snapshot: %s", e)
+                    notebook_context = ""
 
             session_id = (
                 f"thread:{thread_id_str}"
@@ -446,6 +452,7 @@ class ChatStreamHandler(APIHandler):
                     user_message=message,
                     openai_api_key=openai_api_key,
                     notebook_path=notebook_path,
+                    notebook_context=notebook_context,
                     system_prompt=str(settings.get("chatSystemPrompt", "")),
                 )
             )

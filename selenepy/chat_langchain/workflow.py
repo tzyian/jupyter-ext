@@ -57,6 +57,17 @@ class EducatorNotebookWorkflow:
             return str(configurable.get("chat_system_prompt", "")).strip()
         return ""
 
+    def _get_notebook_context(self, config: RunnableConfig | None = None) -> str:
+        configurable = (
+            config.get("configurable") if isinstance(config, Mapping) else None
+        )
+        if isinstance(configurable, Mapping):
+            ctx = str(configurable.get("notebook_context", "")).strip()
+            if ctx:
+                print(f"DEBUG: Notebook context found in config: {ctx[:50]}...")
+            return ctx
+        return ""
+
     def _build_llm(
         self, config: RunnableConfig | None, temperature: float
     ) -> ChatOpenAI:
@@ -76,6 +87,10 @@ class EducatorNotebookWorkflow:
         if user_system_prompt:
             system_prompt += f"\n\nAdditional User Instructions:\n{user_system_prompt}"
 
+        notebook_context = self._get_notebook_context(config)
+        if notebook_context:
+            system_prompt += f"\n\nCurrent Notebook Context:\n{notebook_context}"
+
         return create_agent(llm, tools=self.arxiv_tools, system_prompt=system_prompt)
 
     def _build_notebook_editor_agent(self, config: RunnableConfig | None = None):
@@ -84,6 +99,10 @@ class EducatorNotebookWorkflow:
         system_prompt = NOTEBOOK_EDITOR_SYSTEM
         if user_system_prompt:
             system_prompt += f"\n\nAdditional User Instructions:\n{user_system_prompt}"
+
+        notebook_context = self._get_notebook_context(config)
+        if notebook_context:
+            system_prompt += f"\n\nCurrent Notebook Context:\n{notebook_context}"
 
         return create_agent(llm, tools=self.jupyter_tools, system_prompt=system_prompt)
 
@@ -94,6 +113,10 @@ class EducatorNotebookWorkflow:
         if user_system_prompt:
             system_prompt += f"\n\nAdditional User Instructions:\n{user_system_prompt}"
 
+        notebook_context = self._get_notebook_context(config)
+        if notebook_context:
+            system_prompt += f"\n\nCurrent Notebook Context:\n{notebook_context}"
+
         return create_agent(llm, tools=[], system_prompt=system_prompt)
 
     def _build_final_responder(self, config: RunnableConfig | None = None):
@@ -102,6 +125,10 @@ class EducatorNotebookWorkflow:
         system_prompt = FINAL_RESPONDER_SYSTEM
         if user_system_prompt:
             system_prompt += f"\n\nAdditional User Instructions:\n{user_system_prompt}"
+
+        notebook_context = self._get_notebook_context(config)
+        if notebook_context:
+            system_prompt += f"\n\nCurrent Notebook Context:\n{notebook_context}"
 
         return create_agent(llm, tools=[], system_prompt=system_prompt)
 
@@ -271,6 +298,9 @@ class EducatorNotebookWorkflow:
         self, state: AgentState, config: RunnableConfig
     ) -> AgentState:
         LOGGER.info("Router classifier received state")
+        nb_ctx = state.get("notebook_context", "")
+        if nb_ctx:
+            print(f"DEBUG: Router received notebook context: {nb_ctx[:50]}...")
 
         user_request = state.get("user_request", "")
         retry_count_by_agent = self._increment_retry_count(
@@ -285,7 +315,12 @@ class EducatorNotebookWorkflow:
             response = await llm.ainvoke(
                 [
                     SystemMessage(content=ROUTER_CLASSIFIER_SYSTEM),
-                    HumanMessage(content=f"User request:\n{user_request}"),
+                    HumanMessage(
+                        content=(
+                            f"User request:\n{user_request}\n\n"
+                            f"Notebook Context:\n{state.get('notebook_context', '')}"
+                        )
+                    ),
                 ]
             )
             parsed = self._parse_json_object(self._extract_message_content(response))
