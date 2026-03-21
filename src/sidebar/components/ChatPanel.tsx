@@ -29,6 +29,7 @@ interface IChatPanelProps {
   hasApiKey: boolean;
   openaiApiKey?: string;
   snippets?: { id: string; name: string; content: string }[];
+  onOpenSnippetEditor?: () => void;
   cellContext?: ICellContext | null;
   lastResponseDuration?: number;
   onUpdateResponseDuration: (duration: number) => void;
@@ -46,6 +47,7 @@ export function ChatPanel({
   hasApiKey,
   openaiApiKey,
   snippets,
+  onOpenSnippetEditor,
   cellContext,
   lastResponseDuration,
   onUpdateResponseDuration,
@@ -193,13 +195,6 @@ export function ChatPanel({
               Stop
             </button>
           )}
-          <button
-            className="jp-selenepy-action-button"
-            onClick={onClear}
-            disabled={isStreaming}
-          >
-            Clear
-          </button>
         </div>
       </div>
 
@@ -265,12 +260,13 @@ export function ChatPanel({
           </div>
         )}
         <div className="jp-selenepy-chatInput-container">
-          {snippets && snippets.length > 0 && (
+          <div className="jp-selenepy-chatSnippets-container">
+            <div className="jp-selenepy-chatSnippets-label">Snippets</div>
             <div className="jp-selenepy-chatSnippets-row">
-              {snippets.map(s => (
+              {(snippets ?? []).map(s => (
                 <Button
                   key={s.id}
-                  variant="ghost"
+                  variant="secondary"
                   onClick={() =>
                     setInput(prev =>
                       prev ? `${prev}\n${s.content}` : s.content
@@ -282,8 +278,16 @@ export function ChatPanel({
                   {s.name}
                 </Button>
               ))}
+              <Button
+                variant="secondary"
+                onClick={onOpenSnippetEditor}
+                className="jp-selenepy-chat-snippet-add-btn"
+                title="Create or manage snippets"
+              >
+                +
+              </Button>
             </div>
-          )}
+          </div>
           <div className="jp-selenepy-chatInput-row">
             <textarea
               value={input}

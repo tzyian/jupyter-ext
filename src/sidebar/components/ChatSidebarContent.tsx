@@ -137,6 +137,10 @@ export const ChatSidebarContent: React.FC<IChatSidebarContentProps> = props => {
               hasApiKey={!!props.settings?.openaiApiKey}
               openaiApiKey={props.settings?.openaiApiKey}
               snippets={snippets}
+              onOpenSnippetEditor={() => {
+                props.onSelectSnippet('__CREATE_NEW__');
+                props.onViewChange('chat_snippet');
+              }}
               cellContext={props.cellContext}
               lastResponseDuration={props.lastResponseDuration}
               onUpdateResponseDuration={props.onUpdateResponseDuration}

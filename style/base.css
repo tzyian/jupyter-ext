@@ -1013,20 +1013,27 @@
 .jp-selenepy-chatSnippets-container {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 4px;
+    padding: 6px;
+    border: 1px solid var(--jp-border-color1);
+    border-radius: 6px;
+    background: var(--jp-layout-color1);
 }
 
 .jp-selenepy-chatSnippets-label {
-  font-size: 0.72rem;
+  font-size: 0.65rem;
   color: var(--jp-ui-font-color2);
+  font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
   padding-left: 2px;
 }
 
 .jp-selenepy-chatSnippets-row {
   display: flex;
-  gap: 4px;
+  gap: 6px;
   overflow-x: auto;
-  padding-bottom: 4px;
+  padding-bottom: 2px;
 }
 
 .jp-selenepy-chatInput-row {
@@ -1120,11 +1127,34 @@
 
 .jp-selenepy-chat-snippet-btn {
   font-size: 10px;
-  padding: 2px 8px;
-  border-radius: 10px;
+  padding: 2px 9px;
+    border-radius: 999px;
+    background: var(--jp-layout-color2);
+    border: 1px solid var(--jp-border-color2);
+    line-height: 1.4;
   white-space: nowrap;
 }
 
+.jp-selenepy-chat-snippet-btn:hover:not(:disabled) {
+  background: var(--jp-layout-color3);
+}
+
+.jp-selenepy-chat-snippet-add-btn {
+  min-width: 22px;
+  height: 22px;
+  padding: 0;
+  border-radius: 999px;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1;
+  border: 1px dashed var(--jp-border-color2);
+  background: var(--jp-layout-color2);
+}
+
+.jp-selenepy-chat-snippet-add-btn:hover:not(:disabled) {
+  border-style: solid;
+  background: var(--jp-layout-color3);
+}
 .jp-selenepy-saveBtn {
   padding: 6px 12px;
   font-size: 13px;
