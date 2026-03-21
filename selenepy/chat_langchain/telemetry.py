@@ -20,6 +20,4 @@ def callbacks_config() -> RunnableConfig:
 
     handler = CallbackHandler()
 
-    if handler is None:
-        return {}
     return {"callbacks": [handler]}

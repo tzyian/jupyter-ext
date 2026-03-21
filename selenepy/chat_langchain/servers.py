@@ -1,10 +1,9 @@
 import os
-from typing import Dict
 
 from langchain_mcp_adapters.sessions import Connection
 
 
-servers: Dict[str, Connection] = {
+servers: dict[str, Connection] = {
     "arxiv": {
         "command": "uvx",
         "args": ["arxiv-mcp-server@latest"],

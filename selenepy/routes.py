@@ -461,8 +461,8 @@ class ChatStreamHandler(APIHandler):
 
             assistant_message = str(result.get("assistant_message", ""))
 
-            prompt_tokens = result.get("prompt_tokens", 0)
-            total_tokens = result.get("total_tokens", 0)
+            prompt_tokens = int(result.get("prompt_tokens", 0))
+            total_tokens = int(result.get("total_tokens", 0))
 
             await writer.send_metrics(
                 tokens_used=total_tokens, tokens_sent=prompt_tokens, messages_sent=1

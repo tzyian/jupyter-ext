@@ -15,7 +15,7 @@ from langgraph.graph.message import AnyMessage
 
 from ..logging import get_logger
 from ..paths import get_langgraph_checkpoint_path
-from .models import AgentState, EditStatus, ErrorType, Phase, Progress
+from .models import AgentState, EditStatus, Intent
 from .servers import servers
 from .telemetry import callbacks_config
 from .workflow import EducatorNotebookWorkflow
@@ -31,13 +31,13 @@ def _load_checkpointer_classes() -> tuple[type[Any] | None, type[Any] | None]:
     try:
         module = importlib.import_module("langgraph.checkpoint.sqlite.aio")
         async_cls = getattr(module, "AsyncSqliteSaver", None)
-    except Exception:  # pylint: disable=broad-except
+    except Exception:
         async_cls = None
 
     try:
         module = importlib.import_module("langgraph.checkpoint.sqlite")
         sync_cls = getattr(module, "SqliteSaver", None)
-    except Exception:  # pylint: disable=broad-except
+    except Exception:
         sync_cls = None
 
     return async_cls, sync_cls
@@ -189,28 +189,13 @@ class EducatorNotebookService:
         state: AgentState = {
             "messages": cast(list[AnyMessage], messages),
             "user_request": user_message,
+            "intent": Intent.REPLY,
+            "intent_confidence": 0.0,
             "research_notes": "",
             "notebook_path": notebook_path,
-            "phase": Phase.INIT,
-            "last_agent": "",
-            "last_action": "",
-            "route_reason": "",
-            "progress": Progress.INITIALIZED,
+            "edit_result": "",
             "edit_status": EditStatus.NOT_STARTED,
             "retry_count_by_agent": {},
-            "research_rounds": 0,
-            "editor_attempts": 0,
-            "max_editor_attempts": 2,
-            "needs_edit": True,
-            "needs_research_refresh": False,
-            "research_done": False,
-            "editor_done": False,
-            "editor_failed": False,
-            "last_error_type": ErrorType.NONE,
-            "last_error_message": "",
-            "retryable": False,
-            "handoff_count": 0,
-            "next": "",
             "timeout": False,
             "max_turns": False,
             "done": False,
@@ -272,24 +257,6 @@ class EducatorNotebookService:
             "prompt_tokens": prompt_tokens,
             "completion_tokens": completion_tokens,
             "total_tokens": total_tokens,
-            "research_notes": result.get("research_notes", ""),
-            "notebook_path": result.get("notebook_path", notebook_path),
-            "phase": str(result.get("phase", "")),
-            "progress": str(result.get("progress", "")),
-            "edit_status": str(result.get("edit_status", "")),
-            "retry_count_by_agent": result.get("retry_count_by_agent", {}),
-            "research_rounds": result.get("research_rounds", 0),
-            "editor_attempts": result.get("editor_attempts", 0),
-            "needs_edit": result.get("needs_edit", True),
-            "needs_research_refresh": result.get("needs_research_refresh", False),
-            "research_done": result.get("research_done", False),
-            "editor_done": result.get("editor_done", False),
-            "editor_failed": result.get("editor_failed", False),
-            "last_agent": str(result.get("last_agent", "")),
-            "last_action": result.get("last_action", ""),
-            "route_reason": str(result.get("route_reason", "")),
-            "last_error_type": str(result.get("last_error_type", "")),
-            "last_error_message": result.get("last_error_message", ""),
             "done": result.get("done", False),
             "timeout": result.get("timeout", False),
             "max_turns": result.get("max_turns", False),
@@ -358,41 +325,24 @@ class EducatorNotebookService:
             await self._arxiv_session_ctx.__aexit__(None, None, None)
 
 
-async def test_service():
-    service = EducatorNotebookService()
-    await service.initialize()
-
-    try:
-        notebook_path = "generated/test_dp.ipynb"
-        notebook_path = ""
-
-        # result1 = await service.chat_turn(
-        #     session_id="notebook:generated/selene_generated_notebook.ipynb",
-        #     user_message=(
-        #         "Create a beginner-friendly notebook on dynamic programming "
-        #         "with a knapsack example and short research grounding."
-        #     ),
-        #     notebook_path=notebook_path,
-        # )
-        print(
-            "========================================================"
-            "========================================================"
-            "========================================================"
-            "========================================================"
-        )
-        # print(json.dumps(result1, indent=2))
-
-        result2 = await service.chat_turn(
-            session_id="notebook:generated/generated_notebook.ipynb",
-            user_message="What day is it today?",
-            notebook_path=notebook_path,
-        )
-        print(json.dumps(result2, indent=2))
-    finally:
-        await service.close()
-
-
 if __name__ == "__main__":
-    import asyncio
 
+    async def test_service():
+        service = EducatorNotebookService()
+        await service.initialize()
+
+        try:
+            notebook_path = "generated/test_dp.ipynb"
+            notebook_path = ""
+
+            result = await service.chat_turn(
+                session_id="notebook:generated/generated_notebook.ipynb",
+                user_message="What day is it today?",
+                notebook_path=notebook_path,
+            )
+            print(json.dumps(result, indent=2))
+        finally:
+            await service.close()
+
+    import asyncio
     asyncio.run(test_service())
