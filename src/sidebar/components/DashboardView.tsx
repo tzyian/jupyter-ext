@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useState } from 'react';
+import { showDialog, Dialog } from '@jupyterlab/apputils';
 import type { ITelemetryStats } from '../../telemetry/types';
 import { DashboardMetricCard } from './dashboard/DashboardMetricCard';
 import { LLMMetricsCard } from './dashboard/LLMMetricsCard';
@@ -6,6 +7,8 @@ import { NotebookTableCard } from './dashboard/NotebookTableCard';
 import { formatDuration } from '../../utils/formatting';
 import { useTelemetryStats } from '../utils/useTelemetryStats';
 import { Select } from './common/Select';
+import { Button } from './common/Button';
+import { requestAPI } from '../../request';
 
 export interface IDashboardViewProps {
   fetchStats: (notebookPath?: string) => Promise<ITelemetryStats | null>;
@@ -14,8 +17,41 @@ export interface IDashboardViewProps {
 export const DashboardView: React.FC<IDashboardViewProps> = ({
   fetchStats
 }) => {
+  const [opening, setOpening] = useState(false);
+
   const { stats, loading, error, selectedNotebook, setSelectedNotebook } =
     useTelemetryStats(fetchStats);
+
+  const handleOpenStorage = async () => {
+    setOpening(true);
+    try {
+      const res = await requestAPI<{ path?: string }>('storage/open', {
+        method: 'POST'
+      });
+
+      if (res && res.path) {
+        await showDialog({
+          title: 'Storage opened',
+          body: `Opened storage: ${res.path}`,
+          buttons: [Dialog.okButton()]
+        });
+      } else {
+        await showDialog({
+          title: 'Storage opened',
+          body: 'Opened storage directory',
+          buttons: [Dialog.okButton()]
+        });
+      }
+    } catch (err) {
+      await showDialog({
+        title: 'Failed to open storage',
+        body: String(err),
+        buttons: [Dialog.okButton()]
+      });
+    } finally {
+      setOpening(false);
+    }
+  };
 
   if (loading && !stats) {
     return (
@@ -57,13 +93,22 @@ export const DashboardView: React.FC<IDashboardViewProps> = ({
     <div className="jp-selenepy-dashboard-container">
       <header className="jp-selenepy-dashboard-header">
         <h2>Productivity Dashboard</h2>
-        <Select
-          className="jp-selenepy-dashboard-select"
-          value={selectedNotebook}
-          onChange={setSelectedNotebook}
-          options={notebookOptions}
-          hideLabel={true}
-        />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <Select
+            className="jp-selenepy-dashboard-select"
+            value={selectedNotebook}
+            onChange={setSelectedNotebook}
+            options={notebookOptions}
+            hideLabel={true}
+          />
+          <Button
+            onClick={handleOpenStorage}
+            disabled={opening}
+            variant="ghost"
+          >
+            📂 Open storage location
+          </Button>
+        </div>
       </header>
 
       <div className="jp-selenepy-dashboard-grid">

@@ -2,12 +2,15 @@ import asyncio
 import io
 import json
 import os
+import subprocess
+import sys
 import uuid
 from typing import Any, Mapping
 
 import tornado
 from jupyter_server.base.handlers import APIHandler
 from jupyter_server.utils import url_path_join
+
 try:
     from langfuse.openai import OpenAI
 except ImportError:
@@ -457,14 +460,12 @@ class ChatStreamHandler(APIHandler):
             result = await chat_task
 
             assistant_message = str(result.get("assistant_message", ""))
-            
+
             prompt_tokens = result.get("prompt_tokens", 0)
             total_tokens = result.get("total_tokens", 0)
-            
+
             await writer.send_metrics(
-                tokens_used=total_tokens,
-                tokens_sent=prompt_tokens,
-                messages_sent=1
+                tokens_used=total_tokens, tokens_sent=prompt_tokens, messages_sent=1
             )
 
             await stream_final_chat_response(writer, assistant_message)
@@ -486,8 +487,6 @@ class ChatStreamHandler(APIHandler):
         finally:
             await writer.send_status("complete")
             await writer.close()
-
-
 
 
 class TelemetryHandler(APIHandler):
@@ -572,7 +571,6 @@ class TranscribeHandler(APIHandler):
     @tornado.web.authenticated
     @handle_exceptions
     def post(self) -> None:
-
         body = self.request.body_arguments
         if "audio" not in self.request.files:
             self.set_status(400)
@@ -634,6 +632,41 @@ class TranscribeHandler(APIHandler):
             self.finish(json.dumps({"error": f"Transcription failed: {str(e)}"}))
 
 
+class StorageOpenHandler(APIHandler):
+    """Open the local storage directory (e.g., ~/.selenepy) in the OS file manager.
+
+    This runs on the server where Jupyter is running and therefore will open
+    the directory on the user's machine when the server is local.
+    """
+
+    @tornado.web.authenticated
+    def post(self) -> None:
+        try:
+            from .paths import get_selenepy_dir
+
+            storage_path = str(get_selenepy_dir())
+
+            try:
+                # Cross-platform open
+                if os.name == "nt":
+                    os.startfile(storage_path)
+                elif sys.platform == "darwin":
+                    subprocess.Popen(["open", storage_path])
+                else:
+                    subprocess.Popen(["xdg-open", storage_path])
+            except Exception as e:
+                LOGGER.error("Failed to open storage directory: %s", e, exc_info=e)
+                self.set_status(500)
+                self.finish(json.dumps({"error": str(e)}))
+                return
+
+            self.finish(json.dumps({"path": storage_path}))
+        except Exception as err:
+            LOGGER.error("Error in StorageOpenHandler: %s", err, exc_info=err)
+            self.set_status(500)
+            self.finish(json.dumps({"error": str(err)}))
+
+
 def setup_route_handlers(web_app):
     host_pattern = ".*$"
     base_url = web_app.settings["base_url"]
@@ -655,6 +688,7 @@ def setup_route_handlers(web_app):
     )
     prompts_route_pattern = url_path_join(base_url, "selenepy", "prompts")
     transcribe_route_pattern = url_path_join(base_url, "selenepy", "transcribe")
+    storage_open_route_pattern = url_path_join(base_url, "selenepy", "storage", "open")
 
     handlers = [
         (hello_route_pattern, HelloRouteHandler),
@@ -666,6 +700,7 @@ def setup_route_handlers(web_app):
         (telemetry_route_pattern, TelemetryHandler, {"db": telemetry_db}),
         (telemetry_rename_route_pattern, TelemetryRenameHandler, {"db": telemetry_db}),
         (prompts_route_pattern, PromptsHandler, {"prompt_manager": prompt_manager}),
+        (storage_open_route_pattern, StorageOpenHandler),
         (chat_threads_route_pattern, ChatThreadsHandler, {"chat_db": chat_db}),
         (chat_thread_messages_pattern, ChatThreadMessagesHandler, {"chat_db": chat_db}),
         (chat_stream_route_pattern, ChatStreamHandler, {"chat_db": chat_db}),
