@@ -229,7 +229,7 @@ export function ChatPanel({
         ))}
         {isStreaming && (
           <div className="jp-selenepy-chatStreaming-indicator">
-            Agent is typing...{' '}
+            Agent is thinking...{' '}
             <span className="jp-selenepy-chatTimer">
               ({(responseElapsedTime / 1000).toFixed(1)}s)
             </span>

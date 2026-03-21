@@ -186,6 +186,7 @@
   border: 1px solid var(--jp-border-color1);
   border-radius: 6px;
   background: var(--jp-layout-color1);
+  min-width: 0;
 }
 
 /* Suggested Edits Sidebar */
@@ -695,6 +696,7 @@
   width: 100%;
   overflow-x: auto;
   margin-top: 12px;
+  display: block;
 }
 
 .jp-selenepy-dashboard-notebook-table table {

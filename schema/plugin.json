@@ -9,6 +9,12 @@
       "title": "OpenAI API Key",
       "description": "Your OpenAI API Key for suggestions and chat.",
       "default": ""
+    },
+    "debounceMs": {
+      "type": "number",
+      "title": "Debounce (ms)",
+      "description": "Wait time (ms) after last activity before refreshing suggestions.",
+      "default": 10000
     }
   },
   "additionalProperties": false

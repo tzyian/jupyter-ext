@@ -6,7 +6,7 @@ import type { ISuggestedEditsSettings } from '../../types';
 export function defaultSettings(): ISuggestedEditsSettings {
   return {
     autoRefresh: true,
-    debounceMs: 5000,
+    debounceMs: 10000,
     maxCellCharacters: 3000,
     contextWindow: 3,
     openaiApiKey: '',

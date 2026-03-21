@@ -86,12 +86,10 @@ export class SuggestedEditsSidebar extends ReactWidget {
   }
 
   beginLocalStream(): void {
-    this._localSuggestions = [null, null];
     this.update();
   }
 
   beginGlobalStream(): void {
-    this._globalSuggestion = null;
     this.update();
   }
 
