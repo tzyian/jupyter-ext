@@ -464,6 +464,11 @@ export class ChatSidebar extends ReactWidget {
     this.update();
   }
 
+  public openPromptManager(view: 'chat_snippet' | 'chat_system_prompt') {
+    this._view = view;
+    this.update();
+  }
+
   protected render(): JSX.Element {
     const cellContext = this._getActiveCellContext();
     return (

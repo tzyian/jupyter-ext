@@ -11,6 +11,8 @@ export namespace CommandIDs {
   export const refresh = 'selenejs:refresh-suggested-edits';
   export const chatAboutThis = 'selenejs:chat-about-this';
   export const insertNotebookSnippet = 'selenejs:insert-notebook-snippet';
+  export const manageChatPrompts = 'selenejs:manage-chat-prompts';
+  export const manageNotebookSnippets = 'selenejs:manage-notebook-snippets';
 }
 
 export function registerCommands(
@@ -86,6 +88,39 @@ export function registerCommands(
     });
 
     contextMenuSidebar.setMenus(chatMenu, snippetMenu);
+
+    // Add Manage commands to the end of the menus
+    chatMenu.addItem({ type: 'separator' });
+    chatMenu.addItem({ command: CommandIDs.manageChatPrompts });
+
+    snippetMenu.addItem({ type: 'separator' });
+    snippetMenu.addItem({ command: CommandIDs.manageNotebookSnippets });
+  }
+
+  if (!app.commands.hasCommand(CommandIDs.manageChatPrompts)) {
+    app.commands.addCommand(CommandIDs.manageChatPrompts, {
+      label: 'Manage Chat Prompts',
+      execute: () => {
+        if (!chatSidebar.isAttached) {
+          app.shell.add(chatSidebar, 'left', { rank: 602 });
+        }
+        app.shell.activateById(chatSidebar.id);
+        chatSidebar.openPromptManager('chat_system_prompt');
+      }
+    });
+  }
+
+  if (!app.commands.hasCommand(CommandIDs.manageNotebookSnippets)) {
+    app.commands.addCommand(CommandIDs.manageNotebookSnippets, {
+      label: 'Manage Snippets',
+      execute: () => {
+        if (!contextMenuSidebar.isAttached) {
+          app.shell.add(contextMenuSidebar, 'left', { rank: 603 });
+        }
+        app.shell.activateById(contextMenuSidebar.id);
+        contextMenuSidebar.openPromptManager('notebook_snippet');
+      }
+    });
   }
 
   if (!app.commands.hasCommand(CommandIDs.insertNotebookSnippet)) {

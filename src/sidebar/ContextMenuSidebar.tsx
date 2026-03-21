@@ -37,7 +37,12 @@ export class ContextMenuSidebar extends ReactWidget {
         p => p.category === 'context_menu' || p.category === 'chat'
       );
       const chatFingerprint = chatPrompts
-        .map(p => `${p.id}:${p.name}:${p.description ?? ''}:${p.content}:${p.category ?? ''}`)
+        .map(
+          p =>
+            `${p.id}:${p.name}:${p.description ?? ''}:${p.content}:${
+              p.category ?? ''
+            }`
+        )
         .join('|');
 
       if (chatFingerprint !== this._menuFingerprints.chat) {
@@ -61,7 +66,12 @@ export class ContextMenuSidebar extends ReactWidget {
         p => p.category === 'notebook_snippet'
       );
       const snippetFingerprint = snippetPrompts
-        .map(p => `${p.id}:${p.name}:${p.description ?? ''}:${p.content}:${p.category ?? ''}`)
+        .map(
+          p =>
+            `${p.id}:${p.name}:${p.description ?? ''}:${p.content}:${
+              p.category ?? ''
+            }`
+        )
         .join('|');
 
       if (snippetFingerprint !== this._menuFingerprints.snippet) {
@@ -79,6 +89,11 @@ export class ContextMenuSidebar extends ReactWidget {
         }
       }
     }
+  }
+
+  public openPromptManager(view: 'context_menu' | 'notebook_snippet') {
+    this._view = view;
+    this.update();
   }
 
   protected render(): JSX.Element {

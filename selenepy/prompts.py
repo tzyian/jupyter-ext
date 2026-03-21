@@ -12,41 +12,69 @@ from .suggestions.models import SYSTEM_PROMPT as DEFAULT_SYSTEM_PROMPT
 LOGGER = get_logger(__name__)
 
 SAMPLE_PROMPTS = [
+    # Category: suggestion
     {
-        "name": "Documentation Specialist",
-        "description": "Focuses on providing missing docstrings and comments.",
-        "content": "You are a Python documentation expert. When suggesting changes, prioritize adding high-quality PEP 257 compliant docstrings and helpful inline comments to explain complex logic.",
+        "name": "Pedagogy Expert",
+        "description": "Suggestions to make code more readable and educational for students.",
+        "content": "Provide suggestions to make this code more readable for students. Add comments explaining 'why' something is done, not just 'what' the code does. Suggest ways to break down complex logic into simpler steps.",
         "category": "suggestion",
     },
     {
-        "name": "Complete Type Hints",
-        "description": "Adds missing type annotations to the selected code.",
-        "content": "You are a Python type system expert. Analyze the following code and add comprehensive PEP 484 type hints to all function signatures and variables where they are missing. Return only the improved code.",
-        "category": "context_menu",
+        "name": "Exercise Generator",
+        "description": "Generates follow-up exercises or comprehension questions.",
+        "content": "Suggest 2-3 follow-up exercises or 'Check your understanding' questions based on this cell's content to help students solidify their learning.",
+        "category": "suggestion",
+    },
+    # Category: chat_system_prompt
+    {
+        "name": "Scientific Tutor",
+        "description": "Patient, encouraging tutor who explains concepts using analogies.",
+        "content": "You are a patient and encouraging scientific tutor. Explain complex coding or data science concepts using analogies, step-by-step breakdowns, and clear, simple language suitable for a beginner.",
+        "category": "chat_system_prompt",
     },
     {
-        "name": "Generate Docstring",
-        "description": "Generates a Google-style docstring for the selected function.",
-        "content": "Generate a comprehensive Google-style docstring for the following function, including Args, Returns, and Raises sections if applicable. Return only the docstring.",
-        "category": "context_menu",
+        "name": "Teaching Assistant",
+        "description": "Helper who provides hints rather than direct answers.",
+        "content": "You are a Teaching Assistant helping a student. Your goal is to guide them to the answer without giving it away directly. Provide helpful hints, point out relevant documentation, or ask leading questions to help them debug their own code.",
+        "category": "chat_system_prompt",
     },
+    # Category: chat_snippet
     {
-        "name": "Optimize Performance",
-        "description": "Suggests performance optimizations.",
-        "content": "Can you optimize this code for better performance? Explain why the new version is faster.",
+        "name": "Explain for Beginners",
+        "description": "Simplifies code explanation for novices.",
+        "content": "Explain this code in simple terms for someone who has never seen Python before. Focus on the core concepts and logic.",
         "category": "chat_snippet",
     },
     {
-        "name": "Fix Security Issues",
-        "description": "Reviews code for security vulnerabilities.",
-        "content": "Review this code for common security vulnerabilities like SQL injection or XSS. If you find any, suggest fixes.",
+        "name": "Create Exercise",
+        "description": "Turn code into a practice exercise.",
+        "content": "Create a coding exercise based on this snippet. Include a 'problem statement', 'hints', and a 'solution' (ideally hidden or separated).",
         "category": "chat_snippet",
     },
     {
-        "name": "Add Unit Tests",
-        "description": "Generates unit tests for the selected code.",
-        "content": "Please generate a set of `pytest` unit tests for the following code, covering both happy path and edge cases.",
+        "name": "Summarize for Students",
+        "description": "Creates a concise summary for lecture materials.",
+        "content": "Write a 3-sentence summary of this concept or code block that would be suitable for a lecture slide or textbook sidebar.",
         "category": "chat_snippet",
+    },
+    # Category: notebook_snippet
+    {
+        "name": "Load Sample Dataset",
+        "description": "Boilerplate for loading a teaching dataset (Iris).",
+        "content": "import pandas as pd\n# Loading a well-known educational dataset (Iris)\ndf = pd.read_csv('https://raw.githubusercontent.com/mwaskom/seaborn-data/master/iris.csv')\nprint(\"Dataset loaded. First 5 rows:\")\ndisplay(df.head())",
+        "category": "notebook_snippet",
+    },
+    {
+        "name": "Interactive Plot (ipywidgets)",
+        "description": "Interactive visualization example for students.",
+        "content": "from ipywidgets import interact\nimport matplotlib.pyplot as plt\nimport numpy as np\n\ndef plot_func(frequency=1.0):\n    x = np.linspace(0, 10, 500)\n    plt.figure(figsize=(10, 4))\n    plt.plot(x, np.sin(frequency * x), color='teal', lw=2)\n    plt.title(f'Sine Wave with Frequency: {frequency}')\n    plt.grid(True, alpha=0.3)\n    plt.show()\n\n# Creates an interactive slider for the frequency\ninteract(plot_func, frequency=(1.0, 10.0, 0.1));",
+        "category": "notebook_snippet",
+    },
+    {
+        "name": "Concept Check Template",
+        "description": "Boilerplate for a student self-check.",
+        "content": "### Concept Check\n# TODO: Answer the following question\n# What happens if you change the 'frequency' parameter above to a negative value?\n\n# [Enter your answer as a comment or markdown cell]",
+        "category": "notebook_snippet",
     },
 ]
 
@@ -217,39 +245,37 @@ class PromptManager:
             LOGGER.error(f"Failed to migrate prompts from JSON: {e}")
 
     def _seed_samples(self) -> None:
-        """Seed the database with sample prompts if it's empty."""
+        """Seed the database with sample prompts if they don't exist."""
+        now = time.time()
         with sqlite3.connect(str(self.db_path)) as conn:
             cursor = conn.cursor()
-            cursor.execute("SELECT COUNT(*) FROM prompts")
-            count = cursor.fetchone()[0]
-
-            if count > 0:
-                # DB already has data, don't seed
-                return
-
-            now = time.time()
-            rows = []
+            
             for sample in SAMPLE_PROMPTS:
-                rows.append(
-                    (
-                        uuid.uuid4().hex,
-                        sample["name"],
-                        sample["content"],
-                        0,  # is_default (not hardcoded default, but seeded sample)
-                        sample.get("description"),
-                        sample.get("category"),
-                        now,
-                        now,
+                # Check if this sample (by name and category) already exists
+                cursor.execute(
+                    "SELECT id FROM prompts WHERE name = ? AND category = ?",
+                    (sample["name"], sample["category"]),
+                )
+                if not cursor.fetchone():
+                    new_id = uuid.uuid4().hex
+                    cursor.execute(
+                        """
+                        INSERT INTO prompts (id, name, content, is_default, description, category, created_at, updated_at)
+                        VALUES (?, ?, ?, 0, ?, ?, ?, ?)
+                        """,
+                        (
+                            new_id,
+                            sample["name"],
+                            sample["content"],
+                            sample.get("description"),
+                            sample.get("category"),
+                            now,
+                            now,
+                        ),
                     )
-                )
-
-            if rows:
-                cursor.executemany(
-                    "INSERT INTO prompts (id, name, content, is_default, description, category, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                    rows,
-                )
-                conn.commit()
-                LOGGER.info(f"[PromptManager] Seeded {len(rows)} sample prompts")
+            
+            conn.commit()
+            LOGGER.info("[PromptManager] Finished seeding/syncing sample prompts")
 
     def get_all_prompts(self) -> List[Dict[str, Any]]:
         """Get all prompts including the default ones."""
