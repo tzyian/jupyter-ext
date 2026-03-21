@@ -18,9 +18,8 @@ import type {
   IPrompt
 } from '../types';
 import type { INotebookTracker } from '@jupyterlab/notebook';
-import { Menu } from '@lumino/widgets';
+
 import { buildSnapshot } from './utils/snapshot';
-import { CommandIDs } from './commands';
 import { ChatSidebarContent } from './components/ChatSidebarContent';
 
 export class ChatSidebar extends ReactWidget {
@@ -73,19 +72,11 @@ export class ChatSidebar extends ReactWidget {
   private _tracker: INotebookTracker | null = null;
   private _abortController: AbortController | null = null;
   private _settings: ISuggestedEditsSettings | null = null;
-  private _view:
-    | 'chat'
-    | 'chat_snippet'
-    | 'context_menu'
-    | 'settings'
-    | 'chat_system_prompt' = 'chat';
+  private _view: 'chat' | 'chat_snippet' | 'settings' | 'chat_system_prompt' = 'chat';
 
   private _prompts: IPrompt[] = [];
-  private _chatMenu: Menu | null = null;
   private _selectedSnippetId: string = '__CREATE_NEW__';
-  private _selectedContextMenuId: string = '__CREATE_NEW__';
   private _selectedSystemPromptId: string = 'default_chat_system';
-  private _menuFingerprint = '';
   private _onDocumentSelectionChange = () => {
     const notebookNode = this._tracker?.currentWidget?.content.node;
     const selection =
@@ -143,46 +134,6 @@ export class ChatSidebar extends ReactWidget {
       );
     }
     super.dispose();
-  }
-
-  public setChatMenu(menu: Menu) {
-    this._chatMenu = menu;
-    this._updateMenu();
-  }
-
-  private _updateMenu() {
-    if (!this._chatMenu) {
-      return;
-    }
-
-    const contextMenuPrompts = this._prompts.filter(
-      (p: IPrompt) => p.category === 'context_menu' || p.category === 'chat'
-    );
-
-    const nextFingerprint = contextMenuPrompts
-      .map(
-        p =>
-          `${p.id}:${p.name}:${p.description ?? ''}:${p.content}:${p.category ?? ''}`
-      )
-      .join('|');
-
-    if (nextFingerprint === this._menuFingerprint) {
-      return;
-    }
-
-    this._menuFingerprint = nextFingerprint;
-    this._chatMenu.clearItems();
-
-    for (const p of contextMenuPrompts) {
-      this._chatMenu.addItem({
-        command: CommandIDs.chatAboutThis,
-        args: {
-          promptName: p.name,
-          promptDescription: p.description || '',
-          promptContent: p.content
-        }
-      });
-    }
   }
 
   public get prompts(): IPrompt[] {
@@ -522,7 +473,6 @@ export class ChatSidebar extends ReactWidget {
         isStreaming={this._isStreaming}
         settings={this._settings}
         selectedSnippetId={this._selectedSnippetId}
-        selectedContextMenuId={this._selectedContextMenuId}
         threads={this._threads}
         activeThreadId={this._activeThreadId}
         threadsLoaded={this._threadsLoaded}
@@ -537,10 +487,6 @@ export class ChatSidebar extends ReactWidget {
           this._selectedSnippetId = id;
           this.update();
         }}
-        onSelectContextMenu={id => {
-          this._selectedContextMenuId = id;
-          this.update();
-        }}
         onSelectSystemPrompt={id => {
           this._selectedSystemPromptId = id;
           this.update();
@@ -553,7 +499,6 @@ export class ChatSidebar extends ReactWidget {
           if (!hasSelectedSystemPrompt) {
             this._selectedSystemPromptId = 'default_chat_system';
           }
-          this._updateMenu();
         }}
         onSelectThread={id => void this._selectThread(id)}
         onCreateThread={() => void this.createNewThread()}

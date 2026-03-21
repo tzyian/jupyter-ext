@@ -15,9 +15,11 @@ import {
 } from '../telemetry';
 import { TelemetrySidebar } from './TelemetrySidebar';
 import { ChatSidebar } from './ChatSidebar';
+import { ContextMenuSidebar } from './ContextMenuSidebar';
 
 export const SIDEBAR_ID = 'selenejs-suggested-edits-sidebar';
 export const CHAT_SIDEBAR_ID = 'selenejs-chat-sidebar';
+export const CONTEXT_MENU_SIDEBAR_ID = 'selenejs-context-menu-sidebar';
 
 /**
  * Registration result for the suggested edits sidebar.
@@ -25,6 +27,7 @@ export const CHAT_SIDEBAR_ID = 'selenejs-chat-sidebar';
 export interface ISuggestedEditsSidebarRegistration {
   readonly sidebar: SuggestedEditsSidebar;
   readonly chatSidebar: ChatSidebar;
+  readonly contextMenuSidebar: ContextMenuSidebar;
   readonly controller: SuggestedEditsController;
   readonly telemetryService: TelemetryService;
   readonly notebookTracker: NotebookTelemetryTracker;
@@ -75,17 +78,28 @@ export function registerSuggestedEditsSidebar(options: {
   const chatSidebar = new ChatSidebar(tracker);
   const chatTracker = new ChatTelemetryTracker(chatSidebar, telemetryService);
 
-  registerCommands(app, sidebar, controller, chatSidebar);
+  const contextMenuSidebar = new ContextMenuSidebar();
+
+  registerCommands(
+    app,
+    sidebar,
+    controller,
+    chatSidebar,
+    contextMenuSidebar,
+    tracker
+  );
 
   if (restorer) {
     restorer.add(sidebar, SIDEBAR_ID);
     restorer.add(telemetrySidebar, 'selenejs-telemetry-sidebar');
     restorer.add(chatSidebar, CHAT_SIDEBAR_ID);
+    restorer.add(contextMenuSidebar, CONTEXT_MENU_SIDEBAR_ID);
   }
 
   app.shell.add(sidebar, 'left', { rank: 600 });
   app.shell.add(telemetrySidebar, 'left', { rank: 601 });
   app.shell.add(chatSidebar, 'left', { rank: 602 });
+  app.shell.add(contextMenuSidebar, 'left', { rank: 603 });
 
   void loadSettings(
     settingRegistry,
@@ -98,6 +112,7 @@ export function registerSuggestedEditsSidebar(options: {
   return {
     sidebar,
     chatSidebar,
+    contextMenuSidebar,
     controller,
     telemetryService,
     notebookTracker,

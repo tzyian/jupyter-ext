@@ -2,19 +2,24 @@ import type { JupyterFrontEnd } from '@jupyterlab/application';
 import { SuggestedEditsSidebar } from './SuggestedEditsSidebar';
 import type { SuggestedEditsController } from './suggestedEditsController';
 import type { ChatSidebar } from './ChatSidebar';
+import type { ContextMenuSidebar } from './ContextMenuSidebar';
 import { Menu } from '@lumino/widgets';
+import type { INotebookTracker } from '@jupyterlab/notebook';
 
 export namespace CommandIDs {
   export const openSidebar = 'selenejs:open-suggested-edits';
   export const refresh = 'selenejs:refresh-suggested-edits';
   export const chatAboutThis = 'selenejs:chat-about-this';
+  export const insertNotebookSnippet = 'selenejs:insert-notebook-snippet';
 }
 
 export function registerCommands(
   app: JupyterFrontEnd,
   sidebar: SuggestedEditsSidebar,
   controller: SuggestedEditsController,
-  chatSidebar: ChatSidebar
+  chatSidebar: ChatSidebar,
+  contextMenuSidebar: ContextMenuSidebar,
+  tracker: INotebookTracker
 ): void {
   if (!app.commands.hasCommand(CommandIDs.openSidebar)) {
     app.commands.addCommand(CommandIDs.openSidebar, {
@@ -66,9 +71,45 @@ export function registerCommands(
       type: 'submenu',
       submenu: chatMenu,
       selector: '.jp-Cell',
-      rank: 10
+      rank: 11
     });
 
-    chatSidebar.setChatMenu(chatMenu);
+    const snippetMenu = new Menu({ commands: app.commands });
+    snippetMenu.title.label = 'SelenePy Notebook Snippets';
+    snippetMenu.title.iconClass = 'jp-CodeConsoleIcon';
+
+    app.contextMenu.addItem({
+      type: 'submenu',
+      submenu: snippetMenu,
+      selector: '.jp-Cell',
+      rank: 12
+    });
+
+    contextMenuSidebar.setMenus(chatMenu, snippetMenu);
+  }
+
+  if (!app.commands.hasCommand(CommandIDs.insertNotebookSnippet)) {
+    app.commands.addCommand(CommandIDs.insertNotebookSnippet, {
+      label: args => (args['promptName'] as string) || 'Insert Snippet',
+      caption: args => (args['promptDescription'] as string) || '',
+      execute: args => {
+        const promptContent = args['promptContent'] as string;
+        if (!promptContent) {
+          return;
+        }
+
+        const activeWidget = tracker.currentWidget;
+        if (!activeWidget) {
+          return;
+        }
+
+        const activeCell = activeWidget.content.activeCell;
+        if (!activeCell || !activeCell.editor) {
+          return;
+        }
+
+        activeCell.editor.replaceSelection?.(promptContent);
+      }
+    });
   }
 }

@@ -13,13 +13,8 @@ export async function requestAPI<T>(
   endPoint = '',
   init: RequestInit = {}
 ): Promise<T> {
-  // Make request to Jupyter API
   const settings = ServerConnection.makeSettings();
-  const requestUrl = URLExt.join(
-    settings.baseUrl,
-    'selenepy', // our server extension's API namespace
-    endPoint
-  );
+  const requestUrl = URLExt.join(settings.baseUrl, 'selenepy', endPoint);
 
   let response: Response;
   try {

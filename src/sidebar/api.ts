@@ -42,12 +42,7 @@ export async function savePrompt(
   content: string,
   id?: string,
   description?: string,
-  category:
-    | 'suggestion'
-    | 'chat'
-    | 'chat_snippet'
-    | 'context_menu'
-    | 'chat_system_prompt' = 'suggestion'
+  category: IPrompt['category'] = 'suggestion'
 ): Promise<IPrompt> {
   const { url, settings } = getApiSettings(PROMPTS_PATH);
 

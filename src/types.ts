@@ -65,6 +65,7 @@ export interface IPrompt {
     | 'chat'
     | 'chat_snippet'
     | 'context_menu'
+    | 'notebook_snippet'
     | 'chat_system_prompt';
 }
 

@@ -6,7 +6,7 @@ import type { IResolvedSuggestion, SuggestionScanMode } from '../types';
 import { SuggestedEditsPanel } from './components/SuggestedEditsPanel';
 import { PromptSettingsPanel } from './components/suggestions/PromptSettingsPanel';
 import { usePrompts } from './utils/usePrompts';
-import { Select } from './components/common/Select';
+import { SidebarLayout } from './components/common/SidebarLayout';
 
 /**
  * Sidebar widget for displaying LLM suggested edits, backed by React.
@@ -229,55 +229,47 @@ const SuggestedEditsSidebarContent: React.FC<{
     usePrompts('suggestion');
 
   return (
-    <div className="jp-selenepy-sidebar-wrapper">
-      <div className="jp-selenepy-sidebar-header-row">
-        <Select
-          label="View:"
-          value={props.view === 'home' ? 'suggestions' : 'settings'}
-          onChange={val => {
-            if (val === 'suggestions') {
-              props.onBack();
-            } else {
-              props.onOpenSettings();
-            }
-          }}
-          options={[
-            { value: 'suggestions', label: 'Suggestions' },
-            { value: 'settings', label: 'Manage Prompts' }
-          ]}
-          className="jp-selenepy-select-inline"
+    <SidebarLayout
+      view={props.view === 'home' ? 'suggestions' : 'settings'}
+      onViewChange={val => {
+        if (val === 'suggestions') {
+          props.onBack();
+        } else {
+          props.onOpenSettings();
+        }
+      }}
+      options={[
+        { value: 'suggestions', label: 'Suggestions' },
+        { value: 'settings', label: 'Manage Prompts' }
+      ]}
+    >
+      {props.view === 'settings' ? (
+        <PromptSettingsPanel
+          prompts={prompts}
+          selectedLocalPromptId={props.selectedLocalPromptId}
+          selectedGlobalPromptId={props.selectedGlobalPromptId}
+          onSelectLocal={props.onSelectLocal}
+          onSelectGlobal={props.onSelectGlobal}
+          onUpdatePrompt={updatePrompt}
+          onCreatePrompt={createPrompt}
+          onDeletePrompt={removePrompt}
+          onBack={props.onBack}
         />
-      </div>
-
-      <div className="jp-selenepy-sidebar-content">
-        {props.view === 'settings' ? (
-          <PromptSettingsPanel
-            prompts={prompts}
-            selectedLocalPromptId={props.selectedLocalPromptId}
-            selectedGlobalPromptId={props.selectedGlobalPromptId}
-            onSelectLocal={props.onSelectLocal}
-            onSelectGlobal={props.onSelectGlobal}
-            onUpdatePrompt={updatePrompt}
-            onCreatePrompt={createPrompt}
-            onDeletePrompt={removePrompt}
-            onBack={props.onBack}
-          />
-        ) : (
-          <SuggestedEditsPanel
-            status={props.status}
-            isPaused={props.isPaused}
-            localSuggestions={props.localSuggestions}
-            globalSuggestion={props.globalSuggestion}
-            onRefreshContext={props.onRefreshContext}
-            onRefreshFull={props.onRefreshFull}
-            onPauseToggle={props.onPauseToggle}
-            onApply={props.onApply}
-            onDismiss={props.onDismiss}
-            onOpenSettings={props.onOpenSettings}
-            hasApiKey={props.hasApiKey}
-          />
-        )}
-      </div>
-    </div>
+      ) : (
+        <SuggestedEditsPanel
+          status={props.status}
+          isPaused={props.isPaused}
+          localSuggestions={props.localSuggestions}
+          globalSuggestion={props.globalSuggestion}
+          onRefreshContext={props.onRefreshContext}
+          onRefreshFull={props.onRefreshFull}
+          onPauseToggle={props.onPauseToggle}
+          onApply={props.onApply}
+          onDismiss={props.onDismiss}
+          onOpenSettings={props.onOpenSettings}
+          hasApiKey={props.hasApiKey}
+        />
+      )}
+    </SidebarLayout>
   );
 };
