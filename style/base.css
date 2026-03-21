@@ -537,6 +537,20 @@
   padding: 0 16px;
   overflow-y: auto;
   flex: 1;
+  scrollbar-width: thin;
+}
+
+.jp-selenepy-telemetry::-webkit-scrollbar,
+.jp-selenepy-suggestedEdits::-webkit-scrollbar,
+.jp-selenepy-promptSettings::-webkit-scrollbar {
+  width: 6px;
+}
+
+.jp-selenepy-telemetry::-webkit-scrollbar-thumb,
+.jp-selenepy-suggestedEdits::-webkit-scrollbar-thumb,
+.jp-selenepy-promptSettings::-webkit-scrollbar-thumb {
+  background: var(--jp-border-color2);
+  border-radius: 4px;
 }
 
 .jp-selenepy-dashboard-header {
@@ -909,6 +923,24 @@
   display: flex;
   flex-direction: column;
   gap: 8px;
+  scrollbar-width: thin;
+}
+
+.jp-selenepy-chatMessages::-webkit-scrollbar {
+  width: 6px;
+}
+
+.jp-selenepy-chatMessages::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.jp-selenepy-chatMessages::-webkit-scrollbar-thumb {
+  background: var(--jp-border-color2);
+  border-radius: 4px;
+}
+
+.jp-selenepy-chatMessages::-webkit-scrollbar-thumb:hover {
+  background: var(--jp-border-color1);
 }
 
 .jp-selenepy-chatEmpty {
@@ -1035,7 +1067,28 @@
   display: flex;
   gap: 6px;
   overflow-x: auto;
-  padding-bottom: 2px;
+  padding-bottom: 6px; /* Increased to make room for scrollbar */
+  overflow-y: hidden;
+  scrollbar-width: thin; /* Firefox */
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Custom scrollbar for snippets row to be less intrusive on Windows */
+.jp-selenepy-chatSnippets-row::-webkit-scrollbar {
+  height: 4px;
+}
+
+.jp-selenepy-chatSnippets-row::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.jp-selenepy-chatSnippets-row::-webkit-scrollbar-thumb {
+  background: var(--jp-border-color2);
+  border-radius: 4px;
+}
+
+.jp-selenepy-chatSnippets-row::-webkit-scrollbar-thumb:hover {
+  background: var(--jp-border-color1);
 }
 
 .jp-selenepy-chatInput-row {

@@ -72,7 +72,8 @@ export class ChatSidebar extends ReactWidget {
   private _tracker: INotebookTracker | null = null;
   private _abortController: AbortController | null = null;
   private _settings: ISuggestedEditsSettings | null = null;
-  private _view: 'chat' | 'chat_snippet' | 'settings' | 'chat_system_prompt' = 'chat';
+  private _view: 'chat' | 'chat_snippet' | 'settings' | 'chat_system_prompt' =
+    'chat';
 
   private _prompts: IPrompt[] = [];
   private _selectedSnippetId: string = '__CREATE_NEW__';
