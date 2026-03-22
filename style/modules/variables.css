@@ -1,0 +1,21 @@
+/*
+    See the JupyterLab Developer Guide for useful CSS Patterns:
+
+    https://jupyterlab.readthedocs.io/en/stable/developer/css.html
+*/
+
+:root {
+  --js-base-font-size: 13px;
+  --js-small-font-size: 11px;
+  --js-header-font-size: 16px;
+  --js-code-font-size: 12px;
+
+  /* Sidebar Theme Colors */
+  --js-suggestions-color: var(--jp-brand-color1); /* Blue */
+  --js-chat-color: #8a2be2; /* Purple */
+  --js-dashboard-color: #2e7d32; /* Green */
+
+  /* Chat Colors */
+  --js-chat-user-bg: var(--jp-layout-color2);
+  --js-chat-agent-bg: var(--jp-layout-color1);
+}
