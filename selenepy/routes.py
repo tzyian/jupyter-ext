@@ -4,12 +4,13 @@ import json
 import subprocess
 import sys
 import uuid
-from typing import Mapping
+from typing import Any, Mapping
 
 import tornado
 from jupyter_server.base.handlers import APIHandler
 from jupyter_server.utils import url_path_join
-from tornado import iostream
+
+from selenepy.chat_stream_writer import ChatStreamWriter
 
 try:
     from langfuse.openai import OpenAI
@@ -53,69 +54,6 @@ async def get_chat_langchain_service() -> EducatorNotebookService:
             _chat_langchain_service = service
 
     return _chat_langchain_service
-
-
-class ChatStreamWriter:
-    """Writes Server-Sent Events to the client for chat streaming."""
-
-    def __init__(self, handler: APIHandler) -> None:
-        self._handler = handler
-        self._closed = False
-
-    @property
-    def is_closed(self) -> bool:
-        return self._closed
-
-    async def send_status(self, phase: str) -> None:
-        await self._send({"type": "status", "phase": phase})
-
-    async def send_chunk(self, content: str) -> None:
-        await self._send({"type": "chunk", "content": content})
-
-    async def send_error(self, message: str) -> None:
-        await self._send({"type": "error", "message": message})
-
-    async def send_metrics(
-        self, tokens_used: int, tokens_sent: int, messages_sent: int
-    ) -> None:
-        await self._send(
-            {
-                "type": "metrics",
-                "tokensUsed": tokens_used,
-                "tokensSent": tokens_sent,
-                "messagesSent": messages_sent,
-            }
-        )
-
-    async def _send(self, payload: Mapping[str, Any]) -> None:
-        if self._closed:
-            return
-        try:
-            chunk = f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
-            self._handler.write(chunk)
-            await self._handler.flush()
-        except iostream.StreamClosedError:
-            self._closed = True
-        except Exception:
-            self._closed = True
-
-    async def close(self) -> None:
-        if self._closed:
-            return
-        self._closed = True
-        self._handler.finish()
-
-
-async def stream_final_chat_response(writer: ChatStreamWriter, text: str) -> str:
-    """Stream a completed assistant response in chunks to preserve SSE UX."""
-    payload = (text or "").strip()
-    if not payload:
-        return ""
-
-    chunk_size = 120
-    for index in range(0, len(payload), chunk_size):
-        await writer.send_chunk(payload[index : index + chunk_size])
-    return payload
 
 
 class PromptsHandler(APIHandler):
@@ -256,17 +194,17 @@ class SuggestedEditsStreamHandler(APIHandler):
                 await writer.send_suggestion(suggestion)
         except tornado.iostream.StreamClosedError:
             LOGGER.info("Client disconnected from suggestion stream.")
-        except Exception as error:  # pylint: disable=broad-except
+        except Exception as error:
             LOGGER.error("Error during suggestion stream", exc_info=error)
             try:
                 await writer.send_info(f"Error generating suggestions: {error}")
-            except Exception:  # pylint: disable=broad-except
+            except Exception:
                 pass  # Stream already closed, ignore
         finally:
             try:
                 await writer.send_status("complete")
                 await writer.close()
-            except Exception:  # pylint: disable=broad-except
+            except Exception:
                 pass  # Stream already closed, ignore
 
 
@@ -470,7 +408,7 @@ class ChatStreamHandler(APIHandler):
         except asyncio.CancelledError:
             LOGGER.info("Chat stream task cancelled after client disconnect")
             return
-        except Exception as error:  # pylint: disable=broad-except
+        except Exception as error:
             LOGGER.error("Error during chat stream", exc_info=error)
             await writer.send_error(str(error))
         finally:

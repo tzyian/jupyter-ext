@@ -32,7 +32,7 @@ def handle_exceptions(method: Callable) -> Callable:
     def wrapper(self, *args, **kwargs):
         try:
             return method(self, *args, **kwargs)
-        except Exception as error:  # pylint: disable=broad-except
+        except Exception as error:
             LOGGER.error(f"Error in {method.__name__}", exc_info=error)
             traceback.print_exc()
             self.set_status(500)

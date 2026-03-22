@@ -34,7 +34,7 @@ class SuggestionStreamWriter:
             chunk = f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
             self._handler.write(chunk)
             await self._handler.flush()
-        except Exception:  # pylint: disable=broad-except
+        except Exception:
             # Stream is closed, mark it and silently fail
             self._closed = True
 
