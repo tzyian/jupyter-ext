@@ -28,14 +28,6 @@ class AgentNode(StrEnum):
     EDITOR = "editor_agent"
 
 
-class EditStatus(StrEnum):
-    NOT_STARTED = "not_started"
-    SUCCESS = "success"
-    RETRYABLE_FAILURE = "retryable_failure"
-    NEEDS_RESEARCH = "needs_research"
-    FATAL_FAILURE = "fatal_failure"
-
-
 class AgentState(TypedDict, total=False):
     messages: Annotated[list[AnyMessage], add_messages]
     all_thoughts: Annotated[list[dict[str, str]], add_data]
@@ -50,8 +42,5 @@ class AgentState(TypedDict, total=False):
     notebook_context: str
     active_cell_index: int
     edit_result: str
-
-    edit_status: EditStatus
-    retry_count_by_agent: dict[str, int]
 
     done: bool

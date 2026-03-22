@@ -1,12 +1,12 @@
 import asyncio
 import importlib
-import inspect
 import sqlite3
 import time
 from datetime import datetime
+from enum import StrEnum
 from typing import Any, AsyncGenerator, cast
 
-from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
+from langchain_core.messages import BaseMessage, HumanMessage
 from langchain_core.runnables import RunnableConfig
 from langchain_mcp_adapters.client import MultiServerMCPClient
 from langchain_mcp_adapters.tools import load_mcp_tools
@@ -15,12 +15,26 @@ from langgraph.graph.message import AnyMessage
 
 from ..logging import get_logger
 from ..paths import get_langgraph_checkpoint_path
-from .models import AgentState, EditStatus, Intent
+from .models import AgentNode, AgentState, Intent
 from .servers import servers
 from .telemetry import callbacks_config
 from .workflow import EducatorNotebookWorkflow
 
 LOGGER = get_logger(__name__)
+
+
+class StreamEventKind(StrEnum):
+    ON_CHAT_MODEL_STREAM = "on_chat_model_stream"
+    ON_TOOL_START = "on_tool_start"
+    ON_TOOL_END = "on_tool_end"
+
+
+class StreamPayloadType(StrEnum):
+    CHUNK = "chunk"
+    INTERMEDIATE_CHUNK = "intermediate_chunk"
+    TOOL_CALL = "tool_call"
+    TOOL_RESULT = "tool_result"
+    ERROR = "error"
 
 
 def _load_checkpointer_classes() -> tuple[type[Any] | None, type[Any] | None]:
@@ -185,7 +199,6 @@ class EducatorNotebookService:
         self.checkpointer = checkpointer
         self._checkpointer_connection: sqlite3.Connection | None = None
         self._checkpointer_async_context_manager = None
-        self._use_thread_checkpoint = checkpointer is not None
         self.client: MultiServerMCPClient | None = None
         self.workflow: EducatorNotebookWorkflow | None = None
         self.app: Any = None
@@ -204,7 +217,6 @@ class EducatorNotebookService:
                 context_manager = async_cls.from_conn_string(str(sqlite_db_path))
                 self.checkpointer = await context_manager.__aenter__()
                 self._checkpointer_async_context_manager = context_manager
-                self._use_thread_checkpoint = True
                 LOGGER.info(
                     "[chat_langchain] Using async sqlite checkpointer at %s",
                     sqlite_db_path,
@@ -223,7 +235,6 @@ class EducatorNotebookService:
                 )
                 self._checkpointer_connection = connection
                 self.checkpointer = sync_cls(connection)
-                self._use_thread_checkpoint = True
                 LOGGER.info(
                     "[chat_langchain] Using sqlite checkpointer at %s", sqlite_db_path
                 )
@@ -235,7 +246,6 @@ class EducatorNotebookService:
                 )
 
         self.checkpointer = MemorySaver()
-        self._use_thread_checkpoint = False
         LOGGER.info("[chat_langchain] Using in-memory checkpointer fallback")
 
     async def initialize(self):
@@ -274,19 +284,14 @@ class EducatorNotebookService:
         notebook_path: str = "",
         notebook_context: str = "",
         active_cell_index: int = -1,
-        history: list[dict[str, Any]] | None = None,
         max_minutes: int = 5,
         system_prompt: str = "",
     ) -> AsyncGenerator[dict[str, Any], None]:
-        history_messages = self._build_history_messages(history or [])
-
         messages = [
             HumanMessage(
                 content=user_message,
             )
         ]
-        if not self._use_thread_checkpoint:
-            messages = history_messages + messages
 
         state: AgentState = {
             "messages": cast(list[AnyMessage], messages),
@@ -296,11 +301,10 @@ class EducatorNotebookService:
             "research_notes": "",
             "all_thoughts": [],
             "all_tool_calls": [],
+            "notebook_path": notebook_path,
             "notebook_context": notebook_context,
             "active_cell_index": active_cell_index,
             "edit_result": "",
-            "edit_status": EditStatus.NOT_STARTED,
-            "retry_count_by_agent": {},
             "done": False,
         }
 
@@ -309,7 +313,7 @@ class EducatorNotebookService:
             "chat_system_prompt": system_prompt,
             "notebook_context": notebook_context,
         }
-        if self._use_thread_checkpoint:
+        if session_id.strip():
             configurable["thread_id"] = session_id
 
         config: RunnableConfig = {"configurable": configurable, **callbacks_config()}
@@ -325,12 +329,15 @@ class EducatorNotebookService:
                 state, config=config, version="v2"
             ):
                 if (time.monotonic() - start_time) > max_minutes * 60:
-                    yield {"type": "error", "message": "chat_langchain timed out"}
+                    yield {
+                        "type": StreamPayloadType.ERROR.value,
+                        "message": "chat_langchain timed out",
+                    }
                     break
 
                 kind = event.get("event")
 
-                if kind == "on_chat_model_stream":
+                if kind == StreamEventKind.ON_CHAT_MODEL_STREAM.value:
                     chunk_content = ""
                     chunk_data = event.get("data", {}).get("chunk")
                     if (
@@ -344,8 +351,11 @@ class EducatorNotebookService:
                         continue
 
                     node_name = event.get("metadata", {}).get("langgraph_node")
-                    if node_name == "responder_agent":
-                        yield {"type": "chunk", "content": chunk_content}
+                    if node_name == AgentNode.RESPONDER.value:
+                        yield {
+                            "type": StreamPayloadType.CHUNK.value,
+                            "content": chunk_content,
+                        }
                     else:
                         tags = event.get("tags", [])
                         agent_name = "Agent"
@@ -353,40 +363,36 @@ class EducatorNotebookService:
                             if t.startswith("agent:"):
                                 agent_name = t.split(":", 1)[1]
 
-                        if agent_name in ("Research", "Editor"):
+                        normalized_agent = agent_name.removesuffix(" Agent")
+                        if normalized_agent in ("Research", "Editor"):
                             yield {
-                                "type": "intermediate_chunk",
-                                "agent": agent_name,
+                                "type": StreamPayloadType.INTERMEDIATE_CHUNK.value,
+                                "agent": normalized_agent,
                                 "content": chunk_content,
                             }
 
-                elif kind == "on_tool_start":
+                elif kind == StreamEventKind.ON_TOOL_START.value:
                     tool_name = event.get("name", "unknown")
                     tool_input = event.get("data", {}).get("input", "")
-                    yield {"type": "tool_call", "name": tool_name, "input": tool_input}
+                    yield {
+                        "type": StreamPayloadType.TOOL_CALL.value,
+                        "name": tool_name,
+                        "input": tool_input,
+                    }
 
-                elif kind == "on_tool_end":
+                elif kind == StreamEventKind.ON_TOOL_END.value:
                     tool_name = event.get("name", "unknown")
-                    yield {"type": "tool_result", "name": tool_name, "status": "done"}
+                    yield {
+                        "type": StreamPayloadType.TOOL_RESULT.value,
+                        "name": tool_name,
+                        "status": "done",
+                    }
 
         except asyncio.CancelledError:
             raise
         except Exception as error:
             LOGGER.error("Error during astream_events", exc_info=error)
-            yield {"type": "error", "message": str(error)}
-
-    @staticmethod
-    def _build_history_messages(history: list[dict[str, Any]]):
-        """Convert chat_db role/content rows into LangChain messages."""
-        result = []
-        for item in history:
-            role = str(item.get("role", "")).strip().lower()
-            content = str(item.get("content", ""))
-            if role == "user":
-                result.append(HumanMessage(content=content))
-            elif role in {"ai", "assistant"}:
-                result.append(AIMessage(content=content))
-        return result
+            yield {"type": StreamPayloadType.ERROR.value, "message": str(error)}
 
     async def get_thread_messages(self, thread_id: str) -> list[dict[str, Any]]:
         """Read persisted messages for a thread directly from the checkpointer."""
@@ -395,19 +401,11 @@ class EducatorNotebookService:
                 "Service not initialized. Call initialize() before get_thread_messages()."
             )
 
-        if not thread_id.strip() or not self._use_thread_checkpoint:
+        if not thread_id.strip():
             return []
 
         config: RunnableConfig = {"configurable": {"thread_id": thread_id}}
-        get_state = getattr(self.app, "aget_state", None)
-        if get_state is None:
-            get_state = getattr(self.app, "get_state", None)
-        if get_state is None:
-            return []
-
-        snapshot = get_state(config)
-        if inspect.isawaitable(snapshot):
-            snapshot = await snapshot
+        snapshot = await self.app.aget_state(config)
 
         values = getattr(snapshot, "values", {}) if snapshot is not None else {}
         if not isinstance(values, dict):
@@ -444,27 +442,11 @@ class EducatorNotebookService:
             except ValueError:
                 return None
 
-        get_state_history = getattr(self.app, "aget_state_history", None)
-        if get_state_history is None:
-            get_state_history = getattr(self.app, "get_state_history", None)
-        if get_state_history is None:
-            return formatted
+        snapshots = self.app.aget_state_history(config)
 
-        snapshots = get_state_history(config)
-        if inspect.isawaitable(snapshots):
-            snapshots = await snapshots
-
-        # Support both synchronous iterables and asynchronous iterables returned
-        # by different LangGraph versions/checkpointers.
         ordered_snapshots: list[Any] = []
-        if hasattr(snapshots, "__aiter__"):
-            async for item in snapshots:
-                ordered_snapshots.append(item)
-        else:
-            try:
-                ordered_snapshots = list(snapshots)
-            except TypeError:
-                return formatted
+        async for item in snapshots:
+            ordered_snapshots.append(item)
 
         for history_snapshot in reversed(ordered_snapshots):
             checkpoint_payload = getattr(history_snapshot, "checkpoint", None)

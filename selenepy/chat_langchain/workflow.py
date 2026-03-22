@@ -15,7 +15,7 @@ from langgraph.graph import END, START, StateGraph
 from pydantic import SecretStr
 
 from ..logging import get_logger
-from .models import AgentNode, AgentState, EditStatus, Intent
+from .models import AgentNode, AgentState, Intent
 from .prompts import (
     NOTEBOOK_EDITOR_SYSTEM,
     RESEARCH_SYSTEM,
@@ -148,14 +148,6 @@ class EducatorNotebookWorkflow:
         return not contain_not and any(marker in lower for marker in edit_markers)
 
     @staticmethod
-    def _increment_retry_count(
-        retry_count_by_agent: dict[str, int], agent_name: str
-    ) -> dict[str, int]:
-        updated = dict(retry_count_by_agent or {})
-        updated[str(agent_name)] = updated.get(str(agent_name), 0) + 1
-        return updated
-
-    @staticmethod
     def _extract_message_content(message_obj) -> str:
         raw_content = getattr(message_obj, "content", "")
         if isinstance(raw_content, str):
@@ -230,47 +222,6 @@ class EducatorNotebookWorkflow:
         }
         return mapping.get(text, Intent.REPLY)
 
-    @staticmethod
-    def _classify_editor_content(content: str) -> EditStatus:
-        lower = (content or "").lower()
-
-        if any(
-            marker in lower
-            for marker in [
-                "needs_research",
-                "need more research",
-                "missing citation",
-                "insufficient research",
-                "need additional sources",
-            ]
-        ):
-            return EditStatus.NEEDS_RESEARCH
-
-        if any(
-            marker in lower
-            for marker in [
-                "fatal_failure",
-                "cannot proceed",
-                "hard failure",
-                "unrecoverable",
-            ]
-        ):
-            return EditStatus.FATAL_FAILURE
-
-        if any(
-            marker in lower
-            for marker in [
-                "retryable_failure",
-                "temporary",
-                "transient",
-                "try again",
-                "timeout",
-            ]
-        ):
-            return EditStatus.RETRYABLE_FAILURE
-
-        return EditStatus.SUCCESS
-
     async def router_classifier(
         self, state: AgentState, config: RunnableConfig
     ) -> AgentState:
@@ -280,9 +231,6 @@ class EducatorNotebookWorkflow:
             LOGGER.debug("Router received notebook context")
 
         user_request = state.get("user_request", "")
-        retry_count_by_agent = self._increment_retry_count(
-            state.get("retry_count_by_agent", {}), AgentNode.ROUTER
-        )
 
         intent = self._heuristic_intent(user_request)
         confidence = 0.55
@@ -311,7 +259,6 @@ class EducatorNotebookWorkflow:
         return {
             "intent": intent,
             "intent_confidence": confidence,
-            "retry_count_by_agent": retry_count_by_agent,
             "done": False,
         }
 
@@ -319,10 +266,6 @@ class EducatorNotebookWorkflow:
         self, state: AgentState, config: RunnableConfig
     ) -> AgentState:
         LOGGER.info("Responder agent received state")
-
-        retry_count_by_agent = self._increment_retry_count(
-            state.get("retry_count_by_agent", {}), AgentNode.RESPONDER
-        )
 
         llm = self._build_llm(config, temperature=0.2)
         user_system_prompt = self._get_system_prompt(config)
@@ -375,7 +318,6 @@ class EducatorNotebookWorkflow:
                     },
                 )
             ],
-            "retry_count_by_agent": retry_count_by_agent,
             "done": True,
         }
 
@@ -384,13 +326,9 @@ class EducatorNotebookWorkflow:
     ) -> AgentState:
         LOGGER.info("Research agent received state")
 
-        retry_count_by_agent = self._increment_retry_count(
-            state.get("retry_count_by_agent", {}), AgentNode.RESEARCH
-        )
-
         invoke_config: dict[str, Any] = dict(config) if config else {}
         invoke_config["tags"] = list(invoke_config.get("tags") or []) + [
-            "agent:Research Agent"
+            "agent:Research"
         ]
 
         local_thoughts: list[dict[str, str]] = []
@@ -414,7 +352,9 @@ class EducatorNotebookWorkflow:
             ):
                 kind = event.get("event")
                 if kind == "on_chat_model_stream":
-                    content = event["data"]["chunk"].content
+                    data = event.get("data", {})
+                    chunk = data.get("chunk") if isinstance(data, dict) else None
+                    content = getattr(chunk, "content", "") if chunk is not None else ""
                     if content:
                         local_thoughts.append(
                             {"agent": "Research Agent", "content": content}
@@ -453,7 +393,6 @@ class EducatorNotebookWorkflow:
             "research_notes": content,
             "all_thoughts": local_thoughts,
             "all_tool_calls": local_tool_calls,
-            "retry_count_by_agent": retry_count_by_agent,
             "done": False,
         }
 
@@ -461,10 +400,6 @@ class EducatorNotebookWorkflow:
         self, state: AgentState, config: RunnableConfig
     ) -> AgentState:
         LOGGER.info("Notebook editor agent received state")
-
-        retry_count_by_agent = self._increment_retry_count(
-            state.get("retry_count_by_agent", {}), AgentNode.EDITOR
-        )
 
         notebook_path = state.get("notebook_path", "generated/selene_notebook.ipynb")
         Path(notebook_path).parent.mkdir(parents=True, exist_ok=True)
@@ -477,9 +412,7 @@ class EducatorNotebookWorkflow:
         )
 
         invoke_config: dict[str, Any] = dict(config) if config else {}
-        invoke_config["tags"] = list(invoke_config.get("tags") or []) + [
-            "agent:Editor Agent"
-        ]
+        invoke_config["tags"] = list(invoke_config.get("tags") or []) + ["agent:Editor"]
 
         local_thoughts: list[dict[str, str]] = []
         local_tool_calls: list[dict[str, Any]] = []
@@ -506,7 +439,9 @@ class EducatorNotebookWorkflow:
             ):
                 kind = event.get("event")
                 if kind == "on_chat_model_stream":
-                    content = event["data"]["chunk"].content
+                    data = event.get("data", {})
+                    chunk = data.get("chunk") if isinstance(data, dict) else None
+                    content = getattr(chunk, "content", "") if chunk is not None else ""
                     if content:
                         local_thoughts.append(
                             {"agent": "Editor Agent", "content": content}
@@ -533,23 +468,17 @@ class EducatorNotebookWorkflow:
                 content = self._extract_message_content(last_msg)
             else:
                 content = "Edit completed but no summary found."
-
-            edit_status = self._classify_editor_content(content)
         except ToolException as exc:
             LOGGER.warning("Notebook editor tool error: %s", exc)
             content = f"Notebook tool error: {exc}"
-            edit_status = EditStatus.RETRYABLE_FAILURE
         except Exception as exc:
             LOGGER.exception("Notebook editor unexpected error")
             content = f"Notebook unexpected error: {exc}"
-            edit_status = EditStatus.FATAL_FAILURE
 
         return {
             "edit_result": content,
-            "edit_status": edit_status,
             "all_thoughts": local_thoughts,
             "all_tool_calls": local_tool_calls,
-            "retry_count_by_agent": retry_count_by_agent,
             "done": False,
         }
 
