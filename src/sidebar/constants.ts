@@ -1,6 +1,5 @@
 import type { PromptCategory } from '../types';
 
-export const PROMPT_CATEGORY_CHAT = 'chat' satisfies PromptCategory;
 export const PROMPT_CATEGORY_CHAT_SNIPPET =
   'chat_snippet' satisfies PromptCategory;
 export const PROMPT_CATEGORY_CHAT_SYSTEM =
@@ -34,7 +33,6 @@ export const CONTEXT_MENU_PROMPT_CATEGORIES = [
 
 export const CHAT_PROMPT_CATEGORIES = [
   PROMPT_CATEGORY_CHAT_SNIPPET,
-  PROMPT_CATEGORY_CHAT,
   PROMPT_CATEGORY_CHAT_SYSTEM
 ] satisfies PromptCategory[];
 

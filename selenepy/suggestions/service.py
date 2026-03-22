@@ -9,6 +9,11 @@ from openai import AsyncOpenAI
 from openai.types.responses.response_input_param import ResponseInputItemParam
 
 from ..logging import get_logger
+from ..openai_config import (
+    OPENAI_API_KEY_ENV_VAR,
+    normalize_api_key,
+    resolve_openai_api_key,
+)
 from ..utils import format_snapshot_for_prompt, safe_int
 from .models import (
     SYSTEM_PROMPT,
@@ -19,31 +24,14 @@ from .models import (
 
 LOGGER = get_logger(__name__)
 
-OPENAI_API_KEY_ENV_VAR = "OPENAI_API_KEY"
 OPENAI_MODEL_ENV_VAR = "OPENAI_MODEL"
 DEFAULT_OPENAI_MODEL = "gpt-4o-mini"
 
 load_dotenv()
 
-
-def _normalize_api_key(value: Any) -> str:
-    if value is None:
-        return ""
-    if isinstance(value, bytes):
-        return value.decode("utf-8", errors="ignore").strip()
-    return str(value).strip()
-
-
-def _resolve_openai_api_key(preferred_key: str | None = None) -> str:
-    key = _normalize_api_key(preferred_key)
-    if key:
-        return key
-    return _normalize_api_key(os.getenv(OPENAI_API_KEY_ENV_VAR, ""))
-
-
 @lru_cache(maxsize=1)
 def _get_openai_client() -> AsyncOpenAI:
-    env_key = _resolve_openai_api_key()
+    env_key = resolve_openai_api_key()
     if not env_key:
         raise RuntimeError(
             f"{OPENAI_API_KEY_ENV_VAR} must be configured to use live LLM suggestions."
@@ -88,8 +76,8 @@ async def stream_live_suggestions(
     openai_api_key: str | None = None,
 ) -> AsyncIterator[Mapping[str, Any]]:
     """Yield structured suggestions from the OpenAI Responses API."""
-    settings_key = _normalize_api_key(openai_api_key)
-    env_key = _normalize_api_key(os.getenv(OPENAI_API_KEY_ENV_VAR, ""))
+    settings_key = normalize_api_key(openai_api_key)
+    env_key = resolve_openai_api_key()
 
     if settings_key and settings_key != env_key:
         client = AsyncOpenAI(api_key=settings_key)

@@ -5,7 +5,6 @@ import type { IPrompt } from '../types';
 import { CommandIDs } from './commands';
 import { ContextMenuSidebarContent } from './components/ContextMenuSidebarContent';
 import {
-  PROMPT_CATEGORY_CHAT,
   PROMPT_CATEGORY_CONTEXT_MENU,
   PROMPT_CATEGORY_NOTEBOOK_SNIPPET,
   type ContextMenuView
@@ -40,9 +39,7 @@ export class ContextMenuSidebar extends ReactWidget {
   private _updateMenus() {
     if (this._chatMenu) {
       const chatPrompts = this._prompts.filter(
-        p =>
-          p.category === PROMPT_CATEGORY_CONTEXT_MENU ||
-          p.category === PROMPT_CATEGORY_CHAT
+        p => p.category === PROMPT_CATEGORY_CONTEXT_MENU
       );
       const chatFingerprint = chatPrompts
         .map(

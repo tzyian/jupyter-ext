@@ -54,20 +54,7 @@ export function usePrompts(
       if (normalizedCategories) {
         const categories = normalizedCategories;
         setPrompts(
-          all.filter(p => {
-            if (p.category && categories.includes(p.category)) {
-              return true;
-            }
-            // Special case: 'chat' items often used in context menus
-            if (
-              p.category === 'chat' &&
-              (categories.includes('context_menu') ||
-                categories.includes('chat_snippet'))
-            ) {
-              return true;
-            }
-            return false;
-          })
+          all.filter(p => !!p.category && categories.includes(p.category))
         );
       } else {
         setPrompts(all);

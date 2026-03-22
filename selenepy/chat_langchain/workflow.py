@@ -1,6 +1,6 @@
 import os
 from pathlib import Path
-from typing import Any, Literal, Mapping, cast
+from typing import Any, Mapping, cast
 
 from dotenv import load_dotenv
 from langchain.agents import create_agent
@@ -15,6 +15,7 @@ from pydantic import SecretStr
 from selenepy.chat_langchain.models import RouterClassification, WorkflowEventKind
 
 from ..logging import get_logger
+from ..openai_config import resolve_openai_api_key
 from .models import AgentNode, AgentState, Intent
 from .prompts import (
     NOTEBOOK_EDITOR_SYSTEM,
@@ -49,8 +50,10 @@ class EducatorNotebookWorkflow:
         self, config: RunnableConfig | None = None
     ) -> str | None:
         configurable = self._configurable(config)
-        preferred_key = str(configurable.get("openai_api_key", "")).strip()
-        return preferred_key or None
+        resolved = resolve_openai_api_key(
+            preferred_key=configurable.get("openai_api_key", "")
+        )
+        return resolved or None
 
     def _get_system_prompt(self, config: RunnableConfig | None = None) -> str:
         configurable = self._configurable(config)

@@ -65,7 +65,6 @@ export interface IPrompt {
 
 export type PromptCategory =
   | 'suggestion'
-  | 'chat'
   | 'chat_snippet'
   | 'context_menu'
   | 'notebook_snippet'

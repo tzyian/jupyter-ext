@@ -1,16 +1,15 @@
 import asyncio
 import io
 import json
-import os
 import subprocess
 import sys
 import uuid
-from typing import Any, Mapping
+from typing import Mapping
 
 import tornado
-from tornado import iostream
 from jupyter_server.base.handlers import APIHandler
 from jupyter_server.utils import url_path_join
+from tornado import iostream
 
 try:
     from langfuse.openai import OpenAI
@@ -19,7 +18,8 @@ except ImportError:
 from .chat_db import ChatDB
 from .chat_langchain.service import EducatorNotebookService
 from .logging import get_logger
-from .prompts import PromptManager
+from .openai_config import resolve_openai_api_key
+from .prompt_manager import PromptManager
 from .streaming import SuggestionStreamWriter
 from .suggestions import apply_scan_scope, stream_live_suggestions
 from .telemetry_db import TelemetryDB
@@ -27,45 +27,8 @@ from .utils import format_snapshot_for_prompt, handle_exceptions, safe_int
 
 LOGGER = get_logger(__name__)
 
-OPENAI_API_KEY_ENV_VAR = "OPENAI_API_KEY"
-
 _chat_langchain_service: EducatorNotebookService | None = None
 _chat_langchain_service_init_lock = asyncio.Lock()
-
-
-def _normalize_api_key(value: Any) -> str:
-    """Normalize an API key value to a stripped string."""
-    if value is None:
-        return ""
-    if isinstance(value, bytes):
-        return value.decode("utf-8", errors="ignore").strip()
-    return str(value).strip()
-
-
-def resolve_openai_api_key(
-    *,
-    settings: Mapping[str, Any] | None = None,
-    body: Mapping[str, Any] | None = None,
-    body_arguments: Mapping[str, Any] | None = None,
-) -> str:
-    """Resolve OpenAI API key from frontend payload first, then environment."""
-    frontend_key = ""
-
-    if settings:
-        frontend_key = _normalize_api_key(settings.get("openaiApiKey"))
-
-    if not frontend_key and body:
-        frontend_key = _normalize_api_key(body.get("openaiApiKey"))
-
-    if not frontend_key and body_arguments:
-        values = body_arguments.get("openaiApiKey")
-        if isinstance(values, list) and values:
-            frontend_key = _normalize_api_key(values[0])
-
-    if frontend_key:
-        return frontend_key
-
-    return _normalize_api_key(os.getenv(OPENAI_API_KEY_ENV_VAR, ""))
 
 
 def set_sse_headers(handler: APIHandler) -> None:
@@ -246,7 +209,7 @@ class SuggestedEditsStreamHandler(APIHandler):
         if mode not in {"context", "full"}:
             mode = "context"
         context_window = safe_int(settings.get("contextWindow"), 3)
-        prompt_id = body.get("promptId", "default")
+        prompt_id = body.get("promptId", "default_local")
         openai_api_key = resolve_openai_api_key(settings=settings, body=body)
 
         return {
