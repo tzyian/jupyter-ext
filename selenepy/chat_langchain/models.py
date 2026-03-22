@@ -2,6 +2,7 @@ from enum import StrEnum
 from typing import Annotated, Any, TypedDict
 
 from langgraph.graph.message import AnyMessage, add_messages
+from pydantic import BaseModel, Field
 
 
 def add_data(left: list, right: list):
@@ -34,7 +35,7 @@ class AgentState(TypedDict, total=False):
     all_tool_calls: Annotated[list[dict[str, Any]], add_data]
     user_request: str
 
-    intent: Intent | str
+    intent: Intent
     intent_confidence: float
 
     research_notes: str
@@ -44,3 +45,33 @@ class AgentState(TypedDict, total=False):
     edit_result: str
 
     done: bool
+
+
+class WorkflowEventKind(StrEnum):
+    ON_CHAT_MODEL_STREAM = "on_chat_model_stream"
+    ON_TOOL_START = "on_tool_start"
+    ON_TOOL_END = "on_tool_end"
+    ON_CHAIN_END = "on_chain_end"
+
+
+class RouterClassification(BaseModel):
+    intent: Intent
+    confidence: float = Field(
+        ge=0.0,
+        le=1.0,
+        description="Router confidence score between 0.0 and 1.0.",
+    )
+
+
+class StreamPayloadType(StrEnum):
+    CHUNK = "chunk"
+    INTERMEDIATE_CHUNK = "intermediate_chunk"
+    TOOL_CALL = "tool_call"
+    TOOL_RESULT = "tool_result"
+    ERROR = "error"
+
+
+class StreamEventKind(StrEnum):
+    ON_CHAT_MODEL_STREAM = "on_chat_model_stream"
+    ON_TOOL_START = "on_tool_start"
+    ON_TOOL_END = "on_tool_end"

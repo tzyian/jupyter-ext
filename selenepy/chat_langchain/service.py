@@ -1,17 +1,18 @@
 import asyncio
-import importlib
-import sqlite3
 import time
 from datetime import datetime
-from enum import StrEnum
 from typing import Any, AsyncGenerator, cast
 
-from langchain_core.messages import BaseMessage, HumanMessage
+from langchain_core.messages import HumanMessage
 from langchain_core.runnables import RunnableConfig
 from langchain_mcp_adapters.client import MultiServerMCPClient
 from langchain_mcp_adapters.tools import load_mcp_tools
 from langgraph.checkpoint.memory import MemorySaver
+from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 from langgraph.graph.message import AnyMessage
+
+from selenepy.chat_langchain.models import StreamEventKind, StreamPayloadType
+from selenepy.chat_langchain.utils import _to_checkpoint_message_dict
 
 from ..logging import get_logger
 from ..paths import get_langgraph_checkpoint_path
@@ -23,181 +24,9 @@ from .workflow import EducatorNotebookWorkflow
 LOGGER = get_logger(__name__)
 
 
-class StreamEventKind(StrEnum):
-    ON_CHAT_MODEL_STREAM = "on_chat_model_stream"
-    ON_TOOL_START = "on_tool_start"
-    ON_TOOL_END = "on_tool_end"
-
-
-class StreamPayloadType(StrEnum):
-    CHUNK = "chunk"
-    INTERMEDIATE_CHUNK = "intermediate_chunk"
-    TOOL_CALL = "tool_call"
-    TOOL_RESULT = "tool_result"
-    ERROR = "error"
-
-
-def _load_checkpointer_classes() -> tuple[type[Any] | None, type[Any] | None]:
-    """Return AsyncSqliteSaver and SqliteSaver classes when available."""
-    async_cls = None
-    sync_cls = None
-
-    try:
-        module = importlib.import_module("langgraph.checkpoint.sqlite.aio")
-        async_cls = getattr(module, "AsyncSqliteSaver", None)
-    except Exception:
-        async_cls = None
-
-    try:
-        module = importlib.import_module("langgraph.checkpoint.sqlite")
-        sync_cls = getattr(module, "SqliteSaver", None)
-    except Exception:
-        sync_cls = None
-
-    return async_cls, sync_cls
-
-
-def _to_checkpoint_message_dict(
-    message: Any, thread_id: str, index: int
-) -> dict[str, Any]:
-    """Convert checkpoint message objects into frontend chat response shape."""
-    role = "ai"
-    content = ""
-    message_id = None
-    timestamp = None
-    thoughts = None
-    tool_calls = None
-
-    def _normalize_tool_calls(raw_calls: Any) -> list[dict[str, Any]] | None:
-        if not isinstance(raw_calls, list):
-            return None
-        normalized: list[dict[str, Any]] = []
-        for item in raw_calls:
-            if not isinstance(item, dict):
-                continue
-            name = item.get("name") or item.get("tool_name") or item.get("id")
-            input_value = item.get("input")
-            if input_value is None:
-                input_value = item.get("args")
-            if input_value is None:
-                input_value = item.get("arguments", "")
-            status = str(item.get("status", "done")).lower()
-            normalized.append(
-                {
-                    "name": str(name or "unknown"),
-                    "input": input_value if input_value is not None else "",
-                    "status": "active" if status == "active" else "done",
-                }
-            )
-        return normalized or None
-
-    def _normalize_timestamp(value: Any) -> float | None:
-        if value is None:
-            return None
-        try:
-            raw = float(value)
-        except (TypeError, ValueError):
-            return None
-
-        # Milliseconds epoch values are far larger than seconds.
-        if raw >= 1_000_000_000_000:
-            raw = raw / 1000.0
-
-        # Guard against implausible values that are likely parse artifacts.
-        if raw <= 0:
-            return None
-        return raw
-
-    if isinstance(message, BaseMessage):
-        message_type = str(getattr(message, "type", "")).lower()
-        if message_type == "human":
-            role = "user"
-        elif message_type in {"ai", "assistant"}:
-            role = "ai"
-        else:
-            role = "ai"
-        raw_content = getattr(message, "content", "")
-        content = raw_content if isinstance(raw_content, str) else str(raw_content)
-        message_id = getattr(message, "id", None)
-
-        # Extract intermediate data from additional_kwargs
-        kwargs = getattr(message, "additional_kwargs", {})
-        thoughts = kwargs.get("thoughts")
-        tool_calls = _normalize_tool_calls(
-            kwargs.get("tool_calls_trace")
-            or kwargs.get("toolCalls")
-            or kwargs.get("tool_calls")
-        )
-        timestamp = _normalize_timestamp(
-            kwargs.get("timestamp")
-            or kwargs.get("created_at")
-            or kwargs.get("createdAt")
-        )
-
-        # Fallback for standard tool calls if trace is missing
-        if not tool_calls and hasattr(message, "tool_calls"):
-            raw_tc = getattr(message, "tool_calls", [])
-            tool_calls = _normalize_tool_calls(raw_tc)
-
-    elif isinstance(message, dict):
-        raw_role = str(message.get("role", "ai")).lower()
-        role = "user" if raw_role == "user" else "ai"
-        content = str(message.get("content", ""))
-        message_id = message.get("id")
-        additional_kwargs = message.get("additional_kwargs")
-        if not isinstance(additional_kwargs, dict):
-            additional_kwargs = {}
-
-        thoughts = message.get("thoughts") or additional_kwargs.get("thoughts")
-        tool_calls = _normalize_tool_calls(
-            message.get("toolCalls")
-            or message.get("tool_calls")
-            or additional_kwargs.get("tool_calls_trace")
-            or additional_kwargs.get("toolCalls")
-            or additional_kwargs.get("tool_calls")
-        )
-        timestamp = _normalize_timestamp(
-            message.get("timestamp")
-            or message.get("created_at")
-            or message.get("createdAt")
-            or additional_kwargs.get("timestamp")
-            or additional_kwargs.get("created_at")
-            or additional_kwargs.get("createdAt")
-        )
-    else:
-        content = str(message)
-
-    normalized_id = str(message_id).strip() if message_id else f"cp-{thread_id}-{index}"
-
-    # Try to extract timestamp from message ID (frontend creates IDs as Date.now())
-    if timestamp is None and message_id:
-        try:
-            timestamp_ms = int(str(message_id).strip())
-            if (
-                1000000000000 < timestamp_ms < 10000000000000
-            ):  # Reasonable timestamp range in ms
-                timestamp = timestamp_ms / 1000  # Convert to seconds
-        except (ValueError, TypeError):
-            timestamp = None
-
-    result = {
-        "id": normalized_id,
-        "thread_id": thread_id,
-        "role": role,
-        "content": content,
-        "timestamp": timestamp,
-    }
-    if thoughts:
-        result["thoughts"] = thoughts
-    if tool_calls:
-        result["toolCalls"] = tool_calls
-    return result
-
-
 class EducatorNotebookService:
     def __init__(self, checkpointer=None):
         self.checkpointer = checkpointer
-        self._checkpointer_connection: sqlite3.Connection | None = None
         self._checkpointer_async_context_manager = None
         self.client: MultiServerMCPClient | None = None
         self.workflow: EducatorNotebookWorkflow | None = None
@@ -210,40 +39,20 @@ class EducatorNotebookService:
             return
 
         sqlite_db_path = get_langgraph_checkpoint_path()
-        async_cls, sync_cls = _load_checkpointer_classes()
-
-        if async_cls is not None:
-            try:
-                context_manager = async_cls.from_conn_string(str(sqlite_db_path))
-                self.checkpointer = await context_manager.__aenter__()
-                self._checkpointer_async_context_manager = context_manager
-                LOGGER.info(
-                    "[chat_langchain] Using async sqlite checkpointer at %s",
-                    sqlite_db_path,
-                )
-                return
-            except Exception as error:  # pylint: disable=broad-except
-                LOGGER.warning(
-                    "[chat_langchain] Async sqlite checkpointer unavailable, trying sync saver: %s",
-                    error,
-                )
-
-        if sync_cls is not None:
-            try:
-                connection = sqlite3.connect(
-                    str(sqlite_db_path), check_same_thread=False
-                )
-                self._checkpointer_connection = connection
-                self.checkpointer = sync_cls(connection)
-                LOGGER.info(
-                    "[chat_langchain] Using sqlite checkpointer at %s", sqlite_db_path
-                )
-                return
-            except Exception as error:  # pylint: disable=broad-except
-                LOGGER.warning(
-                    "[chat_langchain] Failed to initialize sqlite checkpointer, falling back to MemorySaver: %s",
-                    error,
-                )
+        try:
+            context_manager = AsyncSqliteSaver.from_conn_string(str(sqlite_db_path))
+            self.checkpointer = await context_manager.__aenter__()
+            self._checkpointer_async_context_manager = context_manager
+            LOGGER.info(
+                "[chat_langchain] Using async sqlite checkpointer at %s",
+                sqlite_db_path,
+            )
+            return
+        except Exception as error: 
+            LOGGER.warning(
+                "[chat_langchain] Failed to initialize async sqlite checkpointer, falling back to MemorySaver: %s",
+                error,
+            )
 
         self.checkpointer = MemorySaver()
         LOGGER.info("[chat_langchain] Using in-memory checkpointer fallback")
@@ -489,10 +298,6 @@ class EducatorNotebookService:
         if self._checkpointer_async_context_manager is not None:
             await self._checkpointer_async_context_manager.__aexit__(None, None, None)
             self._checkpointer_async_context_manager = None
-
-        if self._checkpointer_connection is not None:
-            self._checkpointer_connection.close()
-            self._checkpointer_connection = None
 
         if self._jupyter_session_ctx:
             await self._jupyter_session_ctx.__aexit__(None, None, None)

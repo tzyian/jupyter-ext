@@ -11,8 +11,7 @@ Classify each user request into exactly one intent:
 Return STRICT JSON only with this schema:
 {
   "intent": "reply|research|edit|clarify|research_then_edit",
-  "confidence": 0.0,
-  "reason": "one short sentence"
+  "confidence": 0.0
 }
 
 Rules:

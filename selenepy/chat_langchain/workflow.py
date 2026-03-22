@@ -1,6 +1,4 @@
-import json
 import os
-import re
 from pathlib import Path
 from typing import Any, Literal, Mapping, cast
 
@@ -13,6 +11,8 @@ from langchain_openai import ChatOpenAI
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import END, START, StateGraph
 from pydantic import SecretStr
+
+from selenepy.chat_langchain.models import RouterClassification, WorkflowEventKind
 
 from ..logging import get_logger
 from .models import AgentNode, AgentState, Intent
@@ -165,39 +165,6 @@ class EducatorNotebookWorkflow:
         return str(raw_content)
 
     @staticmethod
-    def _parse_json_object(text: str) -> dict[str, object]:
-        text = (text or "").strip()
-        if not text:
-            return {}
-
-        try:
-            parsed = json.loads(text)
-            if isinstance(parsed, dict):
-                return parsed
-        except (json.JSONDecodeError, TypeError):
-            pass
-
-        code_block = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", text, re.DOTALL)
-        if code_block:
-            try:
-                parsed = json.loads(code_block.group(1))
-                if isinstance(parsed, dict):
-                    return parsed
-            except (json.JSONDecodeError, TypeError):
-                pass
-
-        brace_match = re.search(r"\{.*\}", text, re.DOTALL)
-        if brace_match:
-            try:
-                parsed = json.loads(brace_match.group(0))
-                if isinstance(parsed, dict):
-                    return parsed
-            except (json.JSONDecodeError, TypeError):
-                pass
-
-        return {}
-
-    @staticmethod
     def _heuristic_intent(user_request: str) -> Intent:
         needs_research = EducatorNotebookWorkflow._request_needs_research(user_request)
         needs_edit = EducatorNotebookWorkflow._request_needs_edit(user_request)
@@ -209,18 +176,6 @@ class EducatorNotebookWorkflow:
         if needs_research:
             return Intent.RESEARCH
         return Intent.REPLY
-
-    @staticmethod
-    def _coerce_intent(value: object) -> Intent:
-        text = str(value or "").strip().lower()
-        mapping = {
-            Intent.REPLY.value: Intent.REPLY,
-            Intent.RESEARCH.value: Intent.RESEARCH,
-            Intent.EDIT.value: Intent.EDIT,
-            Intent.CLARIFY.value: Intent.CLARIFY,
-            Intent.RESEARCH_THEN_EDIT.value: Intent.RESEARCH_THEN_EDIT,
-        }
-        return mapping.get(text, Intent.REPLY)
 
     async def router_classifier(
         self, state: AgentState, config: RunnableConfig
@@ -237,7 +192,8 @@ class EducatorNotebookWorkflow:
 
         try:
             llm = self._build_llm(config, temperature=0)
-            response = await llm.ainvoke(
+            router_llm = llm.with_structured_output(RouterClassification)
+            response = await router_llm.ainvoke(
                 [
                     SystemMessage(content=ROUTER_CLASSIFIER_SYSTEM),
                     HumanMessage(
@@ -246,13 +202,16 @@ class EducatorNotebookWorkflow:
                             f"Notebook Context:\n{state.get('notebook_context', '')}"
                         )
                     ),
-                ]
+                ],
+                config=config,
             )
-            parsed = self._parse_json_object(self._extract_message_content(response))
-            intent = self._coerce_intent(parsed.get("intent"))
-            parsed_confidence = parsed.get("confidence", confidence)
-            if isinstance(parsed_confidence, (int, float, str)):
-                confidence = max(0.0, min(1.0, float(parsed_confidence)))
+            if isinstance(response, RouterClassification):
+                router_output = response
+            else:
+                router_output = RouterClassification.model_validate(response)
+
+            intent = Intent(router_output.intent)
+            confidence = max(0.0, min(1.0, float(router_output.confidence)))
         except Exception as exc:
             LOGGER.warning("Router classification fallback due to error: %s", exc)
 
@@ -281,7 +240,7 @@ class EducatorNotebookWorkflow:
             state.get("messages", [])
         )
 
-        intent = self._coerce_intent(state.get("intent"))
+        intent = state.get("intent", Intent.REPLY)
         research_notes = state.get("research_notes", "")
         edit_result = state.get("edit_result", "")
 
@@ -351,7 +310,7 @@ class EducatorNotebookWorkflow:
                 version="v2",
             ):
                 kind = event.get("event")
-                if kind == "on_chat_model_stream":
+                if kind == WorkflowEventKind.ON_CHAT_MODEL_STREAM.value:
                     data = event.get("data", {})
                     chunk = data.get("chunk") if isinstance(data, dict) else None
                     content = getattr(chunk, "content", "") if chunk is not None else ""
@@ -359,7 +318,7 @@ class EducatorNotebookWorkflow:
                         local_thoughts.append(
                             {"agent": "Research Agent", "content": content}
                         )
-                elif kind == "on_tool_start":
+                elif kind == WorkflowEventKind.ON_TOOL_START.value:
                     local_tool_calls.append(
                         {
                             "name": event["name"],
@@ -367,13 +326,16 @@ class EducatorNotebookWorkflow:
                             "status": "active",
                         }
                     )
-                elif kind == "on_tool_end":
+                elif kind == WorkflowEventKind.ON_TOOL_END.value:
                     for tc in reversed(local_tool_calls):
                         if tc["name"] == event["name"] and tc["status"] == "active":
                             tc["status"] = "done"
                             break
 
-                if kind == "on_chain_end" and event.get("name") == "LangGraph":
+                if (
+                    kind == WorkflowEventKind.ON_CHAIN_END.value
+                    and event.get("name") == "LangGraph"
+                ):
                     final_result = event["data"].get("output")
 
             if final_result and "messages" in final_result:
@@ -438,7 +400,7 @@ class EducatorNotebookWorkflow:
                 version="v2",
             ):
                 kind = event.get("event")
-                if kind == "on_chat_model_stream":
+                if kind == WorkflowEventKind.ON_CHAT_MODEL_STREAM.value:
                     data = event.get("data", {})
                     chunk = data.get("chunk") if isinstance(data, dict) else None
                     content = getattr(chunk, "content", "") if chunk is not None else ""
@@ -446,7 +408,7 @@ class EducatorNotebookWorkflow:
                         local_thoughts.append(
                             {"agent": "Editor Agent", "content": content}
                         )
-                elif kind == "on_tool_start":
+                elif kind == WorkflowEventKind.ON_TOOL_START.value:
                     local_tool_calls.append(
                         {
                             "name": event["name"],
@@ -454,13 +416,16 @@ class EducatorNotebookWorkflow:
                             "status": "active",
                         }
                     )
-                elif kind == "on_tool_end":
+                elif kind == WorkflowEventKind.ON_TOOL_END.value:
                     for tc in reversed(local_tool_calls):
                         if tc["name"] == event["name"] and tc["status"] == "active":
                             tc["status"] = "done"
                             break
 
-                if kind == "on_chain_end" and event.get("name") == "LangGraph":
+                if (
+                    kind == WorkflowEventKind.ON_CHAIN_END.value
+                    and event.get("name") == "LangGraph"
+                ):
                     final_result = event["data"].get("output")
 
             if final_result and "messages" in final_result:
@@ -485,22 +450,32 @@ class EducatorNotebookWorkflow:
     @staticmethod
     def route_from_router(
         state: AgentState,
-    ) -> Literal[AgentNode.RESPONDER, AgentNode.RESEARCH, AgentNode.EDITOR]:
-        intent = str(state.get("intent", "")).strip().lower()
-        if intent in {Intent.REPLY.value, Intent.CLARIFY.value}:
-            return AgentNode.RESPONDER
-        if intent == Intent.RESEARCH.value:
-            return AgentNode.RESEARCH
-        if intent == Intent.EDIT.value:
-            return AgentNode.EDITOR
-        if intent == Intent.RESEARCH_THEN_EDIT.value:
-            return AgentNode.RESEARCH
-        return AgentNode.RESPONDER
+    ) -> AgentNode:
+        match state.get("intent", "").strip().lower():
+            case Intent.RESEARCH_THEN_EDIT.value:
+                return AgentNode.EDITOR
+            case Intent.REPLY.value:
+                return AgentNode.RESPONDER
+            case Intent.RESEARCH.value:
+                return AgentNode.RESEARCH
+            case Intent.EDIT.value:
+                return AgentNode.EDITOR
+            case _:
+                return AgentNode.RESPONDER
 
     @staticmethod
     def route_from_research(
         state: AgentState,
-    ) -> Literal[AgentNode.EDITOR, AgentNode.RESPONDER]:
+    ) -> AgentNode:
+        intent = state.get("intent", "").strip().lower()
+        if intent == Intent.RESEARCH_THEN_EDIT.value:
+            return AgentNode.EDITOR
+        return AgentNode.RESPONDER
+
+    @staticmethod
+    def route_from_edit(
+        state: AgentState,
+    ) -> AgentNode:
         intent = str(state.get("intent", "")).strip().lower()
         if intent == Intent.RESEARCH_THEN_EDIT.value:
             return AgentNode.EDITOR

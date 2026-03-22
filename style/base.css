@@ -1100,9 +1100,8 @@
 .jp-selenepy-chatSnippets-row {
   display: flex;
   gap: 6px;
-  overflow-x: auto;
+  overflow: auto hidden;
   padding-bottom: 6px; /* Increased to make room for scrollbar */
-  overflow-y: hidden;
   scrollbar-width: thin; /* Firefox */
   -webkit-overflow-scrolling: touch;
 }
@@ -1244,6 +1243,7 @@
   border-style: solid;
   background: var(--jp-layout-color3);
 }
+
 .jp-selenepy-saveBtn {
   padding: 6px 12px;
   font-size: 13px;
@@ -1383,7 +1383,7 @@
 }
 
 .jp-selenepy-chatToolCall-content {
-  padding: 0 8px 8px 8px;
+  padding: 0 8px 8px;
 }
 
 .jp-selenepy-chatToolCall-status {
@@ -1417,9 +1417,11 @@
   0% {
     opacity: 1;
   }
+
   50% {
     opacity: 0.5;
   }
+
   100% {
     opacity: 1;
   }
