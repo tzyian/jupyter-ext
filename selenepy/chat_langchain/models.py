@@ -1,7 +1,16 @@
 from enum import StrEnum
-from typing import Any, Annotated, TypedDict
+from typing import Annotated, Any, TypedDict
 
 from langgraph.graph.message import AnyMessage, add_messages
+
+
+def add_data(left: list, right: list):
+    """Reducer to accumulate data by concatenation."""
+    if not left:
+        return right
+    if not right:
+        return left
+    return left + right
 
 
 class Intent(StrEnum):
@@ -29,6 +38,8 @@ class EditStatus(StrEnum):
 
 class AgentState(TypedDict, total=False):
     messages: Annotated[list[AnyMessage], add_messages]
+    all_thoughts: Annotated[list[dict[str, str]], add_data]
+    all_tool_calls: Annotated[list[dict[str, Any]], add_data]
     user_request: str
 
     intent: Intent | str

@@ -37,35 +37,31 @@ class EducatorNotebookWorkflow:
             os.getenv("OPENAI_MODEL", "gpt-4o-mini").strip() or "gpt-4o-mini"
         )
 
+    @staticmethod
+    def _configurable(config: RunnableConfig | None = None) -> Mapping[str, Any]:
+        if isinstance(config, Mapping):
+            configurable = config.get("configurable")
+            if isinstance(configurable, Mapping):
+                return configurable
+        return {}
+
     def _resolve_openai_api_key(
         self, config: RunnableConfig | None = None
     ) -> str | None:
-        configurable = (
-            config.get("configurable") if isinstance(config, Mapping) else None
-        )
-        preferred_key = ""
-        if isinstance(configurable, Mapping):
-            preferred_key = str(configurable.get("openai_api_key", "")).strip()
+        configurable = self._configurable(config)
+        preferred_key = str(configurable.get("openai_api_key", "")).strip()
         return preferred_key or None
 
     def _get_system_prompt(self, config: RunnableConfig | None = None) -> str:
-        configurable = (
-            config.get("configurable") if isinstance(config, Mapping) else None
-        )
-        if isinstance(configurable, Mapping):
-            return str(configurable.get("chat_system_prompt", "")).strip()
-        return ""
+        configurable = self._configurable(config)
+        return str(configurable.get("chat_system_prompt", "")).strip()
 
     def _get_notebook_context(self, config: RunnableConfig | None = None) -> str:
-        configurable = (
-            config.get("configurable") if isinstance(config, Mapping) else None
-        )
-        if isinstance(configurable, Mapping):
-            ctx = str(configurable.get("notebook_context", "")).strip()
-            if ctx:
-                print(f"DEBUG: Notebook context found in config: {ctx[:50]}...")
-            return ctx
-        return ""
+        configurable = self._configurable(config)
+        ctx = str(configurable.get("notebook_context", "")).strip()
+        if ctx:
+            LOGGER.debug("Notebook context found in config")
+        return ctx
 
     def _build_llm(
         self, config: RunnableConfig | None, temperature: float
@@ -94,7 +90,6 @@ class EducatorNotebookWorkflow:
             llm,
             tools=self.arxiv_tools,
             system_prompt=system_prompt,
-            checkpointer=self.checkpointer,
         )
 
     def _build_notebook_editor_agent(self, config: RunnableConfig | None = None):
@@ -112,7 +107,6 @@ class EducatorNotebookWorkflow:
             llm,
             tools=self.jupyter_tools,
             system_prompt=system_prompt,
-            checkpointer=self.checkpointer,
         )
 
     @staticmethod
@@ -188,7 +182,7 @@ class EducatorNotebookWorkflow:
             parsed = json.loads(text)
             if isinstance(parsed, dict):
                 return parsed
-        except Exception:
+        except (json.JSONDecodeError, TypeError):
             pass
 
         code_block = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", text, re.DOTALL)
@@ -197,7 +191,7 @@ class EducatorNotebookWorkflow:
                 parsed = json.loads(code_block.group(1))
                 if isinstance(parsed, dict):
                     return parsed
-            except Exception:
+            except (json.JSONDecodeError, TypeError):
                 pass
 
         brace_match = re.search(r"\{.*\}", text, re.DOTALL)
@@ -206,7 +200,7 @@ class EducatorNotebookWorkflow:
                 parsed = json.loads(brace_match.group(0))
                 if isinstance(parsed, dict):
                     return parsed
-            except Exception:
+            except (json.JSONDecodeError, TypeError):
                 pass
 
         return {}
@@ -283,7 +277,7 @@ class EducatorNotebookWorkflow:
         LOGGER.info("Router classifier received state")
         nb_ctx = state.get("notebook_context", "")
         if nb_ctx:
-            print(f"DEBUG: Router received notebook context: {nb_ctx[:50]}...")
+            LOGGER.debug("Router received notebook context")
 
         user_request = state.get("user_request", "")
         retry_count_by_agent = self._increment_retry_count(
@@ -368,8 +362,19 @@ class EducatorNotebookWorkflow:
             LOGGER.exception("Responder unexpected error")
             content = "An error occurred generating the response."
 
+        all_thoughts = state.get("all_thoughts", [])
+        all_tool_calls = state.get("all_tool_calls", [])
+
         return {
-            "messages": [AIMessage(content=content)],
+            "messages": [
+                AIMessage(
+                    content=content,
+                    additional_kwargs={
+                        "thoughts": all_thoughts if all_thoughts else None,
+                        "tool_calls_trace": all_tool_calls if all_tool_calls else None,
+                    },
+                )
+            ],
             "retry_count_by_agent": retry_count_by_agent,
             "done": True,
         }
@@ -388,6 +393,10 @@ class EducatorNotebookWorkflow:
             "agent:Research Agent"
         ]
 
+        local_thoughts: list[dict[str, str]] = []
+        local_tool_calls: list[dict[str, Any]] = []
+        final_result = None
+
         try:
             research_agent = self._build_research_agent(
                 cast(RunnableConfig, invoke_config)
@@ -397,12 +406,42 @@ class EducatorNotebookWorkflow:
                 "Find relevant arXiv material and provide concise notes "
                 "useful for building an educational Jupyter notebook."
             )
-            result = await research_agent.ainvoke(
+
+            async for event in research_agent.astream_events(
                 {"messages": [HumanMessage(content=search_prompt)]},
                 config=cast(RunnableConfig, invoke_config),
-            )
-            last_msg = result["messages"][-1]
-            content = self._extract_message_content(last_msg)
+                version="v2",
+            ):
+                kind = event.get("event")
+                if kind == "on_chat_model_stream":
+                    content = event["data"]["chunk"].content
+                    if content:
+                        local_thoughts.append(
+                            {"agent": "Research Agent", "content": content}
+                        )
+                elif kind == "on_tool_start":
+                    local_tool_calls.append(
+                        {
+                            "name": event["name"],
+                            "input": event["data"].get("input"),
+                            "status": "active",
+                        }
+                    )
+                elif kind == "on_tool_end":
+                    for tc in reversed(local_tool_calls):
+                        if tc["name"] == event["name"] and tc["status"] == "active":
+                            tc["status"] = "done"
+                            break
+
+                if kind == "on_chain_end" and event.get("name") == "LangGraph":
+                    final_result = event["data"].get("output")
+
+            if final_result and "messages" in final_result:
+                last_msg = final_result["messages"][-1]
+                content = self._extract_message_content(last_msg)
+            else:
+                content = "Research completed but no summary found."
+
         except ToolException as exc:
             LOGGER.warning("Research agent tool error: %s", exc)
             content = f"Research tool error: {exc}"
@@ -412,7 +451,8 @@ class EducatorNotebookWorkflow:
 
         return {
             "research_notes": content,
-            "messages": [AIMessage(content=f"Research findings:\n{content}")],
+            "all_thoughts": local_thoughts,
+            "all_tool_calls": local_tool_calls,
             "retry_count_by_agent": retry_count_by_agent,
             "done": False,
         }
@@ -441,6 +481,10 @@ class EducatorNotebookWorkflow:
             "agent:Editor Agent"
         ]
 
+        local_thoughts: list[dict[str, str]] = []
+        local_tool_calls: list[dict[str, Any]] = []
+        final_result = None
+
         try:
             notebook_editor_agent = self._build_notebook_editor_agent(
                 cast(RunnableConfig, invoke_config)
@@ -454,12 +498,42 @@ class EducatorNotebookWorkflow:
                 "Create or update the notebook accordingly. "
                 "Use the notebook-selection MCP tool before notebook edits."
             )
-            result = await notebook_editor_agent.ainvoke(
+
+            async for event in notebook_editor_agent.astream_events(
                 {"messages": [HumanMessage(content=edit_prompt)]},
                 config=cast(RunnableConfig, invoke_config),
-            )
-            last_msg = result["messages"][-1]
-            content = self._extract_message_content(last_msg)
+                version="v2",
+            ):
+                kind = event.get("event")
+                if kind == "on_chat_model_stream":
+                    content = event["data"]["chunk"].content
+                    if content:
+                        local_thoughts.append(
+                            {"agent": "Editor Agent", "content": content}
+                        )
+                elif kind == "on_tool_start":
+                    local_tool_calls.append(
+                        {
+                            "name": event["name"],
+                            "input": event["data"].get("input"),
+                            "status": "active",
+                        }
+                    )
+                elif kind == "on_tool_end":
+                    for tc in reversed(local_tool_calls):
+                        if tc["name"] == event["name"] and tc["status"] == "active":
+                            tc["status"] = "done"
+                            break
+
+                if kind == "on_chain_end" and event.get("name") == "LangGraph":
+                    final_result = event["data"].get("output")
+
+            if final_result and "messages" in final_result:
+                last_msg = final_result["messages"][-1]
+                content = self._extract_message_content(last_msg)
+            else:
+                content = "Edit completed but no summary found."
+
             edit_status = self._classify_editor_content(content)
         except ToolException as exc:
             LOGGER.warning("Notebook editor tool error: %s", exc)
@@ -473,7 +547,8 @@ class EducatorNotebookWorkflow:
         return {
             "edit_result": content,
             "edit_status": edit_status,
-            "messages": [AIMessage(content=f"Notebook editor result:\n{content}")],
+            "all_thoughts": local_thoughts,
+            "all_tool_calls": local_tool_calls,
             "retry_count_by_agent": retry_count_by_agent,
             "done": False,
         }

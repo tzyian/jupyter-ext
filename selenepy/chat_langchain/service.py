@@ -1,9 +1,9 @@
 import asyncio
 import importlib
 import inspect
-import json
 import sqlite3
 import time
+from datetime import datetime
 from typing import Any, AsyncGenerator, cast
 
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
@@ -51,6 +51,48 @@ def _to_checkpoint_message_dict(
     content = ""
     message_id = None
     timestamp = None
+    thoughts = None
+    tool_calls = None
+
+    def _normalize_tool_calls(raw_calls: Any) -> list[dict[str, Any]] | None:
+        if not isinstance(raw_calls, list):
+            return None
+        normalized: list[dict[str, Any]] = []
+        for item in raw_calls:
+            if not isinstance(item, dict):
+                continue
+            name = item.get("name") or item.get("tool_name") or item.get("id")
+            input_value = item.get("input")
+            if input_value is None:
+                input_value = item.get("args")
+            if input_value is None:
+                input_value = item.get("arguments", "")
+            status = str(item.get("status", "done")).lower()
+            normalized.append(
+                {
+                    "name": str(name or "unknown"),
+                    "input": input_value if input_value is not None else "",
+                    "status": "active" if status == "active" else "done",
+                }
+            )
+        return normalized or None
+
+    def _normalize_timestamp(value: Any) -> float | None:
+        if value is None:
+            return None
+        try:
+            raw = float(value)
+        except (TypeError, ValueError):
+            return None
+
+        # Milliseconds epoch values are far larger than seconds.
+        if raw >= 1_000_000_000_000:
+            raw = raw / 1000.0
+
+        # Guard against implausible values that are likely parse artifacts.
+        if raw <= 0:
+            return None
+        return raw
 
     if isinstance(message, BaseMessage):
         message_type = str(getattr(message, "type", "")).lower()
@@ -63,32 +105,79 @@ def _to_checkpoint_message_dict(
         raw_content = getattr(message, "content", "")
         content = raw_content if isinstance(raw_content, str) else str(raw_content)
         message_id = getattr(message, "id", None)
+
+        # Extract intermediate data from additional_kwargs
+        kwargs = getattr(message, "additional_kwargs", {})
+        thoughts = kwargs.get("thoughts")
+        tool_calls = _normalize_tool_calls(
+            kwargs.get("tool_calls_trace")
+            or kwargs.get("toolCalls")
+            or kwargs.get("tool_calls")
+        )
+        timestamp = _normalize_timestamp(
+            kwargs.get("timestamp")
+            or kwargs.get("created_at")
+            or kwargs.get("createdAt")
+        )
+
+        # Fallback for standard tool calls if trace is missing
+        if not tool_calls and hasattr(message, "tool_calls"):
+            raw_tc = getattr(message, "tool_calls", [])
+            tool_calls = _normalize_tool_calls(raw_tc)
+
     elif isinstance(message, dict):
         raw_role = str(message.get("role", "ai")).lower()
         role = "user" if raw_role == "user" else "ai"
         content = str(message.get("content", ""))
         message_id = message.get("id")
+        additional_kwargs = message.get("additional_kwargs")
+        if not isinstance(additional_kwargs, dict):
+            additional_kwargs = {}
+
+        thoughts = message.get("thoughts") or additional_kwargs.get("thoughts")
+        tool_calls = _normalize_tool_calls(
+            message.get("toolCalls")
+            or message.get("tool_calls")
+            or additional_kwargs.get("tool_calls_trace")
+            or additional_kwargs.get("toolCalls")
+            or additional_kwargs.get("tool_calls")
+        )
+        timestamp = _normalize_timestamp(
+            message.get("timestamp")
+            or message.get("created_at")
+            or message.get("createdAt")
+            or additional_kwargs.get("timestamp")
+            or additional_kwargs.get("created_at")
+            or additional_kwargs.get("createdAt")
+        )
     else:
         content = str(message)
 
     normalized_id = str(message_id).strip() if message_id else f"cp-{thread_id}-{index}"
-    
+
     # Try to extract timestamp from message ID (frontend creates IDs as Date.now())
-    if message_id:
+    if timestamp is None and message_id:
         try:
             timestamp_ms = int(str(message_id).strip())
-            if 1000000000000 < timestamp_ms < 10000000000000:  # Reasonable timestamp range in ms
+            if (
+                1000000000000 < timestamp_ms < 10000000000000
+            ):  # Reasonable timestamp range in ms
                 timestamp = timestamp_ms / 1000  # Convert to seconds
         except (ValueError, TypeError):
             timestamp = None
-    
-    return {
+
+    result = {
         "id": normalized_id,
         "thread_id": thread_id,
         "role": role,
         "content": content,
         "timestamp": timestamp,
     }
+    if thoughts:
+        result["thoughts"] = thoughts
+    if tool_calls:
+        result["toolCalls"] = tool_calls
+    return result
 
 
 class EducatorNotebookService:
@@ -165,7 +254,6 @@ class EducatorNotebookService:
         excluded_tools = [
             "insert_execute_code_cell",
             "execute_cell",
-            "execute_cell",
             "list_kernels",
         ]
         jupyter_tools = [t for t in jupyter_tools if t.name not in excluded_tools]
@@ -177,107 +265,6 @@ class EducatorNotebookService:
         )
         self.app = self.workflow.build_graph()
 
-    async def chat_turn(
-        self,
-        session_id: str,
-        user_message: str,
-        openai_api_key: str | None = None,
-        notebook_path: str = "",
-        notebook_context: str = "",
-        active_cell_index: int = -1,
-        history: list[dict[str, Any]] | None = None,
-        max_minutes: int = 5,
-        max_turns: int = 3,
-        system_prompt: str = "",
-    ):
-
-        history_messages = self._build_history_messages(history or [])
-
-        # If checkpoint resume is active, pass only the new user message to avoid
-        # duplicating prior turns that are already stored in LangGraph state.
-        messages = [HumanMessage(content=user_message)]
-        if not self._use_thread_checkpoint:
-            messages = history_messages + messages
-
-        state: AgentState = {
-            "messages": cast(list[AnyMessage], messages),
-            "user_request": user_message,
-            "intent": Intent.REPLY,
-            "intent_confidence": 0.0,
-            "research_notes": "",
-            "notebook_path": notebook_path,
-            "notebook_context": notebook_context,
-            "active_cell_index": active_cell_index,
-            "edit_result": "",
-            "edit_status": EditStatus.NOT_STARTED,
-            "retry_count_by_agent": {},
-            "timeout": False,
-            "max_turns": False,
-            "done": False,
-        }
-
-        configurable: dict[str, Any] = {
-            "openai_api_key": openai_api_key or "",
-            "chat_system_prompt": system_prompt,
-            "notebook_context": notebook_context,
-        }
-        if self._use_thread_checkpoint:
-            configurable["thread_id"] = session_id
-
-        config: RunnableConfig = {"configurable": configurable, **callbacks_config()}
-
-        if self.app is None:
-            raise RuntimeError(
-                "Service not initialized. Call initialize() before chat_turn()."
-            )
-
-        start_time = time.monotonic()
-        turns = 0
-        result = state
-        try:
-            while not result.get("done", False):
-                if (time.monotonic() - start_time) > max_minutes * 60:
-                    result["done"] = True
-                    result["timeout"] = True
-                    break
-                if turns >= max_turns:
-                    result["done"] = True
-                    result["max_turns"] = True
-                    break
-                result = await asyncio.wait_for(
-                    self.app.ainvoke(result, config=config), timeout=max_minutes * 60
-                )
-                turns += 1
-        except asyncio.TimeoutError:
-            result["done"] = True
-            result["timeout"] = True
-
-        messages = result.get("messages") or []
-        assistant_message = ""
-        prompt_tokens = 0
-        completion_tokens = 0
-        total_tokens = 0
-        
-        if messages:
-            last_msg = messages[-1]
-            assistant_message = getattr(last_msg, "content", str(last_msg))
-            response_metadata = getattr(last_msg, "response_metadata", {})
-            token_usage = response_metadata.get("token_usage", {})
-            if token_usage:
-                prompt_tokens = token_usage.get("prompt_tokens", 0)
-                completion_tokens = token_usage.get("completion_tokens", 0)
-                total_tokens = token_usage.get("total_tokens", 0)
-
-        return {
-            "assistant_message": assistant_message,
-            "prompt_tokens": prompt_tokens,
-            "completion_tokens": completion_tokens,
-            "total_tokens": total_tokens,
-            "done": result.get("done", False),
-            "timeout": result.get("timeout", False),
-            "max_turns": result.get("max_turns", False),
-            "turns": turns,
-        }
 
     async def chat_turn_stream(
         self,
@@ -291,10 +278,13 @@ class EducatorNotebookService:
         max_minutes: int = 5,
         system_prompt: str = "",
     ) -> AsyncGenerator[dict[str, Any], None]:
-        
         history_messages = self._build_history_messages(history or [])
 
-        messages = [HumanMessage(content=user_message)]
+        messages = [
+            HumanMessage(
+                content=user_message,
+            )
+        ]
         if not self._use_thread_checkpoint:
             messages = history_messages + messages
 
@@ -304,13 +294,13 @@ class EducatorNotebookService:
             "intent": Intent.REPLY,
             "intent_confidence": 0.0,
             "research_notes": "",
+            "all_thoughts": [],
+            "all_tool_calls": [],
             "notebook_context": notebook_context,
             "active_cell_index": active_cell_index,
             "edit_result": "",
             "edit_status": EditStatus.NOT_STARTED,
             "retry_count_by_agent": {},
-            "timeout": False,
-            "max_turns": False,
             "done": False,
         }
 
@@ -331,22 +321,28 @@ class EducatorNotebookService:
 
         start_time = time.monotonic()
         try:
-            async for event in self.app.astream_events(state, config=config, version="v2"):
+            async for event in self.app.astream_events(
+                state, config=config, version="v2"
+            ):
                 if (time.monotonic() - start_time) > max_minutes * 60:
                     yield {"type": "error", "message": "chat_langchain timed out"}
                     break
-                
+
                 kind = event.get("event")
-                
+
                 if kind == "on_chat_model_stream":
                     chunk_content = ""
                     chunk_data = event.get("data", {}).get("chunk")
-                    if chunk_data and hasattr(chunk_data, "content") and isinstance(chunk_data.content, str):
+                    if (
+                        chunk_data
+                        and hasattr(chunk_data, "content")
+                        and isinstance(chunk_data.content, str)
+                    ):
                         chunk_content = chunk_data.content
-                    
+
                     if not chunk_content:
                         continue
-                        
+
                     node_name = event.get("metadata", {}).get("langgraph_node")
                     if node_name == "responder_agent":
                         yield {"type": "chunk", "content": chunk_content}
@@ -356,19 +352,23 @@ class EducatorNotebookService:
                         for t in tags:
                             if t.startswith("agent:"):
                                 agent_name = t.split(":", 1)[1]
-                        
+
                         if agent_name in ("Research", "Editor"):
-                            yield {"type": "intermediate_chunk", "agent": agent_name, "content": chunk_content}
-                
+                            yield {
+                                "type": "intermediate_chunk",
+                                "agent": agent_name,
+                                "content": chunk_content,
+                            }
+
                 elif kind == "on_tool_start":
                     tool_name = event.get("name", "unknown")
                     tool_input = event.get("data", {}).get("input", "")
                     yield {"type": "tool_call", "name": tool_name, "input": tool_input}
-                
+
                 elif kind == "on_tool_end":
                     tool_name = event.get("name", "unknown")
                     yield {"type": "tool_result", "name": tool_name, "status": "done"}
-                    
+
         except asyncio.CancelledError:
             raise
         except Exception as error:
@@ -420,6 +420,87 @@ class EducatorNotebookService:
         formatted: list[dict[str, Any]] = []
         for index, message in enumerate(raw_messages):
             formatted.append(_to_checkpoint_message_dict(message, thread_id, index))
+
+        # Backfill missing message timestamps from checkpoint timestamps.
+        # LangGraph's StateSnapshot.created_at is per-checkpoint (not per message),
+        # so we map each message to the first checkpoint where it appears.
+        missing_ids = {
+            str(item["id"]): item
+            for item in formatted
+            if item.get("timestamp") is None and item.get("id") is not None
+        }
+        if not missing_ids:
+            return formatted
+
+        def _to_epoch_seconds(created_at: Any) -> float | None:
+            if isinstance(created_at, (int, float)):
+                raw = float(created_at)
+                return raw / 1000.0 if raw >= 1_000_000_000_000 else raw
+            if not isinstance(created_at, str) or not created_at.strip():
+                return None
+            try:
+                normalized = created_at.replace("Z", "+00:00")
+                return datetime.fromisoformat(normalized).timestamp()
+            except ValueError:
+                return None
+
+        get_state_history = getattr(self.app, "aget_state_history", None)
+        if get_state_history is None:
+            get_state_history = getattr(self.app, "get_state_history", None)
+        if get_state_history is None:
+            return formatted
+
+        snapshots = get_state_history(config)
+        if inspect.isawaitable(snapshots):
+            snapshots = await snapshots
+
+        # Support both synchronous iterables and asynchronous iterables returned
+        # by different LangGraph versions/checkpointers.
+        ordered_snapshots: list[Any] = []
+        if hasattr(snapshots, "__aiter__"):
+            async for item in snapshots:
+                ordered_snapshots.append(item)
+        else:
+            try:
+                ordered_snapshots = list(snapshots)
+            except TypeError:
+                return formatted
+
+        for history_snapshot in reversed(ordered_snapshots):
+            checkpoint_payload = getattr(history_snapshot, "checkpoint", None)
+            checkpoint_ts = _to_epoch_seconds(
+                getattr(history_snapshot, "created_at", None)
+            )
+            if checkpoint_ts is None:
+                checkpoint_ts = _to_epoch_seconds(getattr(history_snapshot, "ts", None))
+            if checkpoint_ts is None and isinstance(checkpoint_payload, dict):
+                checkpoint_ts = _to_epoch_seconds(checkpoint_payload.get("ts"))
+            if checkpoint_ts is None:
+                continue
+
+            history_values = getattr(history_snapshot, "values", {})
+            if (
+                not isinstance(history_values, dict) or not history_values
+            ) and isinstance(checkpoint_payload, dict):
+                history_values = checkpoint_payload.get("channel_values", {})
+            if not isinstance(history_values, dict):
+                continue
+
+            history_messages = history_values.get("messages", [])
+            if not isinstance(history_messages, list):
+                continue
+
+            for history_index, history_message in enumerate(history_messages):
+                mapped = _to_checkpoint_message_dict(
+                    history_message, thread_id, history_index
+                )
+                mapped_id = str(mapped.get("id", "")).strip()
+                if not mapped_id:
+                    continue
+                target = missing_ids.get(mapped_id)
+                if target is not None and target.get("timestamp") is None:
+                    target["timestamp"] = checkpoint_ts
+
         return formatted
 
     async def close(self):
@@ -437,24 +518,3 @@ class EducatorNotebookService:
             await self._arxiv_session_ctx.__aexit__(None, None, None)
 
 
-if __name__ == "__main__":
-
-    async def test_service():
-        service = EducatorNotebookService()
-        await service.initialize()
-
-        try:
-            notebook_path = "generated/test_dp.ipynb"
-            notebook_path = ""
-
-            result = await service.chat_turn(
-                session_id="notebook:generated/generated_notebook.ipynb",
-                user_message="What day is it today?",
-                notebook_path=notebook_path,
-            )
-            print(json.dumps(result, indent=2))
-        finally:
-            await service.close()
-
-    import asyncio
-    asyncio.run(test_service())
