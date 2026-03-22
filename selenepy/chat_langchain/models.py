@@ -43,12 +43,4 @@ class AgentState(TypedDict, total=False):
     edit_status: EditStatus
     retry_count_by_agent: dict[str, int]
 
-    # Intermediate trace for UI persistence
-    # thoughts: List of {agent: str, content: str}
-    # tool_calls: List of IToolCall-compatible dicts
-    thoughts: Annotated[list[dict[str, str]], lambda x, y: (x or []) + (y or [])]
-    tool_calls: Annotated[list[dict[str, Any]], lambda x, y: (x or []) + (y or [])]
-
-    timeout: bool
-    max_turns: bool
     done: bool

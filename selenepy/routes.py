@@ -8,6 +8,7 @@ import uuid
 from typing import Any, Mapping
 
 import tornado
+from tornado import iostream
 from jupyter_server.base.handlers import APIHandler
 from jupyter_server.utils import url_path_join
 
@@ -130,6 +131,8 @@ class ChatStreamWriter:
             chunk = f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
             self._handler.write(chunk)
             await self._handler.flush()
+        except iostream.StreamClosedError:
+            self._closed = True
         except Exception:
             self._closed = True
 
@@ -533,7 +536,7 @@ class TelemetryHandler(APIHandler):
             self.finish({"error": "No events provided"})
             return
 
-        count = self.db.insert_events_batch(events)
+        count = self.db.insert_events(events)
         LOGGER.info(f"[Telemetry] Successfully inserted {count} events into database")
         self.finish({"inserted": count})
 

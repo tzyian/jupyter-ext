@@ -6,6 +6,7 @@ import type {
   INotebookSnapshot,
   IPrompt,
   ISuggestedEditsSettings,
+  IToolCall,
   SuggestionScanMode,
   SuggestionStreamEvent
 } from '../types';
@@ -374,14 +375,18 @@ export async function fetchThreadMessages(
       thread_id: string;
       role: string;
       content: string;
-      timestamp: number;
+      timestamp?: number | null;
+      thoughts?: Array<{ agent: string; content: string }>;
+      toolCalls?: IToolCall[];
     }>
   ).map(m => ({
     id: m.id,
     role: m.role as 'user' | 'ai',
     content: m.content,
     threadId: m.thread_id,
-    timestamp: m.timestamp
+    timestamp: typeof m.timestamp === 'number' ? m.timestamp : undefined,
+    thoughts: Array.isArray(m.thoughts) ? m.thoughts : undefined,
+    toolCalls: Array.isArray(m.toolCalls) ? m.toolCalls : undefined
   }));
 }
 

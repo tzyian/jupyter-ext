@@ -113,8 +113,9 @@ This is your core thinking process for any task. This cycle begins by deconstruc
 4. After each edit, run the cell to ensure it works and is error-free.
 5. If there is an error executing a cell, fix the error in place rather than adding new cells below it.
 6. When using the insert_cell tool, the cell index is 0-indexed.
-7. Do not keep retrying indefinitely. If the same blocking issue repeats, stop and return a structured failure status.
-8. The use_notebook tool requires a notebook_name and notebook_path, mode: "connect"|"create"
+7. To insert cells at the end of the notebook, use the cell number of -1
+8. Do not keep retrying indefinitely. If the same blocking issue repeats, stop and return a structured failure status.
+9. The use_notebook tool requires a notebook_name and notebook_path, mode: "connect"|"create"
 
 # Required Final Status Block
 

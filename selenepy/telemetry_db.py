@@ -86,9 +86,6 @@ class TelemetryDB:
         LOGGER.info(f"[TelemetryDB] Inserted {inserted} events")
         return inserted
 
-    def insert_events_batch(self, events: list[dict[str, Any]]) -> int:
-        """Legacy alias for insert_events to maintain compatibility with routes.py."""
-        return self.insert_events(events)
 
     def get_events(
         self,

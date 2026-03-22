@@ -9,7 +9,11 @@ import { useAudioRecorder } from '../utils/useAudioRecorder';
 import { transcribeAudio } from '../api';
 
 function formatMessageTime(timestamp?: number): string {
-  if (timestamp === undefined || Number.isNaN(timestamp)) {
+  if (
+    timestamp === null ||
+    timestamp === undefined ||
+    !Number.isFinite(timestamp)
+  ) {
     return '--';
   }
 
@@ -17,7 +21,11 @@ function formatMessageTime(timestamp?: number): string {
   const date = new Date(asMs);
   const day = date.getDate();
   const month = date.toLocaleString('en-US', { month: 'short' });
-  const time = date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+  const time = date.toLocaleTimeString('en-US', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true
+  });
   return `${day} ${month}, ${time}`;
 }
 
@@ -333,7 +341,13 @@ export function ChatPanel({
                   toolCalls={msg.toolCalls}
                 />
               )}
-              {msg.content}
+              {msg.role === 'ai' ? (
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                  {msg.content}
+                </ReactMarkdown>
+              ) : (
+                msg.content
+              )}
             </div>
           </div>
         ))}
