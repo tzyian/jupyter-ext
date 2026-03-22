@@ -1,14 +1,14 @@
 import { ReactWidget } from '@jupyterlab/apputils';
 import { Menu } from '@lumino/widgets';
 import React from 'react';
-import type { IPrompt } from '../types';
-import { CommandIDs } from './commands';
-import { ContextMenuSidebarContent } from './components/ContextMenuSidebarContent';
+import type { IPrompt } from '../../types';
+import { CommandIDs } from '../commands';
+import { ContextMenuSidebarContent } from './ContextMenuSidebarContent';
 import {
   PROMPT_CATEGORY_CONTEXT_MENU,
   PROMPT_CATEGORY_NOTEBOOK_SNIPPET,
   type ContextMenuView
-} from './constants';
+} from '../constants';
 
 export class ContextMenuSidebar extends ReactWidget {
   private _view: ContextMenuView = PROMPT_CATEGORY_CONTEXT_MENU;

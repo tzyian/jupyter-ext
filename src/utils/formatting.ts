@@ -31,3 +31,28 @@ export const formatRelativeTime = (timestamp: number): string => {
   }
   return `${Math.floor(diff / 86400)}d ago`;
 };
+export function formatLastEdited(timestampSeconds: number): string {
+  const timestampMs = timestampSeconds * 1000;
+  const diffMs = Date.now() - timestampMs;
+
+  if (diffMs < 60 * 1000) {
+    return 'just now';
+  }
+
+  if (diffMs < 60 * 60 * 1000) {
+    const mins = Math.floor(diffMs / (60 * 1000));
+    return `${mins}m ago`;
+  }
+
+  if (diffMs < 24 * 60 * 60 * 1000) {
+    const hours = Math.floor(diffMs / (60 * 60 * 1000));
+    return `${hours}h ago`;
+  }
+
+  if (diffMs < 7 * 24 * 60 * 60 * 1000) {
+    const days = Math.floor(diffMs / (24 * 60 * 60 * 1000));
+    return `${days}d ago`;
+  }
+
+  return new Date(timestampMs).toLocaleDateString();
+}

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { IPrompt } from '../../../types';
+import { IPrompt } from '../../types';
 import { Select } from './Select';
 import { Button } from './Button';
 import { Card } from './Card';

@@ -1,9 +1,9 @@
 import type { JupyterFrontEnd } from '@jupyterlab/application';
 import type { ReadonlyPartialJSONObject } from '@lumino/coreutils';
-import { SuggestedEditsSidebar } from './SuggestedEditsSidebar';
-import type { SuggestedEditsController } from './suggestedEditsController';
-import type { ChatSidebar } from './ChatSidebar';
-import type { ContextMenuSidebar } from './ContextMenuSidebar';
+import { SuggestedEditsSidebar } from './suggestions/SuggestedEditsSidebar';
+import type { SuggestedEditsController } from './suggestions/suggestedEditsController';
+import type { ChatSidebar } from './chat/components/ChatSidebar';
+import type { ContextMenuSidebar } from './contextMenu/ContextMenuSidebar';
 import { Menu } from '@lumino/widgets';
 import type { INotebookTracker } from '@jupyterlab/notebook';
 import {

@@ -1,8 +1,8 @@
 import React, { useMemo, useEffect } from 'react';
-import { SidebarLayout } from './common/SidebarLayout';
-import { PromptManagerView } from './common/PromptManagerView';
+import { SidebarLayout } from '../components/SidebarLayout';
+import { PromptManagerView } from '../components/PromptManagerView';
 import type { IPrompt, PromptCategory } from '../../types';
-import { usePrompts } from '../utils/usePrompts';
+import { usePrompts } from '../hooks/usePrompts';
 import {
   CONTEXT_MENU_OPTION_LABEL,
   CONTEXT_MENU_PROMPT_CATEGORIES,

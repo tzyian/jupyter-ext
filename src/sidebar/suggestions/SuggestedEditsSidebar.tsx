@@ -2,11 +2,11 @@ import { ReactWidget } from '@jupyterlab/apputils';
 import { Signal, type ISignal } from '@lumino/signaling';
 import React from 'react';
 
-import type { IResolvedSuggestion, SuggestionScanMode } from '../types';
+import type { IResolvedSuggestion, SuggestionScanMode } from '../../types';
 import { SuggestedEditsPanel } from './components/SuggestedEditsPanel';
-import { PromptSettingsPanel } from './components/suggestions/PromptSettingsPanel';
-import { usePrompts } from './utils/usePrompts';
-import { SidebarLayout } from './components/common/SidebarLayout';
+import { PromptSettingsPanel } from './components/PromptSettingsPanel';
+import { usePrompts } from '../hooks/usePrompts';
+import { SidebarLayout } from '../components/SidebarLayout';
 
 /**
  * Sidebar widget for displaying LLM suggested edits, backed by React.

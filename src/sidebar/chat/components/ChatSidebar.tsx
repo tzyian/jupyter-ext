@@ -9,23 +9,23 @@ import {
   renameThread,
   updateThread,
   fetchThreadMessages
-} from './api';
+} from '../../api';
 import type {
   IChatMessage,
   IChatThread,
   INotebookSnapshot,
   ISuggestedEditsSettings,
   IPrompt
-} from '../types';
+} from '../../../types';
 import type { INotebookTracker } from '@jupyterlab/notebook';
 
-import { buildSnapshot } from './utils/snapshot';
-import { ChatSidebarContent } from './components/ChatSidebarContent';
+import { buildSnapshot } from '../../utils/snapshot';
+import { ChatSidebarContent } from './ChatSidebarContent';
 import {
   CHAT_VIEW_CHAT,
   type ChatPromptManagerView,
   type ChatSidebarView
-} from './constants';
+} from '../../constants';
 
 export class ChatSidebar extends ReactWidget {
   private readonly _messageSent = new Signal<

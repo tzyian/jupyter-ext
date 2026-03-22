@@ -1,6 +1,6 @@
 import React from 'react';
 import { render, fireEvent } from '@testing-library/react';
-import { SuggestedEditsPanel } from '../SuggestedEditsPanel';
+import { SuggestedEditsPanel } from '../components/SuggestedEditsPanel';
 
 describe('SuggestedEditsPanel', () => {
   const mockProps = {

@@ -1,7 +1,7 @@
 import { ReactWidget } from '@jupyterlab/apputils';
 import React from 'react';
+import type { TelemetryService } from '../../telemetry/telemetryService';
 import { DashboardView } from './components/DashboardView';
-import type { TelemetryService } from '../telemetry/telemetryService';
 
 /**
  * Sidebar widget for displaying telemetry dashboard.

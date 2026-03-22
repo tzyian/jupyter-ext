@@ -1,6 +1,6 @@
 import React from 'react';
 import { IPrompt } from '../../../types';
-import { PromptEditorCard } from '../common/PromptEditorCard';
+import { PromptEditorCard } from '../../components/PromptEditorCard';
 
 interface IPromptSettingsPanelProps {
   prompts: IPrompt[];

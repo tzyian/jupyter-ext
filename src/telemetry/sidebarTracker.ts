@@ -1,5 +1,5 @@
 import { IDisposable } from '@lumino/disposable';
-import type { SuggestedEditsSidebar } from '../sidebar/SuggestedEditsSidebar';
+import type { SuggestedEditsSidebar } from '../sidebar/suggestions/SuggestedEditsSidebar';
 import type { TelemetryService } from './telemetryService';
 
 /**

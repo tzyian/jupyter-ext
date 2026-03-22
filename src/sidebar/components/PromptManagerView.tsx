@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { PromptEditorCard } from './PromptEditorCard';
-import { usePrompts } from '../../utils/usePrompts';
-import { PromptCategory } from '../../../types';
+import { usePrompts } from '../hooks/usePrompts';
+import { PromptCategory } from '../../types';
 
 export interface IPromptManagerViewProps {
   title: string;

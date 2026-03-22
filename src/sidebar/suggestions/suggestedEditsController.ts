@@ -9,12 +9,15 @@ import type {
   SuggestionScanMode,
   SuggestionStreamEvent,
   INotebookCellSnapshot
-} from '../types';
+} from '../../types';
 import { SuggestedEditsSidebar } from './SuggestedEditsSidebar';
-import { streamSuggestions } from './api';
-import { buildSnapshot } from './utils/snapshot';
-import { buildDiffSegments } from './utils/diff';
-import { INotebookSignals, NotebookSignalGroup } from './utils/notebookSignals';
+import { streamSuggestions } from '../api';
+import { buildSnapshot } from '../utils/snapshot';
+import { buildDiffSegments } from '../utils/diff';
+import {
+  INotebookSignals,
+  NotebookSignalGroup
+} from '../../telemetry/notebookSignals';
 
 /**
  * Controller for the suggested edits sidebar.

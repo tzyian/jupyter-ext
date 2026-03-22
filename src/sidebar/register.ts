@@ -2,9 +2,9 @@ import type { JupyterFrontEnd, ILayoutRestorer } from '@jupyterlab/application';
 import type { INotebookTracker } from '@jupyterlab/notebook';
 import type { ISettingRegistry } from '@jupyterlab/settingregistry';
 
-import { SuggestedEditsController } from './suggestedEditsController';
+import { SuggestedEditsController } from './suggestions/suggestedEditsController';
 import { defaultSettings } from './utils/defaults';
-import { SuggestedEditsSidebar } from './SuggestedEditsSidebar';
+import { SuggestedEditsSidebar } from './suggestions/SuggestedEditsSidebar';
 import { registerCommands } from './commands';
 import type { ISuggestedEditsSettings } from '../types';
 import {
@@ -13,9 +13,9 @@ import {
   SidebarTelemetryTracker,
   ChatTelemetryTracker
 } from '../telemetry';
-import { TelemetrySidebar } from './TelemetrySidebar';
-import { ChatSidebar } from './ChatSidebar';
-import { ContextMenuSidebar } from './ContextMenuSidebar';
+import { TelemetrySidebar } from './dashboard/TelemetrySidebar';
+import { ChatSidebar } from './chat/components/ChatSidebar';
+import { ContextMenuSidebar } from './contextMenu/ContextMenuSidebar';
 
 export const SIDEBAR_ID = 'selenejs-suggested-edits-sidebar';
 export const CHAT_SIDEBAR_ID = 'selenejs-chat-sidebar';
@@ -36,10 +36,7 @@ export interface ISuggestedEditsSidebarRegistration {
   readonly telemetrySidebar: TelemetrySidebar;
 }
 
-/**
- * Register the suggested edits sidebar with the JupyterLab application.
- */
-export function registerSuggestedEditsSidebar(options: {
+export function registerSidebars(options: {
   pluginId: string;
   app: JupyterFrontEnd;
   tracker: INotebookTracker;

@@ -10,8 +10,8 @@ import type {
   ISuggestedEditsSettings,
   IToolCall
 } from '../../types';
-import { Button } from './common/Button';
-import { useAudioRecorder } from '../utils/useAudioRecorder';
+import { Button } from '../components/Button';
+import { useAudioRecorder } from '../hooks/useAudioRecorder';
 import { transcribeAudio } from '../api';
 
 function formatMessageTime(timestamp?: number): string {

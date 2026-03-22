@@ -1,15 +1,15 @@
 import React, { useMemo, useEffect } from 'react';
-import { ChatPanel } from './ChatPanel';
+import { ChatPanel } from '../ChatPanel';
 import type {
   IChatMessage,
   IChatThread,
   ISuggestedEditsSettings,
   IPrompt
-} from '../../types';
-import { usePrompts } from '../utils/usePrompts';
+} from '../../../types';
+import { usePrompts } from '../../hooks/usePrompts';
 import { ThreadSelector } from './ThreadSelector';
-import { SidebarLayout } from './common/SidebarLayout';
-import { PromptManagerView } from './common/PromptManagerView';
+import { SidebarLayout } from '../../components/SidebarLayout';
+import { PromptManagerView } from '../../components/PromptManagerView';
 import {
   CHAT_SNIPPETS_TITLE,
   CHAT_PROMPT_CATEGORIES,
@@ -23,7 +23,7 @@ import {
   SELECT_SNIPPET_LABEL,
   type ChatPromptManagerView,
   type ChatSidebarView
-} from '../constants';
+} from '../../constants';
 
 interface IChatSidebarContentProps {
   view: ChatSidebarView;

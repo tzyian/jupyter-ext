@@ -1,14 +1,14 @@
 import React, { useState } from 'react';
 import { showDialog, Dialog } from '@jupyterlab/apputils';
-import type { ITelemetryStats } from '../../telemetry/types';
-import { DashboardMetricCard } from './dashboard/DashboardMetricCard';
-import { LLMMetricsCard } from './dashboard/LLMMetricsCard';
-import { NotebookTableCard } from './dashboard/NotebookTableCard';
-import { formatDuration } from '../../utils/formatting';
-import { useTelemetryStats } from '../utils/useTelemetryStats';
-import { Select } from './common/Select';
-import { Button } from './common/Button';
-import { requestAPI } from '../../request';
+import type { ITelemetryStats } from '../../../telemetry/types';
+import { DashboardMetricCard } from './DashboardMetricCard';
+import { LLMMetricsCard } from './LLMMetricsCard';
+import { NotebookTableCard } from './NotebookTableCard';
+import { formatDuration } from '../../../utils/formatting';
+import { useTelemetryStats } from '../../hooks/useTelemetryStats';
+import { Button } from '../../components/Button';
+import { requestAPI } from '../../../request';
+import { Select } from '../../components/Select';
 
 export interface IDashboardViewProps {
   fetchStats: (notebookPath?: string) => Promise<ITelemetryStats | null>;
