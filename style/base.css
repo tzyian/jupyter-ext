@@ -983,6 +983,40 @@
 
 .jp-selenepy-chatMessage-body {
   margin-top: 4px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.jp-selenepy-chatMessage-body p,
+.jp-selenepy-chatMessage-body li,
+.jp-selenepy-chatThought-content p,
+.jp-selenepy-chatThought-content li,
+.jp-selenepy-chatToolCall-input p,
+.jp-selenepy-chatToolCall-input li {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.jp-selenepy-chatMessage-body pre,
+.jp-selenepy-chatThought-content pre,
+.jp-selenepy-chatToolCall-input pre {
+  max-width: 100%;
+  overflow-x: auto;
+  white-space: pre;
+}
+
+.jp-selenepy-chatMessage-body code,
+.jp-selenepy-chatThought-content code,
+.jp-selenepy-chatToolCall-input code {
+  word-break: break-word;
+}
+
+.jp-selenepy-chatMessage-body table,
+.jp-selenepy-chatThought-content table,
+.jp-selenepy-chatToolCall-input table {
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
 }
 
 .jp-selenepy-chatStreaming-indicator {
@@ -1316,8 +1350,9 @@
 }
 
 .jp-selenepy-chatThought-content {
-  white-space: pre-wrap;
+  white-space: normal;
   word-break: break-word;
+  min-width: 0;
 }
 
 .jp-selenepy-chatToolCall {
@@ -1374,7 +1409,8 @@
   padding: 4px;
   border-radius: 2px;
   overflow-x: auto;
-  white-space: pre-wrap;
+  white-space: normal;
+  min-width: 0;
 }
 
 @keyframes pulse {
