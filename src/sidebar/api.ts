@@ -5,6 +5,7 @@ import type {
   IChatThread,
   INotebookSnapshot,
   IPrompt,
+  PromptCategory,
   ISuggestedEditsSettings,
   IToolCall,
   SuggestionScanMode,
@@ -43,7 +44,7 @@ export async function savePrompt(
   content: string,
   id?: string,
   description?: string,
-  category: IPrompt['category'] = 'suggestion'
+  category: PromptCategory = 'suggestion'
 ): Promise<IPrompt> {
   const { url, settings } = getApiSettings(PROMPTS_PATH);
 

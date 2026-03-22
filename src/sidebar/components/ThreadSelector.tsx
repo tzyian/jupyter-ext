@@ -1,6 +1,7 @@
 import React, { useCallback } from 'react';
 import { showDialog, Dialog } from '@jupyterlab/apputils';
 import type { IChatThread } from '../../types';
+import { MdDelete, MdEdit } from 'react-icons/md';
 
 interface IThreadSelectorProps {
   threads: IChatThread[];
@@ -116,7 +117,7 @@ export const ThreadSelector: React.FC<IThreadSelectorProps> = ({
             disabled={isStreaming}
             className="jp-selenepy-action-button jp-selenepy-threadSelector-btn"
           >
-            ✎
+            <MdEdit />
           </button>
           <button
             title="Delete this thread"
@@ -124,7 +125,7 @@ export const ThreadSelector: React.FC<IThreadSelectorProps> = ({
             disabled={isStreaming}
             className="jp-selenepy-action-button jp-selenepy-action-button-danger jp-selenepy-threadSelector-btn"
           >
-            🗑
+            <MdDelete />
           </button>
         </>
       )}

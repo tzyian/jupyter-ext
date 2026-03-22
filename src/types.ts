@@ -60,14 +60,16 @@ export interface IPrompt {
   readonly content: string;
   readonly isDefault: boolean;
   readonly description?: string;
-  readonly category?:
-    | 'suggestion'
-    | 'chat'
-    | 'chat_snippet'
-    | 'context_menu'
-    | 'notebook_snippet'
-    | 'chat_system_prompt';
+  readonly category?: PromptCategory;
 }
+
+export type PromptCategory =
+  | 'suggestion'
+  | 'chat'
+  | 'chat_snippet'
+  | 'context_menu'
+  | 'notebook_snippet'
+  | 'chat_system_prompt';
 
 export interface ISuggestedEditsSettings {
   readonly autoRefresh: boolean;
@@ -99,10 +101,17 @@ export interface IReadonlyDiffSegment {
   readonly lineNumberNew?: number;
 }
 
+export type ToolInput = string | Record<string, unknown>;
+
 export interface IToolCall {
-  name: string;
-  input: string | Record<string, any>;
-  status: 'active' | 'done';
+  readonly name: string;
+  readonly input: ToolInput;
+  readonly status: 'active' | 'done';
+}
+
+export interface IChatThoughts {
+  readonly agent: string;
+  readonly content: string;
 }
 
 export interface IChatMessage {
@@ -111,9 +120,12 @@ export interface IChatMessage {
   readonly content: string;
   readonly threadId?: string;
   readonly timestamp?: number;
-  readonly thoughts?: { agent: string; content: string }[];
+  readonly thoughts?: IChatThoughts[];
   readonly toolCalls?: IToolCall[];
 }
+
+export type IChatThoughtList = IChatThoughts[] | undefined;
+export type IChatToolCallList = IToolCall[] | undefined;
 
 export interface IChatThread {
   readonly id: string;
@@ -151,7 +163,7 @@ export type ChatStreamEvent =
   | {
       readonly type: 'tool_call';
       readonly name: string;
-      readonly input: string | Record<string, any>;
+      readonly input: ToolInput;
     }
   | {
       readonly type: 'tool_result';

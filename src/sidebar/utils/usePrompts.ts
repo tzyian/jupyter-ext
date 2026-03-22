@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { IPrompt } from '../../types';
+import { IPrompt, PromptCategory } from '../../types';
 import { fetchPrompts, savePrompt, deletePrompt } from '../api';
 
 export interface IUsePrompts {
@@ -12,19 +12,19 @@ export interface IUsePrompts {
     content: string,
     description: string,
     id: string,
-    category?: IPrompt['category']
+    category?: PromptCategory
   ) => Promise<void>;
   createPrompt: (
     name: string,
     content: string,
     description: string,
-    category?: IPrompt['category']
+    category?: PromptCategory
   ) => Promise<string | void>;
   removePrompt: (id: string) => Promise<void>;
 }
 
 export function usePrompts(
-  categoryFilter?: IPrompt['category'] | IPrompt['category'][]
+  categoryFilter?: PromptCategory | PromptCategory[]
 ): IUsePrompts {
   const [prompts, setPrompts] = useState<IPrompt[]>([]);
   const [loading, setLoading] = useState(true);
@@ -88,7 +88,7 @@ export function usePrompts(
     content: string,
     description: string,
     id: string,
-    category?: IPrompt['category']
+    category?: PromptCategory
   ) => {
     try {
       await savePrompt(name, content, id, description, category);
@@ -103,7 +103,7 @@ export function usePrompts(
     name: string,
     content: string,
     description: string,
-    category?: IPrompt['category']
+    category?: PromptCategory
   ): Promise<string | void> => {
     try {
       const p = await savePrompt(

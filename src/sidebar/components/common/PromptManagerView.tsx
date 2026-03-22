@@ -1,11 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { PromptEditorCard } from './PromptEditorCard';
 import { usePrompts } from '../../utils/usePrompts';
-import { IPrompt } from '../../../types';
+import { PromptCategory } from '../../../types';
 
 export interface IPromptManagerViewProps {
   title: string;
-  category: IPrompt['category'];
+  category: PromptCategory;
   selectedPromptId?: string;
   onSelectPrompt?: (id: string) => void;
   showDescription?: boolean;

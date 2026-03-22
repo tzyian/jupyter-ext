@@ -1,14 +1,34 @@
 import React, { useMemo, useEffect } from 'react';
 import { SidebarLayout } from './common/SidebarLayout';
 import { PromptManagerView } from './common/PromptManagerView';
-import type { IPrompt } from '../../types';
+import type { IPrompt, PromptCategory } from '../../types';
 import { usePrompts } from '../utils/usePrompts';
+import {
+  CONTEXT_MENU_OPTION_LABEL,
+  CONTEXT_MENU_PROMPT_CATEGORIES,
+  CONTEXT_MENU_TITLE,
+  CREATE_NEW_SNIPPET_LABEL,
+  NOTEBOOK_SNIPPET_OPTION_LABEL,
+  NOTEBOOK_SNIPPET_TITLE,
+  PROMPT_CATEGORY_CONTEXT_MENU,
+  PROMPT_CATEGORY_NOTEBOOK_SNIPPET,
+  SELECT_SNIPPET_LABEL,
+  type ContextMenuView
+} from '../constants';
+
+const VIEW_OPTIONS: Array<{ value: ContextMenuView; label: string }> = [
+  { value: PROMPT_CATEGORY_CONTEXT_MENU, label: CONTEXT_MENU_OPTION_LABEL },
+  {
+    value: PROMPT_CATEGORY_NOTEBOOK_SNIPPET,
+    label: NOTEBOOK_SNIPPET_OPTION_LABEL
+  }
+];
 
 export interface IContextMenuSidebarContentProps {
-  view: 'context_menu' | 'notebook_snippet';
+  view: ContextMenuView;
   selectedContextMenuId: string;
   selectedNotebookSnippetId: string;
-  onViewChange: (view: 'context_menu' | 'notebook_snippet') => void;
+  onViewChange: (view: ContextMenuView) => void;
   onSelectContextMenu: (id: string) => void;
   onSelectNotebookSnippet: (id: string) => void;
   onPromptsChanged: (prompts: IPrompt[]) => void;
@@ -17,8 +37,8 @@ export interface IContextMenuSidebarContentProps {
 export const ContextMenuSidebarContent: React.FC<
   IContextMenuSidebarContentProps
 > = props => {
-  const categories = useMemo<IPrompt['category'][]>(
-    () => ['context_menu', 'notebook_snippet'],
+  const categories = useMemo<PromptCategory[]>(
+    () => CONTEXT_MENU_PROMPT_CATEGORIES,
     []
   );
 
@@ -31,32 +51,27 @@ export const ContextMenuSidebarContent: React.FC<
   return (
     <SidebarLayout
       view={props.view}
-      onViewChange={val =>
-        props.onViewChange(val as 'context_menu' | 'notebook_snippet')
-      }
-      options={[
-        { value: 'context_menu', label: 'Context Menu LLM Prompts' },
-        { value: 'notebook_snippet', label: 'SelenePy Notebook Snippets' }
-      ]}
+      onViewChange={val => props.onViewChange(val as ContextMenuView)}
+      options={VIEW_OPTIONS}
     >
-      {props.view === 'context_menu' && (
+      {props.view === PROMPT_CATEGORY_CONTEXT_MENU && (
         <PromptManagerView
-          title="Right-Click Menu Options"
-          category="context_menu"
+          title={CONTEXT_MENU_TITLE}
+          category={PROMPT_CATEGORY_CONTEXT_MENU}
           selectedPromptId={props.selectedContextMenuId}
           onSelectPrompt={props.onSelectContextMenu}
         />
       )}
 
-      {props.view === 'notebook_snippet' && (
+      {props.view === PROMPT_CATEGORY_NOTEBOOK_SNIPPET && (
         <PromptManagerView
-          title="Notebook Insert Snippets"
-          category="notebook_snippet"
+          title={NOTEBOOK_SNIPPET_TITLE}
+          category={PROMPT_CATEGORY_NOTEBOOK_SNIPPET}
           selectedPromptId={props.selectedNotebookSnippetId}
           onSelectPrompt={props.onSelectNotebookSnippet}
           showDescription={false}
-          createNewLabel="➕ Create New Snippet..."
-          selectLabel="Select Snippet:"
+          createNewLabel={CREATE_NEW_SNIPPET_LABEL}
+          selectLabel={SELECT_SNIPPET_LABEL}
         />
       )}
     </SidebarLayout>

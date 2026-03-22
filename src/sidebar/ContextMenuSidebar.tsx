@@ -4,9 +4,15 @@ import React from 'react';
 import type { IPrompt } from '../types';
 import { CommandIDs } from './commands';
 import { ContextMenuSidebarContent } from './components/ContextMenuSidebarContent';
+import {
+  PROMPT_CATEGORY_CHAT,
+  PROMPT_CATEGORY_CONTEXT_MENU,
+  PROMPT_CATEGORY_NOTEBOOK_SNIPPET,
+  type ContextMenuView
+} from './constants';
 
 export class ContextMenuSidebar extends ReactWidget {
-  private _view: 'context_menu' | 'notebook_snippet' = 'context_menu';
+  private _view: ContextMenuView = PROMPT_CATEGORY_CONTEXT_MENU;
   private _selectedContextMenuId = '__CREATE_NEW__';
   private _selectedNotebookSnippetId = '__CREATE_NEW__';
   private _prompts: IPrompt[] = [];
@@ -34,7 +40,9 @@ export class ContextMenuSidebar extends ReactWidget {
   private _updateMenus() {
     if (this._chatMenu) {
       const chatPrompts = this._prompts.filter(
-        p => p.category === 'context_menu' || p.category === 'chat'
+        p =>
+          p.category === PROMPT_CATEGORY_CONTEXT_MENU ||
+          p.category === PROMPT_CATEGORY_CHAT
       );
       const chatFingerprint = chatPrompts
         .map(
@@ -63,7 +71,7 @@ export class ContextMenuSidebar extends ReactWidget {
 
     if (this._snippetMenu) {
       const snippetPrompts = this._prompts.filter(
-        p => p.category === 'notebook_snippet'
+        p => p.category === PROMPT_CATEGORY_NOTEBOOK_SNIPPET
       );
       const snippetFingerprint = snippetPrompts
         .map(
@@ -91,7 +99,7 @@ export class ContextMenuSidebar extends ReactWidget {
     }
   }
 
-  public openPromptManager(view: 'context_menu' | 'notebook_snippet') {
+  public openPromptManager(view: ContextMenuView) {
     this._view = view;
     this.update();
   }

@@ -1,10 +1,16 @@
 import type { JupyterFrontEnd } from '@jupyterlab/application';
+import type { ReadonlyPartialJSONObject } from '@lumino/coreutils';
 import { SuggestedEditsSidebar } from './SuggestedEditsSidebar';
 import type { SuggestedEditsController } from './suggestedEditsController';
 import type { ChatSidebar } from './ChatSidebar';
 import type { ContextMenuSidebar } from './ContextMenuSidebar';
 import { Menu } from '@lumino/widgets';
 import type { INotebookTracker } from '@jupyterlab/notebook';
+import {
+  NOTEBOOK_SNIPPET_OPTION_LABEL,
+  PROMPT_CATEGORY_CHAT_SYSTEM,
+  PROMPT_CATEGORY_NOTEBOOK_SNIPPET
+} from './constants';
 
 export namespace CommandIDs {
   export const openSidebar = 'selenejs:open-suggested-edits';
@@ -13,6 +19,16 @@ export namespace CommandIDs {
   export const insertNotebookSnippet = 'selenejs:insert-notebook-snippet';
   export const manageChatPrompts = 'selenejs:manage-chat-prompts';
   export const manageNotebookSnippets = 'selenejs:manage-notebook-snippets';
+}
+
+type PromptArgKey = 'promptName' | 'promptDescription' | 'promptContent';
+
+function getStringArg(
+  args: ReadonlyPartialJSONObject,
+  key: PromptArgKey
+): string {
+  const value = args[key];
+  return typeof value === 'string' ? value : '';
 }
 
 export function registerCommands(
@@ -48,10 +64,10 @@ export function registerCommands(
 
   if (!app.commands.hasCommand(CommandIDs.chatAboutThis)) {
     app.commands.addCommand(CommandIDs.chatAboutThis, {
-      label: args => (args['promptName'] as string) || 'Chat about this',
-      caption: args => (args['promptDescription'] as string) || '',
+      label: args => getStringArg(args, 'promptName') || 'Chat about this',
+      caption: args => getStringArg(args, 'promptDescription') || '',
       execute: async args => {
-        const promptContent = args['promptContent'] as string;
+        const promptContent = getStringArg(args, 'promptContent');
         if (!promptContent) {
           return;
         }
@@ -77,7 +93,7 @@ export function registerCommands(
     });
 
     const snippetMenu = new Menu({ commands: app.commands });
-    snippetMenu.title.label = 'SelenePy Notebook Snippets';
+    snippetMenu.title.label = NOTEBOOK_SNIPPET_OPTION_LABEL;
     snippetMenu.title.iconClass = 'jp-CodeConsoleIcon';
 
     app.contextMenu.addItem({
@@ -105,7 +121,7 @@ export function registerCommands(
           app.shell.add(chatSidebar, 'left', { rank: 602 });
         }
         app.shell.activateById(chatSidebar.id);
-        chatSidebar.openPromptManager('chat_system_prompt');
+        chatSidebar.openPromptManager(PROMPT_CATEGORY_CHAT_SYSTEM);
       }
     });
   }
@@ -118,17 +134,17 @@ export function registerCommands(
           app.shell.add(contextMenuSidebar, 'left', { rank: 603 });
         }
         app.shell.activateById(contextMenuSidebar.id);
-        contextMenuSidebar.openPromptManager('notebook_snippet');
+        contextMenuSidebar.openPromptManager(PROMPT_CATEGORY_NOTEBOOK_SNIPPET);
       }
     });
   }
 
   if (!app.commands.hasCommand(CommandIDs.insertNotebookSnippet)) {
     app.commands.addCommand(CommandIDs.insertNotebookSnippet, {
-      label: args => (args['promptName'] as string) || 'Insert Snippet',
-      caption: args => (args['promptDescription'] as string) || '',
+      label: args => getStringArg(args, 'promptName') || 'Insert Snippet',
+      caption: args => getStringArg(args, 'promptDescription') || '',
       execute: args => {
-        const promptContent = args['promptContent'] as string;
+        const promptContent = getStringArg(args, 'promptContent');
         if (!promptContent) {
           return;
         }

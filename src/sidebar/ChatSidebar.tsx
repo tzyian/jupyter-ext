@@ -21,6 +21,11 @@ import type { INotebookTracker } from '@jupyterlab/notebook';
 
 import { buildSnapshot } from './utils/snapshot';
 import { ChatSidebarContent } from './components/ChatSidebarContent';
+import {
+  CHAT_VIEW_CHAT,
+  type ChatPromptManagerView,
+  type ChatSidebarView
+} from './constants';
 
 export class ChatSidebar extends ReactWidget {
   private readonly _messageSent = new Signal<
@@ -72,8 +77,7 @@ export class ChatSidebar extends ReactWidget {
   private _tracker: INotebookTracker | null = null;
   private _abortController: AbortController | null = null;
   private _settings: ISuggestedEditsSettings | null = null;
-  private _view: 'chat' | 'chat_snippet' | 'settings' | 'chat_system_prompt' =
-    'chat';
+  private _view: ChatSidebarView = CHAT_VIEW_CHAT;
 
   private _prompts: IPrompt[] = [];
   private _selectedSnippetId: string = '__CREATE_NEW__';
@@ -320,12 +324,12 @@ export class ChatSidebar extends ReactWidget {
   }
 
   public async executePrompt(promptText: string) {
-    this._view = 'chat';
+    this._view = CHAT_VIEW_CHAT;
     await this._handleSendMessage(promptText);
   }
 
   public async executeContextMenuPrompt(promptText: string) {
-    this._view = 'chat';
+    this._view = CHAT_VIEW_CHAT;
     await this._handleSendMessage(
       this._buildContextMenuMessage(promptText),
       true
@@ -395,7 +399,10 @@ export class ChatSidebar extends ReactWidget {
             const lastThought =
               thoughts.length > 0 ? thoughts[thoughts.length - 1] : null;
             if (lastThought && lastThought.agent === agentId) {
-              lastThought.content += event.content;
+              thoughts[thoughts.length - 1] = {
+                ...lastThought,
+                content: lastThought.content + event.content
+              };
             } else {
               thoughts.push({ agent: agentId, content: event.content });
             }
@@ -512,7 +519,7 @@ export class ChatSidebar extends ReactWidget {
     this.update();
   }
 
-  public openPromptManager(view: 'chat_snippet' | 'chat_system_prompt') {
+  public openPromptManager(view: ChatPromptManagerView) {
     this._view = view;
     this.update();
   }

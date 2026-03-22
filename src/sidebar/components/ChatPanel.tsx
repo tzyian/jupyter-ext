@@ -3,7 +3,13 @@ import { MdMic, MdMicOff, MdSend, MdStop } from 'react-icons/md';
 import { showDialog } from '@jupyterlab/apputils';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import type { IChatMessage, ISuggestedEditsSettings } from '../../types';
+import type {
+  IChatMessage,
+  IChatThoughtList,
+  IChatToolCallList,
+  ISuggestedEditsSettings,
+  IToolCall
+} from '../../types';
 import { Button } from './common/Button';
 import { useAudioRecorder } from '../utils/useAudioRecorder';
 import { transcribeAudio } from '../api';
@@ -52,11 +58,7 @@ interface IChatPanelProps {
   onSettingsChanged?: (settings: Partial<ISuggestedEditsSettings>) => void;
 }
 
-function ToolCallAccordion({
-  tc
-}: {
-  tc: NonNullable<IChatMessage['toolCalls']>[0];
-}) {
+function ToolCallAccordion({ tc }: { tc: IToolCall }) {
   const [isOpen, setIsOpen] = useState(false);
   const toolInputMarkdown =
     typeof tc.input === 'string'
@@ -98,8 +100,8 @@ function ChatAccordion({
   thoughts,
   toolCalls
 }: {
-  thoughts?: IChatMessage['thoughts'];
-  toolCalls?: IChatMessage['toolCalls'];
+  thoughts?: IChatThoughtList;
+  toolCalls?: IChatToolCallList;
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const hasContent =

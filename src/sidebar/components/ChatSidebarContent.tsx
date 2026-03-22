@@ -10,9 +10,23 @@ import { usePrompts } from '../utils/usePrompts';
 import { ThreadSelector } from './ThreadSelector';
 import { SidebarLayout } from './common/SidebarLayout';
 import { PromptManagerView } from './common/PromptManagerView';
+import {
+  CHAT_SNIPPETS_TITLE,
+  CHAT_PROMPT_CATEGORIES,
+  CHAT_SYSTEM_PROMPTS_TITLE,
+  CHAT_VIEW_CHAT,
+  CHAT_VIEW_SNIPPETS_LABEL,
+  CHAT_VIEW_SYSTEM_PROMPT_LABEL,
+  CREATE_NEW_SYSTEM_PROMPT_LABEL,
+  PROMPT_CATEGORY_CHAT_SNIPPET,
+  PROMPT_CATEGORY_CHAT_SYSTEM,
+  SELECT_SNIPPET_LABEL,
+  type ChatPromptManagerView,
+  type ChatSidebarView
+} from '../constants';
 
 interface IChatSidebarContentProps {
-  view: 'chat' | 'chat_snippet' | 'settings' | 'chat_system_prompt';
+  view: ChatSidebarView;
   messages: IChatMessage[];
   isStreaming: boolean;
   settings: ISuggestedEditsSettings | null;
@@ -20,7 +34,7 @@ interface IChatSidebarContentProps {
   threads: IChatThread[];
   activeThreadId: string | null;
   threadsLoaded: boolean;
-  onViewChange: (v: 'chat' | 'chat_snippet' | 'chat_system_prompt') => void;
+  onViewChange: (v: ChatPromptManagerView | typeof CHAT_VIEW_CHAT) => void;
   onSendMessage: (msg: string) => void;
   onClear: () => void;
   onStop: () => void;
@@ -41,10 +55,7 @@ interface IChatSidebarContentProps {
  * Functional component for the Chat sidebar that uses hooks for state management.
  */
 export const ChatSidebarContent: React.FC<IChatSidebarContentProps> = props => {
-  const promptCategories = useMemo<IPrompt['category'][]>(
-    () => ['chat_snippet', 'chat', 'chat_system_prompt'],
-    []
-  );
+  const promptCategories = useMemo(() => CHAT_PROMPT_CATEGORIES, []);
 
   const { prompts } = usePrompts(promptCategories);
 
@@ -53,24 +64,28 @@ export const ChatSidebarContent: React.FC<IChatSidebarContentProps> = props => {
   }, [prompts]);
 
   const snippets = prompts.filter(
-    (p: IPrompt) => p.category === 'chat_snippet'
+    (p: IPrompt) => p.category === PROMPT_CATEGORY_CHAT_SNIPPET
   );
 
   return (
     <SidebarLayout
       view={props.view}
       onViewChange={val =>
-        props.onViewChange(
-          val as 'chat' | 'chat_snippet' | 'chat_system_prompt'
-        )
+        props.onViewChange(val as typeof CHAT_VIEW_CHAT | ChatPromptManagerView)
       }
       options={[
-        { value: 'chat', label: 'Chat' },
-        { value: 'chat_system_prompt', label: 'Manage System Prompts' },
-        { value: 'chat_snippet', label: 'Manage Chat Snippets' }
+        { value: CHAT_VIEW_CHAT, label: 'Chat' },
+        {
+          value: PROMPT_CATEGORY_CHAT_SYSTEM,
+          label: CHAT_VIEW_SYSTEM_PROMPT_LABEL
+        },
+        {
+          value: PROMPT_CATEGORY_CHAT_SNIPPET,
+          label: CHAT_VIEW_SNIPPETS_LABEL
+        }
       ]}
     >
-      {props.view === 'chat' && (
+      {props.view === CHAT_VIEW_CHAT && (
         <>
           <ThreadSelector
             threads={props.threads}
@@ -93,7 +108,7 @@ export const ChatSidebarContent: React.FC<IChatSidebarContentProps> = props => {
             snippets={snippets}
             onOpenSnippetEditor={() => {
               props.onSelectSnippet('__CREATE_NEW__');
-              props.onViewChange('chat_snippet');
+              props.onViewChange(PROMPT_CATEGORY_CHAT_SNIPPET);
             }}
             cellContext={props.cellContext}
             lastResponseDuration={props.lastResponseDuration}
@@ -104,26 +119,26 @@ export const ChatSidebarContent: React.FC<IChatSidebarContentProps> = props => {
         </>
       )}
 
-      {props.view === 'chat_system_prompt' && (
+      {props.view === PROMPT_CATEGORY_CHAT_SYSTEM && (
         <PromptManagerView
-          title="Chat System Prompts"
-          category="chat_system_prompt"
+          title={CHAT_SYSTEM_PROMPTS_TITLE}
+          category={PROMPT_CATEGORY_CHAT_SYSTEM}
           selectedPromptId={props.selectedSystemPromptId}
           onSelectPrompt={props.onSelectSystemPrompt}
-          createNewLabel="➕ Create New System Prompt..."
+          createNewLabel={CREATE_NEW_SYSTEM_PROMPT_LABEL}
           selectLabel="Select System Prompt:"
         />
       )}
 
-      {props.view === 'chat_snippet' && (
+      {props.view === PROMPT_CATEGORY_CHAT_SNIPPET && (
         <PromptManagerView
-          title="Reusable Chat Snippets"
-          category="chat_snippet"
+          title={CHAT_SNIPPETS_TITLE}
+          category={PROMPT_CATEGORY_CHAT_SNIPPET}
           selectedPromptId={props.selectedSnippetId}
           onSelectPrompt={props.onSelectSnippet}
           showDescription={false}
           createNewLabel="➕ Create New Snippet..."
-          selectLabel="Select Snippet:"
+          selectLabel={SELECT_SNIPPET_LABEL}
         />
       )}
     </SidebarLayout>

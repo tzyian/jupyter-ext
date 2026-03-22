@@ -1,9 +1,14 @@
 import type { ReadonlyPartialJSONObject } from '@lumino/coreutils';
-import type { ICellModel } from '@jupyterlab/cells';
+import type { Cell, ICellModel } from '@jupyterlab/cells';
 import type { CodeEditor } from '@jupyterlab/codeeditor';
-import type { Notebook, NotebookPanel } from '@jupyterlab/notebook';
+import type { NotebookPanel } from '@jupyterlab/notebook';
 
-import type { INotebookSnapshot } from '../../types';
+import type {
+  IActiveCellContext,
+  INotebookCellSnapshot,
+  INotebookOutlineItem,
+  INotebookSnapshot
+} from '../../types';
 
 /**
  * Build a snapshot of the current notebook state.
@@ -14,8 +19,8 @@ export function buildSnapshot(
 ): INotebookSnapshot {
   const notebook = panel.content;
   const model = notebook.model;
-  const outline: INotebookSnapshot['outline'] = [];
-  const cells: INotebookSnapshot['cells'] = [];
+  const outline: INotebookOutlineItem[] = [];
+  const cells: INotebookCellSnapshot[] = [];
 
   const activeCellContext = resolveActiveCellContext(
     notebook.activeCell,
@@ -78,9 +83,9 @@ export function buildSnapshot(
  * Resolve the context of the active cell, including cursor position and selection.
  */
 export function resolveActiveCellContext(
-  cell: Notebook['activeCell'],
+  cell: Cell | null,
   cellIndex: number
-): INotebookSnapshot['activeCellContext'] {
+): IActiveCellContext | undefined {
   if (!cell) {
     return undefined;
   }
