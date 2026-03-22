@@ -29,6 +29,7 @@ DEFAULT_OPENAI_MODEL = "gpt-4o-mini"
 
 load_dotenv()
 
+
 @lru_cache(maxsize=1)
 def _get_openai_client() -> AsyncOpenAI:
     env_key = resolve_openai_api_key()

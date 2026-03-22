@@ -1,4 +1,5 @@
 """Utility functions for the selenepy extension."""
+
 import functools
 import json
 import traceback

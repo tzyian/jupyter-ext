@@ -1,4 +1,5 @@
 """Pydantic models and prompts for LLM-generated notebook suggestions."""
+
 from __future__ import annotations
 
 from typing import Literal, Optional

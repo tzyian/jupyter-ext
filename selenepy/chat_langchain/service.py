@@ -10,6 +10,7 @@ from langchain_mcp_adapters.tools import load_mcp_tools
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 from langgraph.graph.message import AnyMessage
+from openai import AsyncStream
 
 from selenepy.chat_langchain.models import StreamEventKind, StreamPayloadType
 from selenepy.chat_langchain.utils import _to_checkpoint_message_dict
@@ -22,6 +23,19 @@ from .telemetry import callbacks_config
 from .workflow import EducatorNotebookWorkflow
 
 LOGGER = get_logger(__name__)
+
+
+def _ensure_openai_asyncstream_compat() -> None:
+    """Provide AsyncStream.aclose() compatibility for OpenAI SDK variants."""
+    if hasattr(AsyncStream, "aclose"):
+        return
+    if not hasattr(AsyncStream, "close"):
+        return
+
+    async def _aclose(self: AsyncStream[Any]) -> None:
+        await self.close()
+
+    setattr(AsyncStream, "aclose", _aclose)
 
 
 class EducatorNotebookService:
@@ -48,7 +62,7 @@ class EducatorNotebookService:
                 sqlite_db_path,
             )
             return
-        except Exception as error: 
+        except Exception as error:
             LOGGER.warning(
                 "[chat_langchain] Failed to initialize async sqlite checkpointer, falling back to MemorySaver: %s",
                 error,
@@ -58,6 +72,8 @@ class EducatorNotebookService:
         LOGGER.info("[chat_langchain] Using in-memory checkpointer fallback")
 
     async def initialize(self):
+        _ensure_openai_asyncstream_compat()
+
         await self._ensure_checkpointer()
         self.client = MultiServerMCPClient(servers)
 
@@ -83,7 +99,6 @@ class EducatorNotebookService:
             checkpointer=self.checkpointer,
         )
         self.app = self.workflow.build_graph()
-
 
     async def chat_turn_stream(
         self,
@@ -303,5 +318,3 @@ class EducatorNotebookService:
             await self._jupyter_session_ctx.__aexit__(None, None, None)
         if self._arxiv_session_ctx:
             await self._arxiv_session_ctx.__aexit__(None, None, None)
-
-

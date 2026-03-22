@@ -86,7 +86,6 @@ class TelemetryDB:
         LOGGER.info(f"[TelemetryDB] Inserted {inserted} events")
         return inserted
 
-
     def get_events(
         self,
         event_type: Optional[str] = None,

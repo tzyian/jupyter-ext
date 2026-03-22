@@ -65,9 +65,6 @@ Constraints:
 """
 
 
-
-
-
 NOTEBOOK_EDITOR_SYSTEM = """
 You are the Notebook Editor agent. YOU MUST FOLLOW INSTRUCTIONS!
 

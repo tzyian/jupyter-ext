@@ -364,39 +364,49 @@ class ChatStreamHandler(APIHandler):
 
             prompt_tokens = 0
             total_tokens = 0
-            
+
             async for chunk in chat_stream:
                 if self._client_disconnected or writer.is_closed:
-                    LOGGER.info("Cancelled backend chat stream due to client disconnect")
+                    LOGGER.info(
+                        "Cancelled backend chat stream due to client disconnect"
+                    )
                     break
 
                 chunk_type = chunk.get("type")
-                
+
                 if chunk_type == "chunk":
                     await writer.send_chunk(chunk.get("content", ""))
                 elif chunk_type == "intermediate_chunk":
                     # Send intermediate thought
-                    await writer._send({
-                        "type": "intermediate_chunk",
-                        "agent": chunk.get("agent", "unknown"),
-                        "content": chunk.get("content", "")
-                    })
+                    await writer._send(
+                        {
+                            "type": "intermediate_chunk",
+                            "agent": chunk.get("agent", "unknown"),
+                            "content": chunk.get("content", ""),
+                        }
+                    )
                 elif chunk_type == "tool_call":
                     # Send tool call
-                    await writer._send({
-                        "type": "tool_call",
-                        "name": chunk.get("name", "unknown"),
-                        "input": chunk.get("input", "")
-                    })
+                    await writer._send(
+                        {
+                            "type": "tool_call",
+                            "name": chunk.get("name", "unknown"),
+                            "input": chunk.get("input", ""),
+                        }
+                    )
                 elif chunk_type == "tool_result":
                     # Send tool result
-                    await writer._send({
-                        "type": "tool_result",
-                        "name": chunk.get("name", "unknown"),
-                        "status": "done"
-                    })
+                    await writer._send(
+                        {
+                            "type": "tool_result",
+                            "name": chunk.get("name", "unknown"),
+                            "status": "done",
+                        }
+                    )
                 elif chunk_type == "error":
-                    await writer.send_error(chunk.get("message", "Unknown error in stream"))
+                    await writer.send_error(
+                        chunk.get("message", "Unknown error in stream")
+                    )
                     break
 
             await writer.send_metrics(
