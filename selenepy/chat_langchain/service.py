@@ -4,7 +4,7 @@ import inspect
 import json
 import sqlite3
 import time
-from typing import Any, cast
+from typing import Any, AsyncGenerator, cast
 
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
 from langchain_core.runnables import RunnableConfig
@@ -50,6 +50,7 @@ def _to_checkpoint_message_dict(
     role = "ai"
     content = ""
     message_id = None
+    timestamp = None
 
     if isinstance(message, BaseMessage):
         message_type = str(getattr(message, "type", "")).lower()
@@ -71,12 +72,22 @@ def _to_checkpoint_message_dict(
         content = str(message)
 
     normalized_id = str(message_id).strip() if message_id else f"cp-{thread_id}-{index}"
+    
+    # Try to extract timestamp from message ID (frontend creates IDs as Date.now())
+    if message_id:
+        try:
+            timestamp_ms = int(str(message_id).strip())
+            if 1000000000000 < timestamp_ms < 10000000000000:  # Reasonable timestamp range in ms
+                timestamp = timestamp_ms / 1000  # Convert to seconds
+        except (ValueError, TypeError):
+            timestamp = None
+    
     return {
         "id": normalized_id,
         "thread_id": thread_id,
         "role": role,
         "content": content,
-        "timestamp": None,
+        "timestamp": timestamp,
     }
 
 
@@ -173,6 +184,7 @@ class EducatorNotebookService:
         openai_api_key: str | None = None,
         notebook_path: str = "",
         notebook_context: str = "",
+        active_cell_index: int = -1,
         history: list[dict[str, Any]] | None = None,
         max_minutes: int = 5,
         max_turns: int = 3,
@@ -195,6 +207,7 @@ class EducatorNotebookService:
             "research_notes": "",
             "notebook_path": notebook_path,
             "notebook_context": notebook_context,
+            "active_cell_index": active_cell_index,
             "edit_result": "",
             "edit_status": EditStatus.NOT_STARTED,
             "retry_count_by_agent": {},
@@ -265,6 +278,102 @@ class EducatorNotebookService:
             "max_turns": result.get("max_turns", False),
             "turns": turns,
         }
+
+    async def chat_turn_stream(
+        self,
+        session_id: str,
+        user_message: str,
+        openai_api_key: str | None = None,
+        notebook_path: str = "",
+        notebook_context: str = "",
+        active_cell_index: int = -1,
+        history: list[dict[str, Any]] | None = None,
+        max_minutes: int = 5,
+        system_prompt: str = "",
+    ) -> AsyncGenerator[dict[str, Any], None]:
+        
+        history_messages = self._build_history_messages(history or [])
+
+        messages = [HumanMessage(content=user_message)]
+        if not self._use_thread_checkpoint:
+            messages = history_messages + messages
+
+        state: AgentState = {
+            "messages": cast(list[AnyMessage], messages),
+            "user_request": user_message,
+            "intent": Intent.REPLY,
+            "intent_confidence": 0.0,
+            "research_notes": "",
+            "notebook_context": notebook_context,
+            "active_cell_index": active_cell_index,
+            "edit_result": "",
+            "edit_status": EditStatus.NOT_STARTED,
+            "retry_count_by_agent": {},
+            "timeout": False,
+            "max_turns": False,
+            "done": False,
+        }
+
+        configurable: dict[str, Any] = {
+            "openai_api_key": openai_api_key or "",
+            "chat_system_prompt": system_prompt,
+            "notebook_context": notebook_context,
+        }
+        if self._use_thread_checkpoint:
+            configurable["thread_id"] = session_id
+
+        config: RunnableConfig = {"configurable": configurable, **callbacks_config()}
+
+        if self.app is None:
+            raise RuntimeError(
+                "Service not initialized. Call initialize() before chat_turn_stream()."
+            )
+
+        start_time = time.monotonic()
+        try:
+            async for event in self.app.astream_events(state, config=config, version="v2"):
+                if (time.monotonic() - start_time) > max_minutes * 60:
+                    yield {"type": "error", "message": "chat_langchain timed out"}
+                    break
+                
+                kind = event.get("event")
+                
+                if kind == "on_chat_model_stream":
+                    chunk_content = ""
+                    chunk_data = event.get("data", {}).get("chunk")
+                    if chunk_data and hasattr(chunk_data, "content") and isinstance(chunk_data.content, str):
+                        chunk_content = chunk_data.content
+                    
+                    if not chunk_content:
+                        continue
+                        
+                    node_name = event.get("metadata", {}).get("langgraph_node")
+                    if node_name == "responder_agent":
+                        yield {"type": "chunk", "content": chunk_content}
+                    else:
+                        tags = event.get("tags", [])
+                        agent_name = "Agent"
+                        for t in tags:
+                            if t.startswith("agent:"):
+                                agent_name = t.split(":", 1)[1]
+                        
+                        if agent_name in ("Research", "Editor"):
+                            yield {"type": "intermediate_chunk", "agent": agent_name, "content": chunk_content}
+                
+                elif kind == "on_tool_start":
+                    tool_name = event.get("name", "unknown")
+                    tool_input = event.get("data", {}).get("input", "")
+                    yield {"type": "tool_call", "name": tool_name, "input": tool_input}
+                
+                elif kind == "on_tool_end":
+                    tool_name = event.get("name", "unknown")
+                    yield {"type": "tool_result", "name": tool_name, "status": "done"}
+                    
+        except asyncio.CancelledError:
+            raise
+        except Exception as error:
+            LOGGER.error("Error during astream_events", exc_info=error)
+            yield {"type": "error", "message": str(error)}
 
     @staticmethod
     def _build_history_messages(history: list[dict[str, Any]]):

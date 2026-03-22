@@ -99,12 +99,20 @@ export interface IReadonlyDiffSegment {
   readonly lineNumberNew?: number;
 }
 
+export interface IToolCall {
+  name: string;
+  input: string | Record<string, any>;
+  status: 'active' | 'done';
+}
+
 export interface IChatMessage {
   readonly id: string;
   readonly role: 'user' | 'ai';
   readonly content: string;
   readonly threadId?: string;
   readonly timestamp?: number;
+  readonly thoughts?: { agent: string; content: string }[];
+  readonly toolCalls?: IToolCall[];
 }
 
 export interface IChatThread {
@@ -134,4 +142,19 @@ export type ChatStreamEvent =
       readonly tokensUsed: number;
       readonly tokensSent: number;
       readonly messagesSent: number;
+    }
+  | {
+      readonly type: 'intermediate_chunk';
+      readonly agent: string;
+      readonly content: string;
+    }
+  | {
+      readonly type: 'tool_call';
+      readonly name: string;
+      readonly input: string | Record<string, any>;
+    }
+  | {
+      readonly type: 'tool_result';
+      readonly name: string;
+      readonly status: 'done';
     };

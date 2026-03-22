@@ -386,6 +386,53 @@ export class ChatSidebar extends ReactWidget {
             };
             this.update();
           }
+        } else if (event.type === 'intermediate_chunk') {
+          const aiMsg = this._messages[this._messages.length - 1];
+          if (aiMsg && aiMsg.role === 'ai') {
+            const thoughts = aiMsg.thoughts ? [...aiMsg.thoughts] : [];
+            const agentId = event.agent;
+            // See if this agent already has a thought block. If so, append to last.
+            const lastThought =
+              thoughts.length > 0 ? thoughts[thoughts.length - 1] : null;
+            if (lastThought && lastThought.agent === agentId) {
+              lastThought.content += event.content;
+            } else {
+              thoughts.push({ agent: agentId, content: event.content });
+            }
+            this._messages[this._messages.length - 1] = { ...aiMsg, thoughts };
+            this.update();
+          }
+        } else if (event.type === 'tool_call') {
+          const aiMsg = this._messages[this._messages.length - 1];
+          if (aiMsg && aiMsg.role === 'ai') {
+            const toolCalls = aiMsg.toolCalls ? [...aiMsg.toolCalls] : [];
+            toolCalls.push({
+              name: event.name,
+              input: event.input,
+              status: 'active'
+            });
+            this._messages[this._messages.length - 1] = { ...aiMsg, toolCalls };
+            this.update();
+          }
+        } else if (event.type === 'tool_result') {
+          const aiMsg = this._messages[this._messages.length - 1];
+          if (aiMsg && aiMsg.role === 'ai') {
+            const toolCalls = aiMsg.toolCalls ? [...aiMsg.toolCalls] : [];
+            // Find the last active tool call for this name and mark as done
+            for (let i = toolCalls.length - 1; i >= 0; i--) {
+              if (
+                toolCalls[i].name === event.name &&
+                toolCalls[i].status === 'active'
+              ) {
+                // Ensure we spread the tool call object as well if we are mutating it,
+                // though modifying array elements is usually fine if the array reference itself changed.
+                toolCalls[i] = { ...toolCalls[i], status: 'done' };
+                break;
+              }
+            }
+            this._messages[this._messages.length - 1] = { ...aiMsg, toolCalls };
+            this.update();
+          }
         } else if (event.type === 'error') {
           console.error('Chat error:', event.message);
           const aiMsg = this._messages[this._messages.length - 1];

@@ -2,7 +2,7 @@ import json
 import os
 import re
 from pathlib import Path
-from typing import Literal, Mapping
+from typing import Any, Literal, Mapping, cast
 
 from dotenv import load_dotenv
 from langchain.agents import create_agent
@@ -17,10 +17,9 @@ from pydantic import SecretStr
 from ..logging import get_logger
 from .models import AgentNode, AgentState, EditStatus, Intent
 from .prompts import (
-    FINAL_RESPONDER_SYSTEM,
     NOTEBOOK_EDITOR_SYSTEM,
-    REPLY_SYSTEM,
     RESEARCH_SYSTEM,
+    RESPONDER_SYSTEM,
     ROUTER_CLASSIFIER_SYSTEM,
 )
 
@@ -91,7 +90,12 @@ class EducatorNotebookWorkflow:
         if notebook_context:
             system_prompt += f"\n\nCurrent Notebook Context:\n{notebook_context}"
 
-        return create_agent(llm, tools=self.arxiv_tools, system_prompt=system_prompt)
+        return create_agent(
+            llm,
+            tools=self.arxiv_tools,
+            system_prompt=system_prompt,
+            checkpointer=self.checkpointer,
+        )
 
     def _build_notebook_editor_agent(self, config: RunnableConfig | None = None):
         llm = self._build_llm(config, temperature=0.1)
@@ -104,33 +108,12 @@ class EducatorNotebookWorkflow:
         if notebook_context:
             system_prompt += f"\n\nCurrent Notebook Context:\n{notebook_context}"
 
-        return create_agent(llm, tools=self.jupyter_tools, system_prompt=system_prompt)
-
-    def _build_reply_agent(self, config: RunnableConfig | None = None):
-        llm = self._build_llm(config, temperature=0.2)
-        user_system_prompt = self._get_system_prompt(config)
-        system_prompt = REPLY_SYSTEM
-        if user_system_prompt:
-            system_prompt += f"\n\nAdditional User Instructions:\n{user_system_prompt}"
-
-        notebook_context = self._get_notebook_context(config)
-        if notebook_context:
-            system_prompt += f"\n\nCurrent Notebook Context:\n{notebook_context}"
-
-        return create_agent(llm, tools=[], system_prompt=system_prompt)
-
-    def _build_final_responder(self, config: RunnableConfig | None = None):
-        llm = self._build_llm(config, temperature=0.2)
-        user_system_prompt = self._get_system_prompt(config)
-        system_prompt = FINAL_RESPONDER_SYSTEM
-        if user_system_prompt:
-            system_prompt += f"\n\nAdditional User Instructions:\n{user_system_prompt}"
-
-        notebook_context = self._get_notebook_context(config)
-        if notebook_context:
-            system_prompt += f"\n\nCurrent Notebook Context:\n{notebook_context}"
-
-        return create_agent(llm, tools=[], system_prompt=system_prompt)
+        return create_agent(
+            llm,
+            tools=self.jupyter_tools,
+            system_prompt=system_prompt,
+            checkpointer=self.checkpointer,
+        )
 
     @staticmethod
     def _request_needs_research(user_request: str) -> bool:
@@ -338,35 +321,52 @@ class EducatorNotebookWorkflow:
             "done": False,
         }
 
-    async def run_reply_agent(
+    async def run_responder_agent(
         self, state: AgentState, config: RunnableConfig
     ) -> AgentState:
-        LOGGER.info("Reply agent received state")
+        LOGGER.info("Responder agent received state")
 
         retry_count_by_agent = self._increment_retry_count(
-            state.get("retry_count_by_agent", {}), AgentNode.REPLY
+            state.get("retry_count_by_agent", {}), AgentNode.RESPONDER
         )
 
+        llm = self._build_llm(config, temperature=0.2)
+        user_system_prompt = self._get_system_prompt(config)
+        system_prompt = RESPONDER_SYSTEM
+        if user_system_prompt:
+            system_prompt += f"\n\nAdditional User Instructions:\n{user_system_prompt}"
+
+        notebook_context = self._get_notebook_context(config)
+        if notebook_context:
+            system_prompt += f"\n\nCurrent Notebook Context:\n{notebook_context}"
+
+        messages = [SystemMessage(content=system_prompt)] + list(
+            state.get("messages", [])
+        )
+
+        intent = self._coerce_intent(state.get("intent"))
+        research_notes = state.get("research_notes", "")
+        edit_result = state.get("edit_result", "")
+
+        if research_notes or edit_result:
+            summary_context = f"Intent: {intent.value}\n"
+            if research_notes:
+                summary_context += f"Research notes:\n{research_notes}\n\n"
+            if edit_result:
+                summary_context += f"Edit result:\n{edit_result}\n"
+
+            messages.append(
+                HumanMessage(
+                    content=f"Agent Context (Please synthesize the final response based on this):\n{summary_context}"
+                )
+            )
+
         try:
-            reply_agent = self._build_reply_agent(config)
-            result = await reply_agent.ainvoke(
-                {
-                    "messages": [
-                        HumanMessage(
-                            content=f"User request: {state.get('user_request', '')}"
-                        )
-                    ]
-                },
-                config=config,
-            )
-            last_msg = result["messages"][-1]
-            content = self._extract_message_content(last_msg)
+            result = await llm.ainvoke(messages, config=config)
+            content = self._extract_message_content(result)
         except Exception:
-            LOGGER.exception("Reply agent unexpected error")
-            content = (
-                "I could not produce a direct answer due to an internal error. "
-                "Please retry your request."
-            )
+            LOGGER.exception("Responder unexpected error")
+            content = "An error occurred generating the response."
 
         return {
             "messages": [AIMessage(content=content)],
@@ -383,21 +383,23 @@ class EducatorNotebookWorkflow:
             state.get("retry_count_by_agent", {}), AgentNode.RESEARCH
         )
 
+        invoke_config: dict[str, Any] = dict(config) if config else {}
+        invoke_config["tags"] = list(invoke_config.get("tags") or []) + [
+            "agent:Research Agent"
+        ]
+
         try:
-            research_agent = self._build_research_agent(config)
+            research_agent = self._build_research_agent(
+                cast(RunnableConfig, invoke_config)
+            )
+            search_prompt = (
+                f"User request: {state.get('user_request', '')}\n\n"
+                "Find relevant arXiv material and provide concise notes "
+                "useful for building an educational Jupyter notebook."
+            )
             result = await research_agent.ainvoke(
-                {
-                    "messages": [
-                        HumanMessage(
-                            content=(
-                                f"User request: {state.get('user_request', '')}\n\n"
-                                "Find relevant arXiv material and provide concise notes "
-                                "useful for building an educational Jupyter notebook."
-                            )
-                        )
-                    ]
-                },
-                config=config,
+                {"messages": [HumanMessage(content=search_prompt)]},
+                config=cast(RunnableConfig, invoke_config),
             )
             last_msg = result["messages"][-1]
             content = self._extract_message_content(last_msg)
@@ -434,24 +436,27 @@ class EducatorNotebookWorkflow:
             notebook_name,
         )
 
+        invoke_config: dict[str, Any] = dict(config) if config else {}
+        invoke_config["tags"] = list(invoke_config.get("tags") or []) + [
+            "agent:Editor Agent"
+        ]
+
         try:
-            notebook_editor_agent = self._build_notebook_editor_agent(config)
+            notebook_editor_agent = self._build_notebook_editor_agent(
+                cast(RunnableConfig, invoke_config)
+            )
+            edit_prompt = (
+                f"User request: {state.get('user_request', '')}\n\n"
+                f"Research notes:\n{state.get('research_notes', '')}\n\n"
+                f"Notebook path: {notebook_path}\n"
+                f"Notebook name: {notebook_name}\n"
+                f"Active Cell Index: {state.get('active_cell_index', -1)}\n\n"
+                "Create or update the notebook accordingly. "
+                "Use the notebook-selection MCP tool before notebook edits."
+            )
             result = await notebook_editor_agent.ainvoke(
-                {
-                    "messages": [
-                        HumanMessage(
-                            content=(
-                                f"User request: {state.get('user_request', '')}\n\n"
-                                f"Research notes:\n{state.get('research_notes', '')}\n\n"
-                                f"Notebook path: {notebook_path}\n"
-                                f"Notebook name: {notebook_name}\n\n"
-                                "Create or update the notebook accordingly. "
-                                "Use the notebook-selection MCP tool before notebook edits."
-                            )
-                        )
-                    ]
-                },
-                config=config,
+                {"messages": [HumanMessage(content=edit_prompt)]},
+                config=cast(RunnableConfig, invoke_config),
             )
             last_msg = result["messages"][-1]
             content = self._extract_message_content(last_msg)
@@ -473,95 +478,37 @@ class EducatorNotebookWorkflow:
             "done": False,
         }
 
-    async def final_responder(
-        self, state: AgentState, config: RunnableConfig
-    ) -> AgentState:
-        LOGGER.info("Final responder received state")
-
-        retry_count_by_agent = self._increment_retry_count(
-            state.get("retry_count_by_agent", {}), AgentNode.FINAL_RESPONDER
-        )
-
-        intent = self._coerce_intent(state.get("intent"))
-        research_notes = state.get("research_notes", "")
-        edit_result = state.get("edit_result", "")
-
-        summary_prompt = (
-            f"User request: {state.get('user_request', '')}\n\n"
-            f"Intent: {intent.value}\n"
-            f"Research notes:\n{research_notes}\n\n"
-            f"Edit result:\n{edit_result}\n"
-        )
-
-        try:
-            responder = self._build_final_responder(config)
-            result = await responder.ainvoke(
-                {"messages": [HumanMessage(content=summary_prompt)]},
-                config=config,
-            )
-            last_msg = result["messages"][-1]
-            content = self._extract_message_content(last_msg)
-        except Exception:
-            LOGGER.exception("Final responder unexpected error")
-            if intent == Intent.RESEARCH:
-                content = f"Research completed.\n\n{research_notes}".strip()
-            elif intent == Intent.EDIT:
-                content = f"Notebook edit completed.\n\n{edit_result}".strip()
-            else:
-                content = (
-                    "Research and edit workflow completed with partial output.\n\n"
-                    f"Research notes:\n{research_notes}\n\n"
-                    f"Edit result:\n{edit_result}"
-                ).strip()
-
-        return {
-            "messages": [AIMessage(content=content)],
-            "retry_count_by_agent": retry_count_by_agent,
-            "done": True,
-        }
-
     @staticmethod
     def route_from_router(
         state: AgentState,
-    ) -> Literal[AgentNode.REPLY, AgentNode.RESEARCH, AgentNode.EDITOR, "__end__"]:
+    ) -> Literal[AgentNode.RESPONDER, AgentNode.RESEARCH, AgentNode.EDITOR]:
         intent = str(state.get("intent", "")).strip().lower()
         if intent in {Intent.REPLY.value, Intent.CLARIFY.value}:
-            return AgentNode.REPLY
+            return AgentNode.RESPONDER
         if intent == Intent.RESEARCH.value:
             return AgentNode.RESEARCH
         if intent == Intent.EDIT.value:
             return AgentNode.EDITOR
         if intent == Intent.RESEARCH_THEN_EDIT.value:
             return AgentNode.RESEARCH
-        return AgentNode.REPLY
+        return AgentNode.RESPONDER
 
     @staticmethod
     def route_from_research(
         state: AgentState,
-    ) -> Literal[AgentNode.EDITOR, AgentNode.FINAL_RESPONDER, "__end__"]:
-        if state.get("done"):
-            return "__end__"
+    ) -> Literal[AgentNode.EDITOR, AgentNode.RESPONDER]:
         intent = str(state.get("intent", "")).strip().lower()
         if intent == Intent.RESEARCH_THEN_EDIT.value:
             return AgentNode.EDITOR
-        return AgentNode.FINAL_RESPONDER
-
-    @staticmethod
-    def route_from_editor(
-        state: AgentState,
-    ) -> Literal[AgentNode.FINAL_RESPONDER, "__end__"]:
-        if state.get("done"):
-            return "__end__"
-        return AgentNode.FINAL_RESPONDER
+        return AgentNode.RESPONDER
 
     def build_graph(self):
         builder = StateGraph(AgentState)
 
         builder.add_node(AgentNode.ROUTER, self.router_classifier)
-        builder.add_node(AgentNode.REPLY, self.run_reply_agent)
+        builder.add_node(AgentNode.RESPONDER, self.run_responder_agent)
         builder.add_node(AgentNode.RESEARCH, self.run_research_agent)
         builder.add_node(AgentNode.EDITOR, self.run_notebook_editor_agent)
-        builder.add_node(AgentNode.FINAL_RESPONDER, self.final_responder)
 
         builder.add_edge(START, AgentNode.ROUTER)
 
@@ -569,34 +516,23 @@ class EducatorNotebookWorkflow:
             AgentNode.ROUTER,
             self.route_from_router,
             {
-                AgentNode.REPLY: AgentNode.REPLY,
+                AgentNode.RESPONDER: AgentNode.RESPONDER,
                 AgentNode.RESEARCH: AgentNode.RESEARCH,
                 AgentNode.EDITOR: AgentNode.EDITOR,
-                END: END,
             },
         )
-
-        builder.add_edge(AgentNode.REPLY, END)
 
         builder.add_conditional_edges(
             AgentNode.RESEARCH,
             self.route_from_research,
             {
                 AgentNode.EDITOR: AgentNode.EDITOR,
-                AgentNode.FINAL_RESPONDER: AgentNode.FINAL_RESPONDER,
-                END: END,
+                AgentNode.RESPONDER: AgentNode.RESPONDER,
             },
         )
 
-        builder.add_conditional_edges(
-            AgentNode.EDITOR,
-            self.route_from_editor,
-            {
-                AgentNode.FINAL_RESPONDER: AgentNode.FINAL_RESPONDER,
-                END: END,
-            },
-        )
+        builder.add_edge(AgentNode.EDITOR, AgentNode.RESPONDER)
 
-        builder.add_edge(AgentNode.FINAL_RESPONDER, END)
+        builder.add_edge(AgentNode.RESPONDER, END)
 
         return builder.compile(checkpointer=self.checkpointer)

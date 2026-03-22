@@ -1,5 +1,5 @@
 from enum import StrEnum
-from typing import Annotated, TypedDict
+from typing import Any, Annotated, TypedDict
 
 from langgraph.graph.message import AnyMessage, add_messages
 
@@ -14,10 +14,9 @@ class Intent(StrEnum):
 
 class AgentNode(StrEnum):
     ROUTER = "router_classifier"
-    REPLY = "reply_agent"
+    RESPONDER = "responder_agent"
     RESEARCH = "research_agent"
     EDITOR = "editor_agent"
-    FINAL_RESPONDER = "final_responder"
 
 
 class EditStatus(StrEnum):
@@ -38,10 +37,17 @@ class AgentState(TypedDict, total=False):
     research_notes: str
     notebook_path: str
     notebook_context: str
+    active_cell_index: int
     edit_result: str
 
     edit_status: EditStatus
     retry_count_by_agent: dict[str, int]
+
+    # Intermediate trace for UI persistence
+    # thoughts: List of {agent: str, content: str}
+    # tool_calls: List of IToolCall-compatible dicts
+    thoughts: Annotated[list[dict[str, str]], lambda x, y: (x or []) + (y or [])]
+    tool_calls: Annotated[list[dict[str, Any]], lambda x, y: (x or []) + (y or [])]
 
     timeout: bool
     max_turns: bool

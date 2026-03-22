@@ -1,6 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { MdMic, MdMicOff, MdSend, MdStop } from 'react-icons/md';
 import { showDialog } from '@jupyterlab/apputils';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import type { IChatMessage, ISuggestedEditsSettings } from '../../types';
 import { Button } from './common/Button';
 import { useAudioRecorder } from '../utils/useAudioRecorder';
@@ -12,7 +14,11 @@ function formatMessageTime(timestamp?: number): string {
   }
 
   const asMs = timestamp < 1_000_000_000_000 ? timestamp * 1000 : timestamp;
-  return new Date(asMs).toLocaleTimeString();
+  const date = new Date(asMs);
+  const day = date.getDate();
+  const month = date.toLocaleString('en-US', { month: 'short' });
+  const time = date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+  return `${day} ${month}, ${time}`;
 }
 
 interface ICellContext {
@@ -36,6 +42,102 @@ interface IChatPanelProps {
   activeThreadId?: string | null;
   settings?: ISuggestedEditsSettings | null;
   onSettingsChanged?: (settings: Partial<ISuggestedEditsSettings>) => void;
+}
+
+function ToolCallAccordion({
+  tc
+}: {
+  tc: NonNullable<IChatMessage['toolCalls']>[0];
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const toolInputMarkdown =
+    typeof tc.input === 'string'
+      ? tc.input
+      : `\`\`\`json\n${JSON.stringify(tc.input, null, 2)}\n\`\`\``;
+
+  return (
+    <div className="jp-selenepy-chatToolCall">
+      <div
+        className="jp-selenepy-chatToolCall-header"
+        onClick={() => setIsOpen(!isOpen)}
+      >
+        <div className="jp-selenepy-chatToolCall-title">
+          <span
+            className={`jp-selenepy-chatAccordion-icon ${isOpen ? 'is-open' : ''}`}
+          >
+            ▶
+          </span>
+          <span className="jp-CodeConsoleIcon" /> {tc.name}
+          <span className={`jp-selenepy-chatToolCall-status is-${tc.status}`}>
+            {tc.status}
+          </span>
+        </div>
+      </div>
+      {isOpen && (
+        <div className="jp-selenepy-chatToolCall-content">
+          <div className="jp-selenepy-chatToolCall-input">
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+              {toolInputMarkdown}
+            </ReactMarkdown>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ChatAccordion({
+  thoughts,
+  toolCalls
+}: {
+  thoughts?: IChatMessage['thoughts'];
+  toolCalls?: IChatMessage['toolCalls'];
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const hasContent =
+    (thoughts && thoughts.length > 0) || (toolCalls && toolCalls.length > 0);
+
+  if (!hasContent) {
+    return null;
+  }
+
+  return (
+    <div className="jp-selenepy-chatAccordion">
+      <div
+        className="jp-selenepy-chatAccordion-header"
+        onClick={() => setIsOpen(!isOpen)}
+      >
+        <div className="jp-selenepy-chatAccordion-title">
+          <span
+            className={`jp-selenepy-chatAccordion-icon ${isOpen ? 'is-open' : ''}`}
+          >
+            ▶
+          </span>
+          Agent Thoughts & Tools{' '}
+          {toolCalls?.length ? `(${toolCalls.length} tools)` : ''}
+        </div>
+      </div>
+      {isOpen && (
+        <div className="jp-selenepy-chatAccordion-content">
+          {thoughts?.map((thought, idx) => (
+            <div key={`thought-${idx}`} className="jp-selenepy-chatThought">
+              <div className="jp-selenepy-chatThought-agent">
+                {thought.agent} Agent
+              </div>
+              <div className="jp-selenepy-chatThought-content">
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                  {thought.content}
+                </ReactMarkdown>
+              </div>
+            </div>
+          ))}
+          {toolCalls?.map((tc, idx) => (
+            <ToolCallAccordion key={`tool-${idx}`} tc={tc} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
 }
 
 export function ChatPanel({
@@ -224,7 +326,15 @@ export function ChatPanel({
                 Sent {formatMessageTime(msg.timestamp)}
               </span>
             </div>
-            <div className="jp-selenepy-chatMessage-body">{msg.content}</div>
+            <div className="jp-selenepy-chatMessage-body">
+              {msg.role === 'ai' && (
+                <ChatAccordion
+                  thoughts={msg.thoughts}
+                  toolCalls={msg.toolCalls}
+                />
+              )}
+              {msg.content}
+            </div>
           </div>
         ))}
         {isStreaming && (

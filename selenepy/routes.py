@@ -432,8 +432,10 @@ class ChatStreamHandler(APIHandler):
             service = await get_chat_langchain_service()
             notebook_path = ""
             notebook_context = ""
+            active_cell_index = -1
             if isinstance(snapshot, Mapping):
                 notebook_path = str(snapshot.get("path", "")).strip()
+                active_cell_index = snapshot.get("activeCellIndex", -1)
                 try:
                     notebook_context = format_snapshot_for_prompt(snapshot)
                 except Exception as e:
@@ -446,43 +448,57 @@ class ChatStreamHandler(APIHandler):
                 else f"adhoc:{uuid.uuid4().hex}"
             )
 
-            chat_task = asyncio.create_task(
-                service.chat_turn(
-                    session_id=session_id,
-                    user_message=message,
-                    openai_api_key=openai_api_key,
-                    notebook_path=notebook_path,
-                    notebook_context=notebook_context,
-                    system_prompt=str(settings.get("chatSystemPrompt", "")),
-                )
+            chat_stream = service.chat_turn_stream(
+                session_id=session_id,
+                user_message=message,
+                openai_api_key=openai_api_key,
+                notebook_path=notebook_path,
+                notebook_context=notebook_context,
+                active_cell_index=active_cell_index,
+                system_prompt=str(settings.get("chatSystemPrompt", "")),
             )
 
-            while not chat_task.done():
+            prompt_tokens = 0
+            total_tokens = 0
+            
+            async for chunk in chat_stream:
                 if self._client_disconnected or writer.is_closed:
-                    chat_task.cancel()
-                    LOGGER.info("Cancelled backend chat task due to client disconnect")
-                    return
-                await asyncio.sleep(0.1)
+                    LOGGER.info("Cancelled backend chat stream due to client disconnect")
+                    break
 
-            result = await chat_task
-
-            assistant_message = str(result.get("assistant_message", ""))
-
-            prompt_tokens = int(result.get("prompt_tokens", 0))
-            total_tokens = int(result.get("total_tokens", 0))
+                chunk_type = chunk.get("type")
+                
+                if chunk_type == "chunk":
+                    await writer.send_chunk(chunk.get("content", ""))
+                elif chunk_type == "intermediate_chunk":
+                    # Send intermediate thought
+                    await writer._send({
+                        "type": "intermediate_chunk",
+                        "agent": chunk.get("agent", "unknown"),
+                        "content": chunk.get("content", "")
+                    })
+                elif chunk_type == "tool_call":
+                    # Send tool call
+                    await writer._send({
+                        "type": "tool_call",
+                        "name": chunk.get("name", "unknown"),
+                        "input": chunk.get("input", "")
+                    })
+                elif chunk_type == "tool_result":
+                    # Send tool result
+                    await writer._send({
+                        "type": "tool_result",
+                        "name": chunk.get("name", "unknown"),
+                        "status": "done"
+                    })
+                elif chunk_type == "error":
+                    await writer.send_error(chunk.get("message", "Unknown error in stream"))
+                    break
 
             await writer.send_metrics(
                 tokens_used=total_tokens, tokens_sent=prompt_tokens, messages_sent=1
             )
 
-            await stream_final_chat_response(writer, assistant_message)
-
-            if result.get("timeout"):
-                await writer.send_error("chat_langchain timed out before completion")
-            elif result.get("max_turns"):
-                await writer.send_error(
-                    "chat_langchain reached the max turn limit before completion"
-                )
         except tornado.iostream.StreamClosedError:
             LOGGER.info("Client disconnected from chat stream.")
         except asyncio.CancelledError:

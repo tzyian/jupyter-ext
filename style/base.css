@@ -1048,18 +1048,18 @@
   display: flex;
   flex-direction: column;
   gap: 4px;
-    padding: 6px;
-    border: 1px solid var(--jp-border-color1);
-    border-radius: 6px;
-    background: var(--jp-layout-color1);
+  padding: 6px;
+  border: 1px solid var(--jp-border-color1);
+  border-radius: 6px;
+  background: var(--jp-layout-color1);
 }
 
 .jp-selenepy-chatSnippets-label {
   font-size: 0.65rem;
   color: var(--jp-ui-font-color2);
   font-weight: 700;
-    letter-spacing: 0.05em;
-    text-transform: uppercase;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
   padding-left: 2px;
 }
 
@@ -1183,10 +1183,10 @@
 .jp-selenepy-chat-snippet-btn {
   font-size: 10px;
   padding: 2px 9px;
-    border-radius: 999px;
-    background: var(--jp-layout-color2);
-    border: 1px solid var(--jp-border-color2);
-    line-height: 1.4;
+  border-radius: 999px;
+  background: var(--jp-layout-color2);
+  border: 1px solid var(--jp-border-color2);
+  line-height: 1.4;
   white-space: nowrap;
 }
 
@@ -1245,4 +1245,146 @@
 .jp-selenepy-deleteBtn:hover {
   background: var(--jp-error-color1);
   color: white;
+}
+
+/* Chat Accordion for Intermediate Thoughts */
+.jp-selenepy-chatAccordion {
+  margin-top: 8px;
+  border: 1px solid var(--jp-border-color2);
+  border-radius: 4px;
+  overflow: hidden;
+  background: var(--jp-layout-color2);
+}
+
+.jp-selenepy-chatAccordion-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 8px;
+  cursor: pointer;
+  background: var(--jp-layout-color2);
+  font-size: var(--js-small-font-size);
+  color: var(--jp-ui-font-color2);
+  user-select: none;
+}
+
+.jp-selenepy-chatAccordion-header:hover {
+  background: var(--jp-layout-color3);
+}
+
+.jp-selenepy-chatAccordion-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 500;
+}
+
+.jp-selenepy-chatAccordion-icon {
+  font-size: 10px;
+  transition: transform 0.2s;
+}
+
+.jp-selenepy-chatAccordion-icon.is-open {
+  transform: rotate(90deg);
+}
+
+.jp-selenepy-chatAccordion-content {
+  padding: 8px;
+  border-top: 1px solid var(--jp-border-color2);
+  font-size: var(--js-code-font-size);
+  color: var(--jp-ui-font-color2);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.jp-selenepy-chatThought {
+  background: var(--jp-layout-color1);
+  border-left: 3px solid var(--jp-brand-color1);
+  padding: 6px 8px;
+  border-radius: 2px;
+}
+
+.jp-selenepy-chatThought-agent {
+  font-weight: 600;
+  margin-bottom: 4px;
+  font-size: var(--js-small-font-size);
+  color: var(--jp-ui-font-color1);
+  text-transform: capitalize;
+}
+
+.jp-selenepy-chatThought-content {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.jp-selenepy-chatToolCall {
+  background: var(--jp-layout-color1);
+  border-left: 3px solid var(--jp-warn-color1);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.jp-selenepy-chatToolCall-header {
+  padding: 6px 8px;
+  cursor: pointer;
+  background: var(--jp-layout-color1);
+  user-select: none;
+}
+
+.jp-selenepy-chatToolCall-header:hover {
+  background: var(--jp-layout-color2);
+}
+
+.jp-selenepy-chatToolCall-title {
+  font-weight: 600;
+  font-size: var(--js-small-font-size);
+  color: var(--jp-ui-font-color1);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.jp-selenepy-chatToolCall-content {
+  padding: 0 8px 8px 8px;
+}
+
+.jp-selenepy-chatToolCall-status {
+  font-size: 9px;
+  padding: 1px 4px;
+  border-radius: 4px;
+  background: var(--jp-layout-color2);
+}
+
+.jp-selenepy-chatToolCall-status.is-active {
+  color: var(--jp-warn-color1);
+  animation: pulse 1.5s infinite;
+}
+
+.jp-selenepy-chatToolCall-status.is-done {
+  color: var(--jp-success-color1);
+}
+
+.jp-selenepy-chatToolCall-input {
+  font-family: var(--jp-code-font-family);
+  font-size: 10px;
+  background: var(--jp-layout-color2);
+  padding: 4px;
+  border-radius: 2px;
+  overflow-x: auto;
+  white-space: pre-wrap;
+}
+
+@keyframes pulse {
+  0% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+  100% {
+    opacity: 1;
+  }
 }
