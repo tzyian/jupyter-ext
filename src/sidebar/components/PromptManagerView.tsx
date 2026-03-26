@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { PromptEditorCard } from './PromptEditorCard';
 import { usePrompts } from '../hooks/usePrompts';
-import { PromptCategory } from '../../types';
+import { PromptCategory } from '../types';
 
 export interface IPromptManagerViewProps {
   title: string;
@@ -25,7 +25,7 @@ export const PromptManagerView: React.FC<IPromptManagerViewProps> = ({
   createNewLabel,
   selectLabel
 }) => {
-  const { prompts, updatePrompt, createPrompt, removePrompt } =
+  const { prompts, loading, updatePrompt, createPrompt, removePrompt } =
     usePrompts(category);
   const [localSelectedId, setLocalSelectedId] = useState<string>(
     selectedPromptId || '__CREATE_NEW__'
@@ -42,14 +42,17 @@ export const PromptManagerView: React.FC<IPromptManagerViewProps> = ({
   };
 
   useEffect(() => {
-    // If external selection changed but doesn't exist, fall back to CREATE NEW
+    if (loading) {
+      return;
+    }
+
     if (
       activeId !== '__CREATE_NEW__' &&
       !prompts.some(p => p.id === activeId)
     ) {
       handleSelect('__CREATE_NEW__');
     }
-  }, [prompts, activeId]);
+  }, [loading, prompts, activeId]);
 
   return (
     <div className="jp-selenepy-promptSettings-cards">

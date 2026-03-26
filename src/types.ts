@@ -1,171 +1,37 @@
-import type { ReadonlyPartialJSONObject } from '@lumino/coreutils';
+/**
+ * Root level constants and types for the SelenePy extension.
+ */
 
-export interface INotebookOutlineItem {
-  readonly level: number;
-  readonly text: string;
-  readonly cellIndex: number;
+export const SIDEBAR_PANEL_RANKS = {
+  suggestions: 600,
+  dashboard: 601,
+  chat: 602,
+  contextMenus: 603
+} as const;
+
+export const SUGGESTIONS_SIDEBAR_ID = 'selenejs-suggested-edits-sidebar';
+export const TELEMETRY_SIDEBAR_ID = 'selenejs-telemetry-sidebar';
+export const CONTEXT_MENU_SIDEBAR_ID = 'selenejs-context-menu-sidebar';
+export const CHAT_SIDEBAR_ID = 'selenejs-chat-sidebar';
+export namespace CommandIDs {
+  export const openSuggestionsSidebar = 'selenejs:open-suggested-edits';
+  export const openDashboard = 'selenejs:open-dashboard';
+  export const openChatSidebar = 'selenejs:open-chat-sidebar';
+  export const openContextMenuSidebar = 'selenejs:open-context-menu-sidebar';
+  export const openContextMenuSnippetsSidebar =
+    'selenejs:open-context-menu-snippets-sidebar';
+  export const openContextMenuPromptsConfig =
+    'selenejs:open-context-menu-prompts-config';
+  export const openChatPromptsConfig = 'selenejs:open-chat-prompts-config';
+  export const openNotebookSnippetsConfig =
+    'selenejs:open-notebook-snippets-config';
+  export const chatAboutThis = 'selenejs:chat-about-this';
+  export const insertNotebookSnippet = 'selenejs:insert-notebook-snippet';
 }
-
-export interface INotebookCellSnapshot {
-  readonly cellType: 'code' | 'markdown' | 'raw';
-  readonly source: string;
-  readonly cellIndex: number;
-  readonly metadata: ReadonlyPartialJSONObject;
+export namespace CommandArguments {
+  export interface IPrompt {
+    promptName?: string;
+    promptDescription?: string;
+    promptContent?: string;
+  }
 }
-
-export interface INotebookSnapshot {
-  readonly path: string;
-  readonly activeCellIndex: number;
-  readonly activeCellContext?: IActiveCellContext;
-  readonly outline: INotebookOutlineItem[];
-  readonly cells: INotebookCellSnapshot[];
-  readonly lastActivity: string;
-}
-export interface IActiveCellContext {
-  readonly cellIndex: number;
-  readonly cursorOffset: number | null;
-  readonly selectedText?: string;
-}
-
-export type SuggestionContextType = 'local' | 'global';
-
-export interface ISuggestion {
-  readonly id: string;
-  readonly title: string;
-  readonly description: string;
-  readonly cellIndex: number;
-  readonly replacementSource: string;
-  readonly rationale?: string;
-  readonly contextType?: SuggestionContextType;
-  readonly notebookPath?: string;
-}
-
-export type SuggestionStreamEvent =
-  | {
-      readonly type: 'status';
-      readonly phase: 'started' | 'complete';
-    }
-  | {
-      readonly type: 'suggestion';
-      readonly payload: ISuggestion;
-    }
-  | {
-      readonly type: 'info';
-      readonly message: string;
-    };
-
-export interface IPrompt {
-  readonly id: string;
-  readonly name: string;
-  readonly content: string;
-  readonly isDefault: boolean;
-  readonly description?: string;
-  readonly category?: PromptCategory;
-}
-
-export type PromptCategory =
-  | 'suggestion'
-  | 'chat_snippet'
-  | 'context_menu'
-  | 'notebook_snippet'
-  | 'chat_system_prompt';
-
-export interface ISuggestedEditsSettings {
-  readonly autoRefresh: boolean;
-  readonly debounceMs: number;
-  readonly maxCellCharacters: number;
-  readonly contextWindow: number;
-  readonly openaiApiKey: string;
-  readonly chatSystemPrompt: string;
-}
-
-export interface ISuggestionRequest {
-  readonly snapshot: INotebookSnapshot;
-  readonly settings: ISuggestedEditsSettings;
-  readonly mode: SuggestionScanMode;
-  readonly promptId: string;
-}
-
-export type SuggestionScanMode = 'context' | 'full';
-
-export interface IResolvedSuggestion extends ISuggestion {
-  readonly originalSource: string;
-  readonly diffSegments: IReadonlyDiffSegment[];
-}
-
-export interface IReadonlyDiffSegment {
-  readonly value: string;
-  readonly type: 'added' | 'removed' | 'unchanged' | 'modified';
-  readonly lineNumberOriginal?: number;
-  readonly lineNumberNew?: number;
-}
-
-export type ToolInput = string | Record<string, unknown>;
-
-export interface IToolCall {
-  readonly name: string;
-  readonly input: ToolInput;
-  readonly status: 'active' | 'done';
-}
-
-export interface IChatThoughts {
-  readonly agent: string;
-  readonly content: string;
-}
-
-export interface IChatMessage {
-  readonly id: string;
-  readonly role: 'user' | 'ai';
-  readonly content: string;
-  readonly threadId?: string;
-  readonly timestamp?: number;
-  readonly thoughts?: IChatThoughts[];
-  readonly toolCalls?: IToolCall[];
-}
-
-export type IChatThoughtList = IChatThoughts[] | undefined;
-export type IChatToolCallList = IToolCall[] | undefined;
-
-export interface IChatThread {
-  readonly id: string;
-  readonly title: string;
-  readonly createdAt: number;
-  readonly updatedAt: number;
-  readonly messageCount: number;
-  readonly lastResponseDuration?: number;
-}
-
-export type ChatStreamEvent =
-  | {
-      readonly type: 'status';
-      readonly phase: 'started' | 'complete';
-    }
-  | {
-      readonly type: 'chunk';
-      readonly content: string;
-    }
-  | {
-      readonly type: 'error';
-      readonly message: string;
-    }
-  | {
-      readonly type: 'metrics';
-      readonly tokensUsed: number;
-      readonly tokensSent: number;
-      readonly messagesSent: number;
-    }
-  | {
-      readonly type: 'intermediate_chunk';
-      readonly agent: string;
-      readonly content: string;
-    }
-  | {
-      readonly type: 'tool_call';
-      readonly name: string;
-      readonly input: ToolInput;
-    }
-  | {
-      readonly type: 'tool_result';
-      readonly name: string;
-      readonly status: 'done';
-    };

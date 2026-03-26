@@ -7,33 +7,13 @@ import type {
   IChatMessage,
   IChatThoughtList,
   IChatToolCallList,
-  ISuggestedEditsSettings,
   IToolCall
-} from '../../types';
-import { Button } from '../components/Button';
-import { useAudioRecorder } from '../hooks/useAudioRecorder';
-import { transcribeAudio } from '../api';
-
-function formatMessageTime(timestamp?: number): string {
-  if (
-    timestamp === null ||
-    timestamp === undefined ||
-    !Number.isFinite(timestamp)
-  ) {
-    return '--';
-  }
-
-  const asMs = timestamp < 1_000_000_000_000 ? timestamp * 1000 : timestamp;
-  const date = new Date(asMs);
-  const day = date.getDate();
-  const month = date.toLocaleString('en-US', { month: 'short' });
-  const time = date.toLocaleTimeString('en-US', {
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: true
-  });
-  return `${day} ${month}, ${time}`;
-}
+} from '../types';
+import type { ISuggestedEditsSettings } from '../../types';
+import { Button } from '../../components/Button';
+import { useAudioRecorder } from '../../hooks/useAudioRecorder';
+import { transcribeAudio } from '../../api';
+import { formatMessageTime } from '../../../utils/formatting';
 
 interface ICellContext {
   cellNumber: number;

@@ -2,15 +2,19 @@ import { URLExt } from '@jupyterlab/coreutils';
 import { ServerConnection } from '@jupyterlab/services';
 
 import type {
-  IChatThread,
   INotebookSnapshot,
   IPrompt,
   PromptCategory,
   ISuggestedEditsSettings,
+  SuggestionScanMode
+} from './types';
+import type {
   IToolCall,
-  SuggestionScanMode,
-  SuggestionStreamEvent
-} from '../types';
+  IChatThread,
+  IChatMessage,
+  ChatStreamEvent
+} from './chat/types';
+import type { SuggestionStreamEvent } from './suggestions/types';
 
 const PROMPTS_PATH = 'prompts';
 const STREAM_PATH = 'suggestions/stream';
@@ -180,10 +184,10 @@ function parseEventLine(line: string): SuggestionStreamEvent | null {
 export async function* streamChat(
   message: string,
   snapshot: INotebookSnapshot | null,
-  clientSettings: import('../types').ISuggestedEditsSettings | null,
+  clientSettings: ISuggestedEditsSettings | null,
   signal?: AbortSignal,
   threadId?: string
-): AsyncGenerator<import('../types').ChatStreamEvent> {
+): AsyncGenerator<ChatStreamEvent> {
   const { url, settings } = getApiSettings(CHAT_STREAM_PATH);
 
   const init: RequestInit = {
@@ -244,9 +248,7 @@ export async function* streamChat(
   }
 }
 
-function parseChatEventLine(
-  line: string
-): import('../types').ChatStreamEvent | null {
+function parseChatEventLine(line: string): ChatStreamEvent | null {
   if (!line.startsWith('data:')) {
     return null;
   }
@@ -257,7 +259,7 @@ function parseChatEventLine(
   }
 
   try {
-    return JSON.parse(data) as import('../types').ChatStreamEvent;
+    return JSON.parse(data) as ChatStreamEvent;
   } catch (error) {
     console.warn('Failed to parse chat event line', error);
     return null;
@@ -362,7 +364,7 @@ export async function renameThread(id: string, title: string): Promise<void> {
 
 export async function fetchThreadMessages(
   threadId: string
-): Promise<import('../types').IChatMessage[]> {
+): Promise<IChatMessage[]> {
   const path = `chat/threads/${encodeURIComponent(threadId)}/messages`;
   const { url, settings } = getApiSettings(path);
   const response = await ServerConnection.makeRequest(url, {}, settings);

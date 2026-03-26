@@ -1,4 +1,4 @@
-import type { ISuggestedEditsSettings } from '../../types';
+import type { ISuggestedEditsSettings } from '../types';
 
 /**
  * Get the default settings for the suggested edits extension.

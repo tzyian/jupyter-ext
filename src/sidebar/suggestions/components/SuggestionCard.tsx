@@ -1,9 +1,6 @@
 import React, { useState } from 'react';
-import type {
-  IResolvedSuggestion,
-  SuggestionContextType,
-  IReadonlyDiffSegment
-} from '../../../types';
+import { IReadonlyDiffSegment } from '../../types';
+import type { IResolvedSuggestion, SuggestionContextType } from '../types';
 
 export interface ISuggestionCardProps {
   suggestion: IResolvedSuggestion;

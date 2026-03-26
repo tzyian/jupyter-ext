@@ -9,23 +9,23 @@ import {
   renameThread,
   updateThread,
   fetchThreadMessages
-} from '../../api';
+} from '../api';
+import type { IChatMessage, IChatThread } from './types';
 import type {
-  IChatMessage,
-  IChatThread,
   INotebookSnapshot,
   ISuggestedEditsSettings,
   IPrompt
-} from '../../../types';
+} from '../types';
 import type { INotebookTracker } from '@jupyterlab/notebook';
 
-import { buildSnapshot } from '../../utils/snapshot';
-import { ChatSidebarContent } from './ChatSidebarContent';
+import { buildSnapshot } from '../utils/snapshot';
+import { ChatSidebarContent } from './components/ChatSidebarContent';
 import {
   CHAT_VIEW_CHAT,
   type ChatPromptManagerView,
   type ChatSidebarView
-} from '../../constants';
+} from './constants';
+import { CHAT_SIDEBAR_ID } from '../../types';
 
 export class ChatSidebar extends ReactWidget {
   private readonly _messageSent = new Signal<
@@ -102,7 +102,7 @@ export class ChatSidebar extends ReactWidget {
 
   constructor(tracker?: INotebookTracker) {
     super();
-    this.id = 'selenejs-chat-sidebar';
+    this.id = CHAT_SIDEBAR_ID;
     this.addClass('jp-selenepy-chat');
     this.title.label = 'Chat';
     this.title.caption = 'Selenejs Chat';

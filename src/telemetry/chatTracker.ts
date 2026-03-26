@@ -1,5 +1,5 @@
 import { IDisposable } from '@lumino/disposable';
-import type { ChatSidebar } from '../sidebar/chat/components/ChatSidebar';
+import type { ChatSidebar } from '../sidebar/chat/ChatSidebar';
 import type { TelemetryService } from './telemetryService';
 
 /**

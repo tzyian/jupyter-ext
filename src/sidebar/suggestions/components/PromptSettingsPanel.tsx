@@ -1,5 +1,5 @@
 import React from 'react';
-import { IPrompt } from '../../../types';
+import { IPrompt } from '../../types';
 import { PromptEditorCard } from '../../components/PromptEditorCard';
 
 interface IPromptSettingsPanelProps {

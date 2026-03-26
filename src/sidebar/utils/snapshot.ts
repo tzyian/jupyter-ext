@@ -8,7 +8,7 @@ import type {
   INotebookCellSnapshot,
   INotebookOutlineItem,
   INotebookSnapshot
-} from '../../types';
+} from '../types';
 
 /**
  * Build a snapshot of the current notebook state.

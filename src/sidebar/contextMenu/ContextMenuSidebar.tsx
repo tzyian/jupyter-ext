@@ -1,14 +1,15 @@
 import { ReactWidget } from '@jupyterlab/apputils';
 import { Menu } from '@lumino/widgets';
 import React from 'react';
-import type { IPrompt } from '../../types';
-import { CommandIDs } from '../commands';
+import type { IPrompt } from '../types';
+import { CommandIDs } from '../../types';
 import { ContextMenuSidebarContent } from './ContextMenuSidebarContent';
 import {
   PROMPT_CATEGORY_CONTEXT_MENU,
   PROMPT_CATEGORY_NOTEBOOK_SNIPPET,
   type ContextMenuView
-} from '../constants';
+} from './constants';
+import { CONTEXT_MENU_SIDEBAR_ID } from '../../types';
 
 export class ContextMenuSidebar extends ReactWidget {
   private _view: ContextMenuView = PROMPT_CATEGORY_CONTEXT_MENU;
@@ -22,7 +23,7 @@ export class ContextMenuSidebar extends ReactWidget {
 
   constructor() {
     super();
-    this.id = 'selenejs-context-menu-sidebar';
+    this.id = CONTEXT_MENU_SIDEBAR_ID;
     this.addClass('jp-selenepy-contextmenu');
     this.title.label = 'Context Menus';
     this.title.caption = 'Selenejs Context Menus';
@@ -63,6 +64,11 @@ export class ContextMenuSidebar extends ReactWidget {
             }
           });
         }
+
+        this._chatMenu.addItem({ type: 'separator' });
+        this._chatMenu.addItem({
+          command: CommandIDs.openContextMenuPromptsConfig
+        });
       }
     }
 
@@ -92,6 +98,11 @@ export class ContextMenuSidebar extends ReactWidget {
             }
           });
         }
+
+        this._snippetMenu.addItem({ type: 'separator' });
+        this._snippetMenu.addItem({
+          command: CommandIDs.openNotebookSnippetsConfig
+        });
       }
     }
   }

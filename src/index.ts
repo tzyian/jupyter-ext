@@ -5,11 +5,12 @@ import {
 } from '@jupyterlab/application';
 import { INotebookTracker } from '@jupyterlab/notebook';
 import { IStatusBar } from '@jupyterlab/statusbar';
+import { ICommandPalette } from '@jupyterlab/apputils';
 
 import { ISettingRegistry } from '@jupyterlab/settingregistry';
 
 import { registerWordLineStatus } from './widgets/wordlinestatus';
-import { registerSidebars } from './sidebar/register';
+import { registerSidebars } from './register';
 import '../style/index.css';
 
 const plugin: JupyterFrontEndPlugin<void> = {
@@ -17,13 +18,14 @@ const plugin: JupyterFrontEndPlugin<void> = {
   description: 'A JupyterLab extension.',
   autoStart: true,
   requires: [INotebookTracker, IStatusBar],
-  optional: [ISettingRegistry, ILayoutRestorer],
+  optional: [ISettingRegistry, ILayoutRestorer, ICommandPalette],
   activate: (
     app: JupyterFrontEnd,
     tracker: INotebookTracker,
     statusBar: IStatusBar,
     settingRegistry: ISettingRegistry | null,
-    restorer: ILayoutRestorer | null
+    restorer: ILayoutRestorer | null,
+    palette: ICommandPalette | null
   ) => {
     console.log('JupyterLab extension selenejs is activated!');
     registerWordLineStatus(tracker, statusBar);
@@ -33,7 +35,8 @@ const plugin: JupyterFrontEndPlugin<void> = {
       app,
       tracker,
       restorer,
-      settingRegistry
+      settingRegistry,
+      palette
     });
   }
 };

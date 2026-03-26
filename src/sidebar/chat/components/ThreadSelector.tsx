@@ -1,6 +1,6 @@
 import React, { useCallback } from 'react';
 import { showDialog, Dialog } from '@jupyterlab/apputils';
-import type { IChatThread } from '../../../types';
+import type { IChatThread } from '../types';
 import { MdDelete, MdEdit } from 'react-icons/md';
 import { formatLastEdited } from '../../../utils/formatting';
 

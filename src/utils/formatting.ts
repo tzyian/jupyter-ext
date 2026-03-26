@@ -56,3 +56,23 @@ export function formatLastEdited(timestampSeconds: number): string {
 
   return new Date(timestampMs).toLocaleDateString();
 }
+export function formatMessageTime(timestamp?: number): string {
+  if (
+    timestamp === null ||
+    timestamp === undefined ||
+    !Number.isFinite(timestamp)
+  ) {
+    return '--';
+  }
+
+  const asMs = timestamp < 1000000000000 ? timestamp * 1000 : timestamp;
+  const date = new Date(asMs);
+  const day = date.getDate();
+  const month = date.toLocaleString('en-US', { month: 'short' });
+  const time = date.toLocaleTimeString('en-US', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true
+  });
+  return `${day} ${month}, ${time}`;
+}

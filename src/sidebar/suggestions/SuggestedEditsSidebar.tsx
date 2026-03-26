@@ -2,11 +2,13 @@ import { ReactWidget } from '@jupyterlab/apputils';
 import { Signal, type ISignal } from '@lumino/signaling';
 import React from 'react';
 
-import type { IResolvedSuggestion, SuggestionScanMode } from '../../types';
+import type { SuggestionScanMode } from '../types';
+import type { IResolvedSuggestion } from './types';
 import { SuggestedEditsPanel } from './components/SuggestedEditsPanel';
 import { PromptSettingsPanel } from './components/PromptSettingsPanel';
 import { usePrompts } from '../hooks/usePrompts';
 import { SidebarLayout } from '../components/SidebarLayout';
+import { SUGGESTIONS_SIDEBAR_ID } from '../../types';
 
 /**
  * Sidebar widget for displaying LLM suggested edits, backed by React.
@@ -14,8 +16,10 @@ import { SidebarLayout } from '../components/SidebarLayout';
 export class SuggestedEditsSidebar extends ReactWidget {
   constructor() {
     super();
-    this.id = 'selenejs-suggested-edits-sidebar';
+    this.id = SUGGESTIONS_SIDEBAR_ID;
     this.addClass('jp-selenepy-suggestedEdits');
+    this.title.label = 'Suggestions';
+    this.title.caption = 'LLM Suggested Edits';
   }
 
   private _status = '';

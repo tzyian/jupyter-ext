@@ -1,5 +1,5 @@
 import * as diff from 'diff';
-import type { IReadonlyDiffSegment } from '../../types';
+import type { IReadonlyDiffSegment } from '../types';
 
 /**
  * Build diff segments between original and replacement text.

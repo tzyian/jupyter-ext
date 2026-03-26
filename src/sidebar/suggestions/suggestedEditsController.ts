@@ -3,13 +3,15 @@ import { Debouncer } from '@lumino/polling';
 import type { NotebookPanel, INotebookTracker } from '@jupyterlab/notebook';
 import type {
   INotebookSnapshot,
-  IResolvedSuggestion,
-  ISuggestion,
   ISuggestedEditsSettings,
   SuggestionScanMode,
-  SuggestionStreamEvent,
   INotebookCellSnapshot
-} from '../../types';
+} from '../types';
+import type {
+  IResolvedSuggestion,
+  ISuggestion,
+  SuggestionStreamEvent
+} from './types';
 import { SuggestedEditsSidebar } from './SuggestedEditsSidebar';
 import { streamSuggestions } from '../api';
 import { buildSnapshot } from '../utils/snapshot';

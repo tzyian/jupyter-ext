@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { IPrompt, PromptCategory } from '../../types';
+import { IPrompt, PromptCategory } from '../types';
 import { fetchPrompts, savePrompt, deletePrompt } from '../api';
 
 export interface IUsePrompts {

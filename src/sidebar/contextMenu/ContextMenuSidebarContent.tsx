@@ -1,7 +1,7 @@
 import React, { useMemo, useEffect } from 'react';
 import { SidebarLayout } from '../components/SidebarLayout';
 import { PromptManagerView } from '../components/PromptManagerView';
-import type { IPrompt, PromptCategory } from '../../types';
+import type { IPrompt, PromptCategory } from '../types';
 import { usePrompts } from '../hooks/usePrompts';
 import {
   CONTEXT_MENU_OPTION_LABEL,
@@ -14,7 +14,7 @@ import {
   PROMPT_CATEGORY_NOTEBOOK_SNIPPET,
   SELECT_SNIPPET_LABEL,
   type ContextMenuView
-} from '../constants';
+} from './constants';
 
 const VIEW_OPTIONS: Array<{ value: ContextMenuView; label: string }> = [
   { value: PROMPT_CATEGORY_CONTEXT_MENU, label: CONTEXT_MENU_OPTION_LABEL },
