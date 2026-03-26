@@ -76,6 +76,19 @@
   margin-top: 4px;
   min-width: 0;
   overflow-wrap: anywhere;
+  line-height: 1.35;
+}
+
+.jp-selenepy-chatMessage-body > :first-child,
+.jp-selenepy-chatThought-content > :first-child,
+.jp-selenepy-chatToolCall-input > :first-child {
+  margin-top: 0;
+}
+
+.jp-selenepy-chatMessage-body > :last-child,
+.jp-selenepy-chatThought-content > :last-child,
+.jp-selenepy-chatToolCall-input > :last-child {
+  margin-bottom: 0;
 }
 
 .jp-selenepy-chatMessage-body p,
@@ -84,8 +97,19 @@
 .jp-selenepy-chatThought-content li,
 .jp-selenepy-chatToolCall-input p,
 .jp-selenepy-chatToolCall-input li {
+  margin: 0.25em 0;
   overflow-wrap: anywhere;
   word-break: break-word;
+}
+
+.jp-selenepy-chatMessage-body ul,
+.jp-selenepy-chatMessage-body ol,
+.jp-selenepy-chatThought-content ul,
+.jp-selenepy-chatThought-content ol,
+.jp-selenepy-chatToolCall-input ul,
+.jp-selenepy-chatToolCall-input ol {
+  margin: 0.35em 0;
+  padding-inline-start: 1.25em;
 }
 
 .jp-selenepy-chatMessage-body pre,
