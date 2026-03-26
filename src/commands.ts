@@ -1,6 +1,7 @@
 import type { JupyterFrontEnd } from '@jupyterlab/application';
 import { SuggestedEditsSidebar } from './sidebar/suggestions/SuggestedEditsSidebar';
 import type { ChatSidebar } from './sidebar/chat/ChatSidebar';
+import { IChatController } from './sidebar/chat/chatController';
 import type { ContextMenuSidebar } from './sidebar/contextMenu/ContextMenuSidebar';
 import type { TelemetrySidebar } from './sidebar/dashboard/TelemetrySidebar';
 import { Menu, type Widget } from '@lumino/widgets';
@@ -12,6 +13,7 @@ import {
   PROMPT_CATEGORY_CONTEXT_MENU,
   PROMPT_CATEGORY_NOTEBOOK_SNIPPET
 } from './sidebar/contextMenu/constants';
+import { ContextMenuController } from './sidebar/contextMenu/ContextMenuController';
 import { CommandIDs } from './types';
 
 const PALETTE_CATEGORY = 'SelenePy';
@@ -28,6 +30,7 @@ export function registerCommands(
   suggestionsSidebar: SuggestedEditsSidebar,
   telemetrySidebar: TelemetrySidebar,
   chatSidebar: ChatSidebar,
+  chatController: IChatController,
   contextMenuSidebar: ContextMenuSidebar,
   tracker: INotebookTracker,
   palette: ICommandPalette | null = null
@@ -78,7 +81,7 @@ export function registerCommands(
       isEnabled: () => !chatSidebar.isDisposed,
       execute: () => {
         openPanel(app, chatSidebar, SIDEBAR_PANEL_RANKS.chat);
-        chatSidebar.openPromptManager(PROMPT_CATEGORY_CHAT_SYSTEM);
+        chatController.openPromptManager(PROMPT_CATEGORY_CHAT_SYSTEM);
       }
     });
   }
@@ -135,7 +138,7 @@ export function registerCommands(
 
         openPanel(app, chatSidebar, SIDEBAR_PANEL_RANKS.chat);
 
-        await chatSidebar.executeContextMenuPrompt(promptContent);
+        await chatController.executeContextMenuPrompt(promptContent);
       }
     });
 
@@ -174,7 +177,13 @@ export function registerCommands(
       rank: 11.1
     });
 
-    contextMenuSidebar.setMenus(chatMenu, snippetMenu);
+    const contextMenuController = new ContextMenuController(
+      chatMenu,
+      snippetMenu
+    );
+    contextMenuSidebar.promptsChanged.connect((_, prompts) => {
+      contextMenuController.onPromptsChanged(prompts);
+    });
   }
 
   if (!app.commands.hasCommand(CommandIDs.insertNotebookSnippet)) {

@@ -1,25 +1,19 @@
 import { ReactWidget } from '@jupyterlab/apputils';
-import { Menu } from '@lumino/widgets';
+import { Signal } from '@lumino/signaling';
 import React from 'react';
-import type { IPrompt } from '../types';
-import { CommandIDs } from '../../types';
 import { ContextMenuSidebarContent } from './ContextMenuSidebarContent';
 import {
   PROMPT_CATEGORY_CONTEXT_MENU,
-  PROMPT_CATEGORY_NOTEBOOK_SNIPPET,
   type ContextMenuView
 } from './constants';
 import { CONTEXT_MENU_SIDEBAR_ID } from '../../types';
 
 export class ContextMenuSidebar extends ReactWidget {
+  public readonly promptsChanged = new Signal<this, any[]>(this);
+
   private _view: ContextMenuView = PROMPT_CATEGORY_CONTEXT_MENU;
   private _selectedContextMenuId = '__CREATE_NEW__';
   private _selectedNotebookSnippetId = '__CREATE_NEW__';
-  private _prompts: IPrompt[] = [];
-
-  private _chatMenu: Menu | null = null;
-  private _snippetMenu: Menu | null = null;
-  private _menuFingerprints = { chat: '', snippet: '' };
 
   constructor() {
     super();
@@ -29,82 +23,6 @@ export class ContextMenuSidebar extends ReactWidget {
     this.title.caption = 'Selenejs Context Menus';
     // Using a list-like icon for context menus
     this.title.iconClass = 'jp-SpreadsheetIcon';
-  }
-
-  public setMenus(chatMenu: Menu, snippetMenu: Menu) {
-    this._chatMenu = chatMenu;
-    this._snippetMenu = snippetMenu;
-    this._updateMenus();
-  }
-
-  private _updateMenus() {
-    if (this._chatMenu) {
-      const chatPrompts = this._prompts.filter(
-        p => p.category === PROMPT_CATEGORY_CONTEXT_MENU
-      );
-      const chatFingerprint = chatPrompts
-        .map(
-          p =>
-            `${p.id}:${p.name}:${p.description ?? ''}:${p.content}:${
-              p.category ?? ''
-            }`
-        )
-        .join('|');
-
-      if (chatFingerprint !== this._menuFingerprints.chat) {
-        this._menuFingerprints.chat = chatFingerprint;
-        this._chatMenu.clearItems();
-        for (const p of chatPrompts) {
-          this._chatMenu.addItem({
-            command: CommandIDs.chatAboutThis,
-            args: {
-              promptName: p.name,
-              promptDescription: p.description || '',
-              promptContent: p.content
-            }
-          });
-        }
-
-        this._chatMenu.addItem({ type: 'separator' });
-        this._chatMenu.addItem({
-          command: CommandIDs.openContextMenuPromptsConfig
-        });
-      }
-    }
-
-    if (this._snippetMenu) {
-      const snippetPrompts = this._prompts.filter(
-        p => p.category === PROMPT_CATEGORY_NOTEBOOK_SNIPPET
-      );
-      const snippetFingerprint = snippetPrompts
-        .map(
-          p =>
-            `${p.id}:${p.name}:${p.description ?? ''}:${p.content}:${
-              p.category ?? ''
-            }`
-        )
-        .join('|');
-
-      if (snippetFingerprint !== this._menuFingerprints.snippet) {
-        this._menuFingerprints.snippet = snippetFingerprint;
-        this._snippetMenu.clearItems();
-        for (const p of snippetPrompts) {
-          this._snippetMenu.addItem({
-            command: CommandIDs.insertNotebookSnippet,
-            args: {
-              promptName: p.name,
-              promptDescription: p.description || '',
-              promptContent: p.content
-            }
-          });
-        }
-
-        this._snippetMenu.addItem({ type: 'separator' });
-        this._snippetMenu.addItem({
-          command: CommandIDs.openNotebookSnippetsConfig
-        });
-      }
-    }
   }
 
   public openPromptManager(view: ContextMenuView) {
@@ -131,8 +49,7 @@ export class ContextMenuSidebar extends ReactWidget {
           this.update();
         }}
         onPromptsChanged={prompts => {
-          this._prompts = prompts;
-          this._updateMenus();
+          this.promptsChanged.emit(prompts);
         }}
       />
     );

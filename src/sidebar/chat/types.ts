@@ -1,3 +1,6 @@
+import type { ISignal } from '@lumino/signaling';
+import { IPrompt, ISuggestedEditsSettings } from '../types';
+
 export type ToolInput = string | Record<string, unknown>;
 
 export interface IToolCall {
@@ -19,6 +22,20 @@ export interface IChatMessage {
   readonly timestamp?: number;
   readonly thoughts?: IChatThoughts[];
   readonly toolCalls?: IToolCall[];
+}
+
+export interface IChatState {
+  messages: IChatMessage[];
+  threads: IChatThread[];
+  activeThreadId: string | null;
+  threadsLoaded: boolean;
+  isStreaming: boolean;
+  view: any; // ChatSidebarView from constants
+  selectedSnippetId: string;
+  selectedSystemPromptId: string;
+  prompts: IPrompt[];
+  cellContext: { cellNumber: number; excerpt?: string } | null;
+  settings: ISuggestedEditsSettings | null;
 }
 
 export type IChatThoughtList = IChatThoughts[] | undefined;
@@ -67,3 +84,14 @@ export type ChatStreamEvent =
       readonly name: string;
       readonly status: 'done';
     };
+export interface IChatSidebarSignals {
+  messageSent: ISignal<IChatSidebarSignals, { isContextMenu: boolean }>;
+  chatCleared: ISignal<IChatSidebarSignals, void>;
+  chatStopped: ISignal<IChatSidebarSignals, void>;
+  metricsReceived: ISignal<
+    IChatSidebarSignals,
+    { tokensUsed: number; tokensSent: number; messagesSent: number }
+  >;
+  threadCreated: ISignal<IChatSidebarSignals, { threadId: string }>;
+  threadDeleted: ISignal<IChatSidebarSignals, { threadId: string }>;
+}

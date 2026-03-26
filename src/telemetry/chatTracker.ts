@@ -1,5 +1,5 @@
 import { IDisposable } from '@lumino/disposable';
-import type { ChatSidebar } from '../sidebar/chat/ChatSidebar';
+import type { IChatController } from '../sidebar/chat/chatController';
 import type { TelemetryService } from './telemetryService';
 
 /**
@@ -9,15 +9,15 @@ export class ChatTelemetryTracker implements IDisposable {
   private _disposed = false;
 
   constructor(
-    private readonly _sidebar: ChatSidebar,
+    private readonly _controller: IChatController,
     private readonly _telemetry: TelemetryService
   ) {
-    this._sidebar.messageSent.connect(this._onMessageSent, this);
-    this._sidebar.metricsReceived.connect(this._onMetricsReceived, this);
-    this._sidebar.chatCleared.connect(this._onChatCleared, this);
-    this._sidebar.chatStopped.connect(this._onChatStopped, this);
-    this._sidebar.threadCreated.connect(this._onThreadCreated, this);
-    this._sidebar.threadDeleted.connect(this._onThreadDeleted, this);
+    this._controller.messageSent.connect(this._onMessageSent, this);
+    this._controller.metricsReceived.connect(this._onMetricsReceived, this);
+    this._controller.chatCleared.connect(this._onChatCleared, this);
+    this._controller.chatStopped.connect(this._onChatStopped, this);
+    this._controller.threadCreated.connect(this._onThreadCreated, this);
+    this._controller.threadDeleted.connect(this._onThreadDeleted, this);
   }
 
   get isDisposed(): boolean {
@@ -30,16 +30,16 @@ export class ChatTelemetryTracker implements IDisposable {
     }
     this._disposed = true;
 
-    this._sidebar.messageSent.disconnect(this._onMessageSent, this);
-    this._sidebar.metricsReceived.disconnect(this._onMetricsReceived, this);
-    this._sidebar.chatCleared.disconnect(this._onChatCleared, this);
-    this._sidebar.chatStopped.disconnect(this._onChatStopped, this);
-    this._sidebar.threadCreated.disconnect(this._onThreadCreated, this);
-    this._sidebar.threadDeleted.disconnect(this._onThreadDeleted, this);
+    this._controller.messageSent.disconnect(this._onMessageSent, this);
+    this._controller.metricsReceived.disconnect(this._onMetricsReceived, this);
+    this._controller.chatCleared.disconnect(this._onChatCleared, this);
+    this._controller.chatStopped.disconnect(this._onChatStopped, this);
+    this._controller.threadCreated.disconnect(this._onThreadCreated, this);
+    this._controller.threadDeleted.disconnect(this._onThreadDeleted, this);
   }
 
   private _onMessageSent = (
-    _: ChatSidebar,
+    _: IChatController,
     args: { isContextMenu: boolean }
   ): void => {
     this._telemetry.logEvent('ChatMessageSentEvent', {
@@ -48,7 +48,7 @@ export class ChatTelemetryTracker implements IDisposable {
   };
 
   private _onMetricsReceived = (
-    _: ChatSidebar,
+    _: IChatController,
     args: { tokensUsed: number; tokensSent: number; messagesSent: number }
   ): void => {
     this._telemetry.logEvent('ChatMetricsEvent', args);
@@ -63,7 +63,7 @@ export class ChatTelemetryTracker implements IDisposable {
   };
 
   private _onThreadCreated = (
-    _: ChatSidebar,
+    _: IChatController,
     args: { threadId: string }
   ): void => {
     this._telemetry.logEvent('ChatThreadCreatedEvent', {
@@ -72,7 +72,7 @@ export class ChatTelemetryTracker implements IDisposable {
   };
 
   private _onThreadDeleted = (
-    _: ChatSidebar,
+    _: IChatController,
     args: { threadId: string }
   ): void => {
     this._telemetry.logEvent('ChatThreadDeletedEvent', {

@@ -15,6 +15,7 @@ import {
 } from './telemetry';
 import { TelemetrySidebar } from './sidebar/dashboard/TelemetrySidebar';
 import { ChatSidebar } from './sidebar/chat/ChatSidebar';
+import { ChatController, IChatController } from './sidebar/chat/chatController';
 import { ContextMenuSidebar } from './sidebar/contextMenu/ContextMenuSidebar';
 import {
   CHAT_SIDEBAR_ID,
@@ -33,6 +34,7 @@ export interface ISuggestedEditsSidebarRegistration {
   readonly chatSidebar: ChatSidebar;
   readonly contextMenuSidebar: ContextMenuSidebar;
   readonly controller: SuggestedEditsController;
+  readonly chatController: IChatController;
   readonly telemetryService: TelemetryService;
   readonly notebookTracker: NotebookTelemetryTracker;
   readonly sidebarTracker: SidebarTelemetryTracker;
@@ -75,8 +77,14 @@ export function registerSidebars(options: {
 
   const telemetrySidebar = new TelemetrySidebar(telemetryService);
 
-  const chatSidebar = new ChatSidebar(tracker);
-  const chatTracker = new ChatTelemetryTracker(chatSidebar, telemetryService);
+  const chatSidebar = new ChatSidebar();
+  const chatController = new ChatController(chatSidebar, tracker);
+  chatSidebar.setController(chatController);
+
+  const chatTracker = new ChatTelemetryTracker(
+    chatController,
+    telemetryService
+  );
 
   const contextMenuSidebar = new ContextMenuSidebar();
 
@@ -85,6 +93,7 @@ export function registerSidebars(options: {
     suggestionsSidebar,
     telemetrySidebar,
     chatSidebar,
+    chatController,
     contextMenuSidebar,
     tracker,
     palette
@@ -113,9 +122,9 @@ export function registerSidebars(options: {
   void loadSettings(
     settingRegistry,
     controller,
+    chatController,
     pluginId,
-    suggestionsSidebar,
-    chatSidebar
+    suggestionsSidebar
   );
 
   return {
@@ -123,6 +132,7 @@ export function registerSidebars(options: {
     chatSidebar,
     contextMenuSidebar,
     controller,
+    chatController,
     telemetryService,
     notebookTracker,
     sidebarTracker,

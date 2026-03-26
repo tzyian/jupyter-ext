@@ -1,9 +1,8 @@
 import type { ISettingRegistry } from '@jupyterlab/settingregistry';
-import { ChatSidebar } from '../sidebar/chat/ChatSidebar';
 import { SuggestedEditsController } from '../sidebar/suggestions/suggestedEditsController';
-import { SuggestedEditsSidebar } from '../sidebar/suggestions/SuggestedEditsSidebar';
 import { defaultSettings } from '../sidebar/utils/defaults';
 import type { ISuggestedEditsSettings } from '../sidebar/types';
+import { IChatController } from '../sidebar/chat/chatController';
 
 /**
  * Load settings from the setting registry.
@@ -11,16 +10,14 @@ import type { ISuggestedEditsSettings } from '../sidebar/types';
 export async function loadSettings(
   registry: ISettingRegistry | null,
   controller: SuggestedEditsController,
+  chatController: IChatController,
   pluginId: string,
-  sidebar: SuggestedEditsSidebar,
-  chatSidebar: ChatSidebar
 ): Promise<void> {
   const merged = defaultSettings();
 
   if (!registry) {
     controller.updateSettings(merged);
-    sidebar.setHasApiKey(!!merged.openaiApiKey);
-    chatSidebar.setSettings(merged);
+    chatController.setSettings(merged);
     return;
   }
 
@@ -34,8 +31,7 @@ export async function loadSettings(
         ...composite
       };
       controller.updateSettings(resolved);
-      sidebar.setHasApiKey(!!resolved.openaiApiKey);
-      chatSidebar.setSettings(resolved);
+      chatController.setSettings(resolved);
     };
 
     settings.changed.connect(applySettings);
@@ -43,7 +39,6 @@ export async function loadSettings(
   } catch (error) {
     console.error('Failed to load selenejs settings.', error);
     controller.updateSettings(merged);
-    sidebar.setHasApiKey(!!merged.openaiApiKey);
-    chatSidebar.setSettings(merged);
+    chatController.setSettings(merged);
   }
 }
