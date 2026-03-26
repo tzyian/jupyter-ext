@@ -31,3 +31,14 @@ export interface IResolvedSuggestion extends ISuggestion {
   readonly originalSource: string;
   readonly diffSegments: IReadonlyDiffSegment[];
 }
+
+export interface ISuggestedEditsState {
+  status: string;
+  isPaused: boolean;
+  hasApiKey: boolean;
+  localSuggestions: (IResolvedSuggestion | null)[];
+  globalSuggestion: IResolvedSuggestion | null;
+  selectedLocalPromptId: string;
+  selectedGlobalPromptId: string;
+  view: 'home' | 'settings';
+}
