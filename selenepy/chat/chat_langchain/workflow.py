@@ -12,10 +12,10 @@ from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import END, START, StateGraph
 from pydantic import SecretStr
 
-from selenepy.chat_langchain.models import RouterClassification, WorkflowEventKind
+from .models import RouterClassification, WorkflowEventKind
+from ...utils.logging import get_logger
+from ...utils.openai_config import resolve_openai_api_key
 
-from ..logging import get_logger
-from ..openai_config import resolve_openai_api_key
 from .models import AgentNode, AgentState, Intent
 from .prompts import (
     NOTEBOOK_EDITOR_SYSTEM,

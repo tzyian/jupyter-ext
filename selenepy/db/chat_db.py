@@ -4,8 +4,8 @@ import uuid
 from pathlib import Path
 from typing import Optional
 
-from .logging import get_logger
-from .paths import get_chat_db_path
+from ..utils.logging import get_logger
+from ..utils.paths import get_chat_db_path
 
 LOGGER = get_logger(__name__)
 

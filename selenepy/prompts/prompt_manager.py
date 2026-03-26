@@ -4,9 +4,11 @@ import uuid
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from selenepy.paths import get_prompts_db_path
-from selenepy.prompts import DEFAULT_PROMPTS, LOGGER, SAMPLE_PROMPTS
+from selenepy.prompts.prompts import DEFAULT_PROMPTS, SAMPLE_PROMPTS
+from selenepy.utils.logging import get_logger
+from selenepy.utils.paths import get_prompts_db_path
 
+logger = get_logger(__name__)
 
 class PromptManager:
     """Manages custom system prompts, storing them in a SQLite database."""
@@ -66,7 +68,7 @@ class PromptManager:
 
             conn.commit()
 
-        LOGGER.info(f"[PromptManager] Initialized database at {self.db_path}")
+        logger.info(f"[PromptManager] Initialized database at {self.db_path}")
 
     def _seed_samples(self) -> None:
         """Seed the database with sample prompts if they don't exist."""
@@ -99,7 +101,7 @@ class PromptManager:
                     )
 
             conn.commit()
-            LOGGER.info("[PromptManager] Finished seeding/syncing sample prompts")
+            logger.info("[PromptManager] Finished seeding/syncing sample prompts")
 
     def get_all_prompts(self) -> List[Dict[str, Any]]:
         """Get all prompts including the default ones."""
@@ -210,7 +212,7 @@ class PromptManager:
             )
             conn.commit()
 
-            LOGGER.info(f"[PromptManager] Created new prompt: {new_id}")
+            logger.info(f"[PromptManager] Created new prompt: {new_id}")
 
             return {
                 "id": new_id,
@@ -233,6 +235,6 @@ class PromptManager:
             deleted = cursor.rowcount > 0
 
         if deleted:
-            LOGGER.info(f"[PromptManager] Deleted prompt: {prompt_id}")
+            logger.info(f"[PromptManager] Deleted prompt: {prompt_id}")
 
         return deleted

@@ -1,8 +1,3 @@
-from .logging import get_logger
-from .suggestions.models import SYSTEM_PROMPT as DEFAULT_SYSTEM_PROMPT
-
-LOGGER = get_logger(__name__)
-
 # This module is a backend prompt registry consumed by PromptManager.
 # Frontend features like notebook snippets, context menu prompts, chat snippets,
 # and suggested edits read prompts via API endpoints backed by PromptManager/DB,
@@ -14,6 +9,21 @@ LOGGER = get_logger(__name__)
 # - chat_snippet: Reusable snippets inserted into chat input.
 # - notebook_snippet: Right-click notebook snippet insertion menu.
 # - context_menu: Right-click LLM prompt actions (chat-about-this menu).
+
+DEFAULT_SYSTEM_PROMPT = """
+"You review Jupyter notebooks and propose clear, actionable edits. "
+    "Return only JSON matching the provided schema. "
+    "In order of priority:"
+    "1) Conceptual errors"
+    "2) Code correctness issues"
+    "3) Missing explanations of key concepts"
+    "4) Code efficiency improvements"
+    "5) Comments which could improve code clarity"
+    "Each suggestion must target one cell, cite its index, summarize the change, "
+    "and provide replacement cell source text that implements the edit. "
+    "Avoid repetitive or generic advice; tailor each suggestion to the supplied "
+    "context and current focus."
+"""
 
 DEFAULT_PROMPTS = [
     {

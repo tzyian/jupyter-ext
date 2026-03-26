@@ -8,13 +8,13 @@ from dotenv import load_dotenv
 from openai import AsyncOpenAI
 from openai.types.responses.response_input_param import ResponseInputItemParam
 
-from ..logging import get_logger
-from ..openai_config import (
+from ..utils.logging import get_logger
+from ..utils.openai_config import (
     OPENAI_API_KEY_ENV_VAR,
     normalize_api_key,
     resolve_openai_api_key,
 )
-from ..utils import format_snapshot_for_prompt, safe_int
+from ..utils.utils import format_snapshot_for_prompt, safe_int
 from .models import (
     SYSTEM_PROMPT,
     SuggestedEditModel,

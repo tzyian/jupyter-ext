@@ -1,4 +1,4 @@
-from selenepy import utils
+from selenepy.utils import utils
 
 
 def test_safe_int():
