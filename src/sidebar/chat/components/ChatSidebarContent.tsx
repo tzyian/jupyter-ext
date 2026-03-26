@@ -1,7 +1,6 @@
 import React, { useMemo, useEffect } from 'react';
 import { ChatPanel } from './ChatPanel';
-import type { IChatMessage, IChatThread } from '../types';
-import type { ISuggestedEditsSettings, IPrompt } from '../../types';
+import type { IPrompt } from '../../types';
 import { usePrompts } from '../../hooks/usePrompts';
 import { ThreadSelector } from './ThreadSelector';
 import { SidebarLayout } from '../../components/SidebarLayout';
@@ -17,47 +16,31 @@ import {
   PROMPT_CATEGORY_CHAT_SNIPPET,
   PROMPT_CATEGORY_CHAT_SYSTEM,
   SELECT_SNIPPET_LABEL,
-  type ChatPromptManagerView,
-  type ChatSidebarView
+  type ChatPromptManagerView
 } from '../constants';
+import { IChatController } from '../chatController';
+import { useChatStore } from '../useChatStore';
+import { useSettingsStore } from '../../../stores/useSettingsStore';
 
 interface IChatSidebarContentProps {
-  view: ChatSidebarView;
-  messages: IChatMessage[];
-  isStreaming: boolean;
-  settings: ISuggestedEditsSettings | null;
-  selectedSnippetId: string;
-  threads: IChatThread[];
-  activeThreadId: string | null;
-  threadsLoaded: boolean;
-  onViewChange: (v: ChatPromptManagerView | typeof CHAT_VIEW_CHAT) => void;
-  onSendMessage: (msg: string) => void;
-  onClear: () => void;
-  onStop: () => void;
-  onSelectSnippet: (id: string) => void;
-  onSelectSystemPrompt: (id: string) => void;
-  onPromptsChanged: (prompts: IPrompt[]) => void;
-  onSelectThread: (id: string) => void;
-  onCreateThread: () => void;
-  onDeleteThread: () => void;
-  onRenameThread: () => void;
-  cellContext: { cellNumber: number; excerpt?: string } | null;
-  selectedSystemPromptId: string;
-  lastResponseDuration?: number;
-  onUpdateResponseDuration: (duration: number) => void;
+  controller: IChatController;
 }
 
 /**
- * Functional component for the Chat sidebar that uses hooks for state management.
+ * Functional component for the Chat sidebar that uses Zustand for state management.
  */
-export const ChatSidebarContent: React.FC<IChatSidebarContentProps> = props => {
-  const promptCategories = useMemo(() => CHAT_PROMPT_CATEGORIES, []);
+export const ChatSidebarContent: React.FC<IChatSidebarContentProps> = ({
+  controller
+}) => {
+  const state = useChatStore();
+  const { settings } = useSettingsStore();
 
+  const promptCategories = useMemo(() => CHAT_PROMPT_CATEGORIES, []);
   const { prompts } = usePrompts(promptCategories);
 
   useEffect(() => {
-    props.onPromptsChanged(prompts);
-  }, [prompts]);
+    controller.handlePromptsChanged(prompts);
+  }, [prompts, controller]);
 
   const snippets = prompts.filter(
     (p: IPrompt) => p.category === PROMPT_CATEGORY_CHAT_SNIPPET
@@ -65,9 +48,11 @@ export const ChatSidebarContent: React.FC<IChatSidebarContentProps> = props => {
 
   return (
     <SidebarLayout
-      view={props.view}
+      view={state.view}
       onViewChange={val =>
-        props.onViewChange(val as typeof CHAT_VIEW_CHAT | ChatPromptManagerView)
+        controller.handleViewChange(
+          val as typeof CHAT_VIEW_CHAT | ChatPromptManagerView
+        )
       }
       options={[
         { value: CHAT_VIEW_CHAT, label: 'Chat' },
@@ -81,57 +66,62 @@ export const ChatSidebarContent: React.FC<IChatSidebarContentProps> = props => {
         }
       ]}
     >
-      {props.view === CHAT_VIEW_CHAT && (
+      {state.view === CHAT_VIEW_CHAT && (
         <>
           <ThreadSelector
-            threads={props.threads}
-            activeThreadId={props.activeThreadId}
-            threadsLoaded={props.threadsLoaded}
-            isStreaming={props.isStreaming}
-            onSelectThread={props.onSelectThread}
-            onCreateThread={props.onCreateThread}
-            onDeleteThread={props.onDeleteThread}
-            onRenameThread={props.onRenameThread}
+            threads={state.threads}
+            activeThreadId={state.activeThreadId}
+            threadsLoaded={state.threadsLoaded}
+            isStreaming={state.isStreaming}
+            onSelectThread={id => void controller.handleSelectThread(id)}
+            onCreateThread={() => void controller.handleCreateThread()}
+            onDeleteThread={() => void controller.handleDeleteActiveThread()}
+            onRenameThread={() => void controller.handleRenameActiveThread()}
           />
           <ChatPanel
-            messages={props.messages}
-            isStreaming={props.isStreaming}
-            onSendMessage={props.onSendMessage}
-            onClear={props.onClear}
-            onStop={props.onStop}
-            hasApiKey={!!props.settings?.openaiApiKey}
-            openaiApiKey={props.settings?.openaiApiKey}
+            messages={state.messages}
+            isStreaming={state.isStreaming}
+            onSendMessage={msg => void controller.handleSendMessage(msg)}
+            onClear={() => controller.handleClear()}
+            onStop={() => controller.handleStop()}
+            hasApiKey={!!settings?.openaiApiKey}
+            openaiApiKey={settings?.openaiApiKey}
             snippets={snippets}
             onOpenSnippetEditor={() => {
-              props.onSelectSnippet('__CREATE_NEW__');
-              props.onViewChange(PROMPT_CATEGORY_CHAT_SNIPPET);
+              controller.handleSelectSnippet('__CREATE_NEW__');
+              controller.handleViewChange(PROMPT_CATEGORY_CHAT_SNIPPET);
             }}
-            cellContext={props.cellContext}
-            lastResponseDuration={props.lastResponseDuration}
-            onUpdateResponseDuration={props.onUpdateResponseDuration}
-            activeThreadId={props.activeThreadId}
-            settings={props.settings}
+            cellContext={state.cellContext}
+            lastResponseDuration={
+              state.threads.find(t => t.id === state.activeThreadId)
+                ?.lastResponseDuration
+            }
+            onUpdateResponseDuration={d =>
+              void controller.handleUpdateResponseDuration(d)
+            }
+            activeThreadId={state.activeThreadId}
+            settings={settings}
           />
         </>
       )}
 
-      {props.view === PROMPT_CATEGORY_CHAT_SYSTEM && (
+      {state.view === PROMPT_CATEGORY_CHAT_SYSTEM && (
         <PromptManagerView
           title={CHAT_SYSTEM_PROMPTS_TITLE}
           category={PROMPT_CATEGORY_CHAT_SYSTEM}
-          selectedPromptId={props.selectedSystemPromptId}
-          onSelectPrompt={props.onSelectSystemPrompt}
+          selectedPromptId={state.selectedSystemPromptId}
+          onSelectPrompt={id => controller.handleSelectSystemPrompt(id)}
           createNewLabel={CREATE_NEW_SYSTEM_PROMPT_LABEL}
           selectLabel="Select System Prompt:"
         />
       )}
 
-      {props.view === PROMPT_CATEGORY_CHAT_SNIPPET && (
+      {state.view === PROMPT_CATEGORY_CHAT_SNIPPET && (
         <PromptManagerView
           title={CHAT_SNIPPETS_TITLE}
           category={PROMPT_CATEGORY_CHAT_SNIPPET}
-          selectedPromptId={props.selectedSnippetId}
-          onSelectPrompt={props.onSelectSnippet}
+          selectedPromptId={state.selectedSnippetId}
+          onSelectPrompt={id => controller.handleSelectSnippet(id)}
           showDescription={false}
           createNewLabel="➕ Create New Snippet..."
           selectLabel={SELECT_SNIPPET_LABEL}

@@ -15,6 +15,8 @@ import { IChatState, ChatStreamEvent } from './types';
 import { IPrompt, ISuggestedEditsSettings, INotebookSnapshot } from '../types';
 import { buildSnapshot } from '../utils/snapshot';
 import { CHAT_VIEW_CHAT, ChatSidebarView } from './constants';
+import { useChatStore } from './useChatStore';
+import { useSettingsStore } from '../../stores/useSettingsStore';
 
 export interface IChatController extends IDisposable {
   readonly state: IChatState;
@@ -46,16 +48,9 @@ export interface IChatController extends IDisposable {
   openPromptManager(view: any): void;
 }
 
-export interface IChatSidebar {
-  setState(state: IChatState): void;
-  update(): void;
-}
-
 export class ChatController implements IChatController {
-  private _state: IChatState;
   private _tracker: INotebookTracker | null;
   private _abortController: AbortController | null = null;
-  private _settings: ISuggestedEditsSettings | null = null;
   private _disposed = false;
 
   private readonly _messageSent = new Signal<
@@ -77,24 +72,8 @@ export class ChatController implements IChatController {
     { threadId: string }
   >(this);
 
-  constructor(
-    private readonly _sidebar: IChatSidebar,
-    tracker?: INotebookTracker
-  ) {
+  constructor(tracker?: INotebookTracker) {
     this._tracker = tracker || null;
-    this._state = {
-      messages: [],
-      threads: [],
-      activeThreadId: null,
-      threadsLoaded: false,
-      isStreaming: false,
-      view: CHAT_VIEW_CHAT,
-      selectedSnippetId: '__CREATE_NEW__',
-      selectedSystemPromptId: 'default_chat_system',
-      prompts: [],
-      cellContext: null,
-      settings: null
-    };
 
     if (this._tracker) {
       this._tracker.currentChanged.connect(this._onNotebookChanged, this);
@@ -117,7 +96,7 @@ export class ChatController implements IChatController {
   }
 
   get state(): IChatState {
-    return this._state;
+    return useChatStore.getState();
   }
 
   get isDisposed(): boolean {
@@ -163,19 +142,12 @@ export class ChatController implements IChatController {
     Signal.clearData(this);
   }
 
-  private _updateState(partial: Partial<IChatState>): void {
-    this._state = { ...this._state, ...partial };
-    this._sidebar.setState(this._state);
-  }
-
   private _onNotebookChanged(): void {
     this._updateCellContext();
-    this._sidebar.update(); // Trigger re-render if needed
   }
 
   private _onActiveCellChanged(): void {
     this._updateCellContext();
-    this._sidebar.update();
   }
 
   private _onDocumentSelectionChange = (): void => {
@@ -193,86 +165,97 @@ export class ChatController implements IChatController {
       notebookNode.contains(focusNode)
     ) {
       this._updateCellContext();
-      this._sidebar.update();
     }
   };
 
   private _updateCellContext(): void {
     const widget = this._tracker?.currentWidget;
+    const { setCellContext } = useChatStore.getState();
+
     if (!widget) {
-      this._updateState({ cellContext: null });
+      setCellContext(null);
       return;
     }
     const cellNumber = (widget.content.activeCellIndex ?? 0) + 1;
     const snapshot = this._getSnapshot();
     const rawSelected = snapshot?.activeCellContext?.selectedText;
     if (!rawSelected) {
-      this._updateState({ cellContext: { cellNumber } });
+      setCellContext({ cellNumber });
       return;
     }
     const flat = rawSelected.replace(/\n/g, ' ').trim();
     const excerpt = flat.length > 80 ? `${flat.slice(0, 80)}\u2026` : flat;
-    this._updateState({ cellContext: { cellNumber, excerpt } });
+    setCellContext({ cellNumber, excerpt });
   }
 
   private _getSnapshot(): INotebookSnapshot | null {
     if (!this._tracker || !this._tracker.currentWidget) {
       return null;
     }
-    const maxChars = this._settings?.maxCellCharacters ?? 10000;
+    const settings = useSettingsStore.getState().settings;
+    const maxChars = settings?.maxCellCharacters ?? 10000;
     return buildSnapshot(this._tracker.currentWidget, maxChars);
   }
 
   private async _loadThreads(): Promise<void> {
+    const { setThreads, setThreadsLoaded } = useChatStore.getState();
     try {
       const threads = await fetchThreads();
-      this._updateState({ threads, threadsLoaded: true });
-      if (!this._state.activeThreadId && threads.length > 0) {
+      setThreads(threads);
+      setThreadsLoaded(true);
+      if (!this.state.activeThreadId && threads.length > 0) {
         await this.handleSelectThread(threads[0].id);
       }
     } catch (err) {
       console.error('Failed to load chat threads', err);
-      this._updateState({ threadsLoaded: true });
+      setThreadsLoaded(true);
     }
   }
 
   private async _refreshThreads(): Promise<void> {
+    const { setThreads, setActiveThreadId, setThreadsLoaded } =
+      useChatStore.getState();
     try {
       const threads = await fetchThreads();
-      let activeThreadId = this._state.activeThreadId;
+      let activeThreadId = this.state.activeThreadId;
       if (activeThreadId && !threads.some(t => t.id === activeThreadId)) {
         activeThreadId = threads.length > 0 ? threads[0].id : null;
       }
-      this._updateState({ threads, activeThreadId, threadsLoaded: true });
+      setThreads(threads);
+      setActiveThreadId(activeThreadId);
+      setThreadsLoaded(true);
     } catch (err) {
       console.error('Failed to refresh chat threads', err);
     }
   }
 
   async handleSelectThread(threadId: string): Promise<void> {
-    if (this._state.isStreaming) {
+    const { isStreaming, setActiveThreadId, setMessages } =
+      useChatStore.getState();
+    if (isStreaming) {
       return;
     }
-    this._updateState({ activeThreadId: threadId, messages: [] });
+    setActiveThreadId(threadId);
+    setMessages([]);
     try {
       const messages = await fetchThreadMessages(threadId);
-      this._updateState({ messages });
+      setMessages(messages);
     } catch (err) {
       console.error('Failed to load thread messages', err);
     }
   }
 
   async handleCreateThread(): Promise<void> {
-    if (this._state.isStreaming) {
+    const { isStreaming, setThreads, setActiveThreadId, setMessages, threads } =
+      useChatStore.getState();
+    if (isStreaming) {
       return;
     }
     try {
       const thread = await createThread();
-      this._updateState({
-        threads: [thread, ...this._state.threads],
-        activeThreadId: thread.id,
-        messages: []
-      });
+      setThreads([thread, ...threads]);
+      setActiveThreadId(thread.id);
+      setMessages([]);
       this._threadCreated.emit({ threadId: thread.id });
     } catch (err) {
       console.error('Failed to create thread', err);
@@ -280,18 +263,29 @@ export class ChatController implements IChatController {
   }
 
   async handleDeleteActiveThread(): Promise<void> {
-    if (!this._state.activeThreadId || this._state.isStreaming) {
+    const {
+      activeThreadId,
+      isStreaming,
+      threads,
+      setActiveThreadId,
+      setMessages,
+      setThreads
+    } = useChatStore.getState();
+    if (!activeThreadId || isStreaming) {
       return;
     }
-    const idToDelete = this._state.activeThreadId;
+    const idToDelete = activeThreadId;
     try {
       await deleteThread(idToDelete);
-      const threads = this._state.threads.filter(t => t.id !== idToDelete);
+      const filteredThreads = threads.filter(t => t.id !== idToDelete);
       this._threadDeleted.emit({ threadId: idToDelete });
-      const activeThreadId = threads.length > 0 ? threads[0].id : null;
-      this._updateState({ threads, activeThreadId, messages: [] });
-      if (activeThreadId) {
-        await this.handleSelectThread(activeThreadId);
+      const newActiveId =
+        filteredThreads.length > 0 ? filteredThreads[0].id : null;
+      setThreads(filteredThreads);
+      setActiveThreadId(newActiveId);
+      setMessages([]);
+      if (newActiveId) {
+        await this.handleSelectThread(newActiveId);
       }
     } catch (err) {
       console.error('Failed to delete thread', err);
@@ -299,12 +293,12 @@ export class ChatController implements IChatController {
   }
 
   async handleRenameActiveThread(): Promise<void> {
-    if (!this._state.activeThreadId || this._state.isStreaming) {
+    const { activeThreadId, isStreaming, threads, setThreads } =
+      useChatStore.getState();
+    if (!activeThreadId || isStreaming) {
       return;
     }
-    const currentThread = this._state.threads.find(
-      t => t.id === this._state.activeThreadId
-    );
+    const currentThread = threads.find(t => t.id === activeThreadId);
     if (!currentThread) {
       return;
     }
@@ -321,11 +315,11 @@ export class ChatController implements IChatController {
     ) {
       const newTitle = result.value.trim();
       try {
-        await renameThread(this._state.activeThreadId, newTitle);
-        const threads = this._state.threads.map(t =>
-          t.id === this._state.activeThreadId ? { ...t, title: newTitle } : t
+        await renameThread(activeThreadId, newTitle);
+        const updatedThreads = threads.map(t =>
+          t.id === activeThreadId ? { ...t, title: newTitle } : t
         );
-        this._updateState({ threads });
+        setThreads(updatedThreads);
       } catch (err) {
         console.error('Failed to rename thread', err);
       }
@@ -333,8 +327,9 @@ export class ChatController implements IChatController {
   }
 
   setSettings(settings: ISuggestedEditsSettings): void {
-    this._settings = settings;
-    this._updateState({ settings });
+    // Note: useSettingsStore is now the source of truth for settings,
+    // but we keep this for compatibility during migration if needed.
+    useSettingsStore.getState().setSettings(settings);
   }
 
   private _buildContextMenuMessage(promptText: string): string {
@@ -359,12 +354,14 @@ export class ChatController implements IChatController {
   }
 
   async executePrompt(promptText: string): Promise<void> {
-    this._updateState({ view: CHAT_VIEW_CHAT });
+    const { setView } = useChatStore.getState();
+    setView(CHAT_VIEW_CHAT);
     await this.handleSendMessage(promptText);
   }
 
   async executeContextMenuPrompt(promptText: string): Promise<void> {
-    this._updateState({ view: CHAT_VIEW_CHAT });
+    const { setView } = useChatStore.getState();
+    setView(CHAT_VIEW_CHAT);
     await this.handleSendMessage(
       this._buildContextMenuMessage(promptText),
       true
@@ -375,11 +372,21 @@ export class ChatController implements IChatController {
     content: string,
     isContextMenu = false
   ): Promise<void> {
+    const {
+      messages,
+      setStreaming,
+      setMessages,
+      selectedSystemPromptId,
+      prompts,
+      activeThreadId
+    } = useChatStore.getState();
+    const settings = useSettingsStore.getState().settings;
+
     this._messageSent.emit({ isContextMenu });
     const userMsgTimestamp = Date.now() / 1000;
     const userMsgId = Date.now().toString();
-    const messages = [...this._state.messages];
-    messages.push({
+    const newMessages = [...messages];
+    newMessages.push({
       id: userMsgId,
       role: 'user',
       content,
@@ -387,24 +394,24 @@ export class ChatController implements IChatController {
     });
 
     const agentMsgId = (Date.now() + 1).toString();
-    messages.push({
+    newMessages.push({
       id: agentMsgId,
       role: 'ai',
       content: '',
       timestamp: Date.now() / 1000
     });
 
-    this._updateState({ messages, isStreaming: true });
+    setMessages(newMessages);
+    setStreaming(true);
     this._abortController = new AbortController();
 
     try {
-      const systemPromptId = this._state.selectedSystemPromptId;
-      const promptObj = this._state.prompts.find(p => p.id === systemPromptId);
+      const promptObj = prompts.find(p => p.id === selectedSystemPromptId);
       const systemPromptContent = promptObj
         ? promptObj.content
         : 'You are a helpful coding assistant.';
       const settingsWithResolvedPrompt = {
-        ...(this._settings || {}),
+        ...(settings || {}),
         chatSystemPrompt: systemPromptContent
       } as ISuggestedEditsSettings;
 
@@ -413,7 +420,7 @@ export class ChatController implements IChatController {
         this._getSnapshot(),
         settingsWithResolvedPrompt,
         this._abortController.signal,
-        this._state.activeThreadId ?? undefined
+        activeThreadId ?? undefined
       );
 
       for await (const event of stream) {
@@ -422,27 +429,27 @@ export class ChatController implements IChatController {
     } catch (err: any) {
       if (err.name !== 'AbortError') {
         console.error('Failed to stream chat:', err);
-        const msgs = [...this._state.messages];
+        const msgs = [...useChatStore.getState().messages];
         const aiMsg = msgs[msgs.length - 1];
         if (aiMsg && aiMsg.role === 'ai') {
           msgs[msgs.length - 1] = {
             ...aiMsg,
             content: aiMsg.content + `\n[Stream Error: ${err.message}]`
           };
-          this._updateState({ messages: msgs });
+          setMessages(msgs);
         }
       }
     } finally {
-      this._updateState({ isStreaming: false });
+      setStreaming(false);
       this._abortController = null;
-      if (this._state.activeThreadId) {
+      if (useChatStore.getState().activeThreadId) {
         void this._refreshThreads();
       }
     }
   }
 
   private _processStreamEvent(event: ChatStreamEvent): void {
-    const messages = [...this._state.messages];
+    const { messages, updateLastMessage } = useChatStore.getState();
     const aiMsg = messages[messages.length - 1];
     if (!aiMsg || aiMsg.role !== 'ai') {
       return;
@@ -450,11 +457,9 @@ export class ChatController implements IChatController {
 
     switch (event.type) {
       case 'chunk':
-        messages[messages.length - 1] = {
-          ...aiMsg,
+        updateLastMessage({
           content: aiMsg.content + event.content
-        };
-        this._updateState({ messages });
+        });
         break;
       case 'intermediate_chunk': {
         const thoughts = aiMsg.thoughts ? [...aiMsg.thoughts] : [];
@@ -469,8 +474,7 @@ export class ChatController implements IChatController {
         } else {
           thoughts.push({ agent: agentId, content: event.content });
         }
-        messages[messages.length - 1] = { ...aiMsg, thoughts };
-        this._updateState({ messages });
+        updateLastMessage({ thoughts });
         break;
       }
       case 'tool_call': {
@@ -480,8 +484,7 @@ export class ChatController implements IChatController {
           input: event.input,
           status: 'active'
         });
-        messages[messages.length - 1] = { ...aiMsg, toolCalls };
-        this._updateState({ messages });
+        updateLastMessage({ toolCalls });
         break;
       }
       case 'tool_result': {
@@ -495,17 +498,14 @@ export class ChatController implements IChatController {
             break;
           }
         }
-        messages[messages.length - 1] = { ...aiMsg, toolCalls };
-        this._updateState({ messages });
+        updateLastMessage({ toolCalls });
         break;
       }
       case 'error':
         console.error('Chat error:', event.message);
-        messages[messages.length - 1] = {
-          ...aiMsg,
+        updateLastMessage({
           content: aiMsg.content + `\n[Error: ${event.message}]`
-        };
-        this._updateState({ messages });
+        });
         break;
       case 'metrics':
         this._metricsReceived.emit(event);
@@ -514,28 +514,30 @@ export class ChatController implements IChatController {
   }
 
   handleClear(): void {
+    const { clearChat, activeThreadId } = useChatStore.getState();
     if (this._abortController) {
       this._abortController.abort();
     }
     this._chatCleared.emit(void 0);
-    this._updateState({ messages: [], isStreaming: false });
-    if (this._state.activeThreadId) {
-      void this.handleSelectThread(this._state.activeThreadId);
+    clearChat();
+    if (activeThreadId) {
+      void this.handleSelectThread(activeThreadId);
     }
   }
 
   handleStop(): void {
+    const { setStreaming } = useChatStore.getState();
     if (this._abortController) {
       this._abortController.abort();
       this._abortController = null;
     }
     this._chatStopped.emit(void 0);
     this._markStoppedOnLastAssistantMessage();
-    this._updateState({ isStreaming: false });
+    setStreaming(false);
   }
 
   private _markStoppedOnLastAssistantMessage(): void {
-    const messages = [...this._state.messages];
+    const { messages, updateLastMessage } = useChatStore.getState();
     const aiMsg = messages[messages.length - 1];
     if (!aiMsg || aiMsg.role !== 'ai') {
       return;
@@ -547,47 +549,46 @@ export class ChatController implements IChatController {
       return;
     }
 
-    messages[messages.length - 1] = {
-      ...aiMsg,
+    updateLastMessage({
       content: trimmed ? `${trimmed}\n${marker}` : marker
-    };
-    this._updateState({ messages });
+    });
   }
 
   handleViewChange(view: ChatSidebarView): void {
-    this._updateState({ view });
+    useChatStore.getState().setView(view);
   }
 
   handleSelectSnippet(id: string): void {
-    this._updateState({ selectedSnippetId: id });
+    useChatStore.getState().setSelectedSnippetId(id);
   }
 
   handleSelectSystemPrompt(id: string): void {
-    this._updateState({ selectedSystemPromptId: id });
+    useChatStore.getState().setSelectedSystemPromptId(id);
   }
 
   handlePromptsChanged(prompts: IPrompt[]): void {
-    this._updateState({ prompts });
+    const { setPrompts, selectedSystemPromptId, setSelectedSystemPromptId } =
+      useChatStore.getState();
+    setPrompts(prompts);
     const hasSelectedSystemPrompt = prompts.some(
-      p => p.id === this._state.selectedSystemPromptId
+      p => p.id === selectedSystemPromptId
     );
     if (!hasSelectedSystemPrompt) {
-      this._updateState({ selectedSystemPromptId: 'default_chat_system' });
+      setSelectedSystemPromptId('default_chat_system');
     }
   }
 
   async handleUpdateResponseDuration(duration: number): Promise<void> {
-    if (this._state.activeThreadId) {
+    const { activeThreadId, threads, setThreads } = useChatStore.getState();
+    if (activeThreadId) {
       try {
-        await updateThread(this._state.activeThreadId, {
+        await updateThread(activeThreadId, {
           lastResponseDuration: duration
         });
-        const threads = this._state.threads.map(t =>
-          t.id === this._state.activeThreadId
-            ? { ...t, lastResponseDuration: duration }
-            : t
+        const updatedThreads = threads.map(t =>
+          t.id === activeThreadId ? { ...t, lastResponseDuration: duration } : t
         );
-        this._updateState({ threads });
+        setThreads(updatedThreads);
       } catch (err) {
         console.error('Failed to update response duration', err);
       }
@@ -595,6 +596,6 @@ export class ChatController implements IChatController {
   }
 
   openPromptManager(view: any): void {
-    this._updateState({ view });
+    useChatStore.getState().setView(view);
   }
 }

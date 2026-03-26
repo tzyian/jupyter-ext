@@ -4,7 +4,6 @@ import type { ICommandPalette } from '@jupyterlab/apputils';
 import type { ISettingRegistry } from '@jupyterlab/settingregistry';
 
 import { SuggestedEditsController } from './sidebar/suggestions/suggestedEditsController';
-import { defaultSettings } from './sidebar/utils/defaults';
 import { SuggestedEditsSidebar } from './sidebar/suggestions/SuggestedEditsSidebar';
 import { registerCommands } from './commands';
 import {
@@ -25,6 +24,7 @@ import {
   TELEMETRY_SIDEBAR_ID
 } from './types';
 import { loadSettings } from './utils/loadSettings';
+import { initNotebookStore } from './stores/useNotebookStore';
 
 /**
  * Registration result for the suggested edits sidebar.
@@ -56,11 +56,7 @@ export function registerSidebars(options: {
   // Suggestions
   const suggestionsSidebar = new SuggestedEditsSidebar();
 
-  const controller = new SuggestedEditsController(
-    tracker,
-    suggestionsSidebar,
-    defaultSettings()
-  );
+  const controller = new SuggestedEditsController(tracker, suggestionsSidebar);
 
   // Initialize telemetry system
   const telemetryService = new TelemetryService();
@@ -78,7 +74,7 @@ export function registerSidebars(options: {
   const telemetrySidebar = new TelemetrySidebar(telemetryService);
 
   const chatSidebar = new ChatSidebar();
-  const chatController = new ChatController(chatSidebar, tracker);
+  const chatController = new ChatController(tracker);
   chatSidebar.setController(chatController);
 
   const chatTracker = new ChatTelemetryTracker(
@@ -119,13 +115,10 @@ export function registerSidebars(options: {
     rank: SIDEBAR_PANEL_RANKS.contextMenus
   });
 
-  void loadSettings(
-    settingRegistry,
-    controller,
-    chatController,
-    pluginId,
-    suggestionsSidebar
-  );
+  // Initialize global stores
+  initNotebookStore(tracker);
+
+  void loadSettings(settingRegistry, pluginId);
 
   return {
     sidebar: suggestionsSidebar,

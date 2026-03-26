@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { IPrompt, PromptCategory } from '../types';
 import { fetchPrompts, savePrompt, deletePrompt } from '../api';
+import { usePromptStore } from './usePromptStore';
 
 export interface IUsePrompts {
   prompts: IPrompt[];
@@ -26,8 +27,15 @@ export interface IUsePrompts {
 export function usePrompts(
   categoryFilter?: PromptCategory | PromptCategory[]
 ): IUsePrompts {
-  const [prompts, setPrompts] = useState<IPrompt[]>([]);
-  const [loading, setLoading] = useState(true);
+  const {
+    prompts: allPrompts,
+    setPrompts,
+    addPrompt,
+    updatePromptInStore,
+    removePromptFromStore
+  } = usePromptStore();
+
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const normalizedCategories = useMemo(() => {
@@ -39,36 +47,34 @@ export function usePrompts(
       : [categoryFilter];
   }, [categoryFilter]);
 
-  const categoryKey = useMemo(() => {
+  const prompts = useMemo(() => {
     if (!normalizedCategories) {
-      return '__ALL__';
+      return allPrompts;
     }
-    return normalizedCategories.join('|');
-  }, [normalizedCategories]);
+    const categories = normalizedCategories;
+    return allPrompts.filter(
+      p => !!p.category && categories.includes(p.category)
+    );
+  }, [allPrompts, normalizedCategories]);
 
   const refresh = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
       const all = await fetchPrompts();
-      if (normalizedCategories) {
-        const categories = normalizedCategories;
-        setPrompts(
-          all.filter(p => !!p.category && categories.includes(p.category))
-        );
-      } else {
-        setPrompts(all);
-      }
+      setPrompts(all);
     } catch (err: any) {
       setError(err.message || 'Failed to fetch prompts');
     } finally {
       setLoading(false);
     }
-  }, [categoryKey, normalizedCategories]);
+  }, [setPrompts]);
 
   useEffect(() => {
-    void refresh();
-  }, [refresh]);
+    if (allPrompts.length === 0) {
+      void refresh();
+    }
+  }, [allPrompts.length, refresh]);
 
   const updatePrompt = async (
     name: string,
@@ -78,8 +84,8 @@ export function usePrompts(
     category?: PromptCategory
   ) => {
     try {
-      await savePrompt(name, content, id, description, category);
-      await refresh();
+      const p = await savePrompt(name, content, id, description, category);
+      updatePromptInStore(p);
     } catch (err: any) {
       setError(err.message || 'Failed to update prompt');
       throw err;
@@ -100,7 +106,7 @@ export function usePrompts(
         description,
         category
       );
-      await refresh();
+      addPrompt(p);
       return p.id;
     } catch (err: any) {
       setError(err.message || 'Failed to create prompt');
@@ -111,7 +117,7 @@ export function usePrompts(
   const removePrompt = async (id: string) => {
     try {
       await deletePrompt(id);
-      await refresh();
+      removePromptFromStore(id);
     } catch (err: any) {
       setError(err.message || 'Failed to delete prompt');
       throw err;

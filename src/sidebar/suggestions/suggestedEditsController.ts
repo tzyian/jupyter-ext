@@ -10,27 +10,33 @@ import type {
 import type {
   IResolvedSuggestion,
   ISuggestion,
-  SuggestionStreamEvent
+  SuggestionStreamEvent,
+  ISuggestedEditsState
 } from './types';
 import { SuggestedEditsSidebar } from './SuggestedEditsSidebar';
 import { streamSuggestions } from '../api';
 import { buildSnapshot } from '../utils/snapshot';
 import { buildDiffSegments } from '../utils/diff';
-import {
-  INotebookSignals,
-  NotebookSignalGroup
-} from '../../telemetry/notebookSignals';
-import { ISuggestedEditsState } from './types';
+import { NotebookSignalGroup } from '../../telemetry/notebookSignals';
+import { useSuggestedEditsStore } from './useSuggestedEditsStore';
+import { useSettingsStore } from '../../stores/useSettingsStore';
 
 /**
  * Controller for the suggested edits sidebar.
  * Orchestrates notebook tracking, suggestion streaming, and UI updates.
  */
 export class SuggestedEditsController implements IDisposable {
+  private _notebookSignals: NotebookSignalGroup | null = null;
+  private _debouncer: Debouncer;
+  private _currentAbort: AbortController | null = null;
+  private _lastSnapshot: INotebookSnapshot | null = null;
+  private _activeMode: SuggestionScanMode = 'context';
+  private _isPaused = false;
+  private _disposed = false;
+
   constructor(
     private readonly _tracker: INotebookTracker,
-    private readonly _panel: SuggestedEditsSidebar,
-    private _settings: ISuggestedEditsSettings
+    private readonly _panel: SuggestedEditsSidebar
   ) {
     this._panel.refreshContextRequested.connect(
       this.handleContextRefresh,
@@ -48,21 +54,17 @@ export class SuggestedEditsController implements IDisposable {
       this.attachNotebook(this._tracker.currentWidget);
     }
 
+    const settings = useSettingsStore.getState().settings;
     this._debouncer = new Debouncer(() => {
       void this.refresh('context');
-    }, this._settings.debounceMs);
+    }, settings?.debounceMs ?? 1000);
 
-    // Sync initial state to sidebar
-    this._panel.setState(this._state);
+    // Initial state sync (though store handles defaults)
+    useSuggestedEditsStore.getState().setHasApiKey(!!settings?.openaiApiKey);
   }
 
   get state(): ISuggestedEditsState {
-    return this._state;
-  }
-
-  private updateState(partial: Partial<ISuggestedEditsState>): void {
-    this._state = { ...this._state, ...partial };
-    this._panel.setState(this._state);
+    return useSuggestedEditsStore.getState();
   }
 
   get isDisposed(): boolean {
@@ -92,22 +94,21 @@ export class SuggestedEditsController implements IDisposable {
   }
 
   updateSettings(settings: ISuggestedEditsSettings): void {
-    this._settings = settings;
     if (!settings.autoRefresh) {
       this.cancelPendingStream();
       this.showIdle();
     } else {
       void this._debouncer.invoke();
     }
-    this.updateState({ hasApiKey: !!settings.openaiApiKey });
+    useSuggestedEditsStore.getState().setHasApiKey(!!settings.openaiApiKey);
   }
 
   private showIdle(): void {
-    this.updateState({
-      localSuggestions: [null, null],
-      globalSuggestion: null,
-      status: 'Waiting for notebook activity.'
-    });
+    const { setLocalSuggestions, setGlobalSuggestion, setStatus } =
+      useSuggestedEditsStore.getState();
+    setLocalSuggestions([null, null]);
+    setGlobalSuggestion(null);
+    setStatus('Waiting for notebook activity.');
   }
 
   private handleNotebookChanged(
@@ -124,8 +125,9 @@ export class SuggestedEditsController implements IDisposable {
   }
 
   private attachNotebook(panel: NotebookPanel): void {
+    const settings = useSettingsStore.getState().settings;
     const signals = new NotebookSignalGroup(panel, () => {
-      if (this._settings.autoRefresh) {
+      if (settings?.autoRefresh) {
         this.scheduleRefresh();
       }
     });
@@ -149,34 +151,44 @@ export class SuggestedEditsController implements IDisposable {
   }
 
   async refresh(mode: SuggestionScanMode = 'context'): Promise<void> {
+    const {
+      setStatus,
+      setGlobalSuggestion,
+      selectedGlobalPromptId,
+      selectedLocalPromptId
+    } = useSuggestedEditsStore.getState();
+    const settings = useSettingsStore.getState().settings;
+
     if (!this._notebookSignals || this._isPaused) {
       this.showIdle();
       return;
     }
 
+    if (!settings) {
+      return;
+    }
+
     const { panel } = this._notebookSignals;
-    const snapshot = buildSnapshot(panel, this._settings.maxCellCharacters);
+    const snapshot = buildSnapshot(panel, settings.maxCellCharacters);
     this._lastSnapshot = snapshot;
     this.cancelPendingStream();
     this._activeMode = mode;
-    this.updateState({ status: this.loadingMessageForMode() });
+    setStatus(this.loadingMessageForMode());
 
     const controller = new AbortController();
     this._currentAbort = controller;
 
     const promptId =
-      mode === 'full'
-        ? this._state.selectedGlobalPromptId
-        : this._state.selectedLocalPromptId;
+      mode === 'full' ? selectedGlobalPromptId : selectedLocalPromptId;
 
     if (mode === 'full') {
-      this.updateState({ globalSuggestion: null });
+      setGlobalSuggestion(null);
     }
 
     try {
       for await (const event of streamSuggestions(
         snapshot,
-        this._settings,
+        settings,
         mode,
         promptId,
         controller.signal
@@ -189,7 +201,7 @@ export class SuggestedEditsController implements IDisposable {
         return;
       }
       const message = error instanceof Error ? error.message : 'Unknown error';
-      this.updateState({ status: `Failed to update suggestions: ${message}` });
+      setStatus(`Failed to update suggestions: ${message}`);
     } finally {
       if (this._currentAbort === controller) {
         this._currentAbort = null;
@@ -198,31 +210,34 @@ export class SuggestedEditsController implements IDisposable {
   }
 
   private showComplete(mode: SuggestionScanMode): void {
+    const { globalSuggestion, localSuggestions, setStatus } =
+      useSuggestedEditsStore.getState();
     if (mode === 'full') {
-      const status = this._state.globalSuggestion
+      const status = globalSuggestion
         ? 'Global suggestion ready.'
         : 'No global suggestions found.';
-      this.updateState({ status });
+      setStatus(status);
     } else {
-      const status = this._state.localSuggestions.some(s => s !== null)
+      const status = localSuggestions.some(s => s !== null)
         ? 'Latest suggestions ready.'
         : 'No new local suggestions.';
-      this.updateState({ status });
+      setStatus(status);
     }
   }
 
   private processStreamEvent(event: SuggestionStreamEvent): void {
+    const { setStatus } = useSuggestedEditsStore.getState();
     switch (event.type) {
       case 'status':
         if (event.phase === 'started') {
-          this.updateState({ status: this.loadingMessageForMode() });
+          setStatus(this.loadingMessageForMode());
         }
         break;
       case 'suggestion':
         this.handleSuggestionEvent(event.payload);
         break;
       case 'info':
-        this.updateState({ status: event.message });
+        setStatus(event.message);
         break;
       default:
         break;
@@ -232,14 +247,13 @@ export class SuggestedEditsController implements IDisposable {
   private handleSuggestionEvent(
     payload: ISuggestion | IResolvedSuggestion
   ): void {
+    const { setGlobalSuggestion, addLocalSuggestion } =
+      useSuggestedEditsStore.getState();
     const suggestion = this.ensureResolvedSuggestion(payload);
     if (suggestion.contextType === 'global') {
-      this.updateState({ globalSuggestion: suggestion });
+      setGlobalSuggestion(suggestion);
     } else {
-      const local = [...this._state.localSuggestions];
-      local[1] = local[0];
-      local[0] = suggestion;
-      this.updateState({ localSuggestions: local });
+      addLocalSuggestion(suggestion);
     }
   }
 
@@ -247,15 +261,16 @@ export class SuggestedEditsController implements IDisposable {
     _: SuggestedEditsSidebar,
     suggestion: IResolvedSuggestion
   ): void {
+    const { setStatus } = useSuggestedEditsStore.getState();
     const panel = this._notebookSignals?.panel;
     if (!panel || panel.isDisposed) {
-      this.updateState({ status: 'Notebook is no longer available.' });
+      setStatus('Notebook is no longer available.');
       return;
     }
 
     const widgets = panel.content.widgets;
     if (suggestion.cellIndex < 0 || suggestion.cellIndex >= widgets.length) {
-      this.updateState({ status: 'Suggested cell index is out of range.' });
+      setStatus('Suggested cell index is out of range.');
       return;
     }
 
@@ -267,33 +282,20 @@ export class SuggestedEditsController implements IDisposable {
       shared.setSource(normalized);
     });
 
-    this.updateState({ status: 'Suggestion applied!' });
+    setStatus('Suggestion applied!');
   }
 
   public handleDismiss(suggestion: IResolvedSuggestion): void {
-    if (this._state.globalSuggestion?.id === suggestion.id) {
-      this.updateState({ globalSuggestion: null });
-      this.updateStatusAfterRemoval();
-    } else {
-      const idx = this._state.localSuggestions.findIndex(
-        s => s?.id === suggestion.id
-      );
-      if (idx !== -1) {
-        const local = [...this._state.localSuggestions];
-        local.splice(idx, 1);
-        local.push(null);
-        this.updateState({ localSuggestions: local });
-        this.updateStatusAfterRemoval();
-      }
-    }
-  }
+    const { dismissSuggestion, setStatus } = useSuggestedEditsStore.getState();
+    dismissSuggestion(suggestion);
 
-  private updateStatusAfterRemoval(): void {
+    // Check after dismissing
+    const state = useSuggestedEditsStore.getState();
     const hasAny =
-      this._state.localSuggestions.some(s => s !== null) ||
-      this._state.globalSuggestion !== null;
+      state.localSuggestions.some(s => s !== null) ||
+      state.globalSuggestion !== null;
     if (!hasAny) {
-      this.updateState({ status: 'All suggestions dismissed.' });
+      setStatus('All suggestions dismissed.');
     }
   }
 
@@ -314,26 +316,30 @@ export class SuggestedEditsController implements IDisposable {
   }
 
   private handlePauseToggle(_: SuggestedEditsSidebar, __: void): void {
+    const { setPaused, setStatus } = useSuggestedEditsStore.getState();
     this._isPaused = !this._isPaused;
 
     if (this._isPaused) {
       this.cancelPendingStream();
-      this.updateState({ status: 'Paused.', isPaused: true });
+      setPaused(true);
+      setStatus('Paused.');
     } else {
-      this.updateState({ isPaused: false });
+      setPaused(false);
       void this.refresh('context');
     }
   }
 
   public handleViewChange(view: 'home' | 'settings'): void {
-    this.updateState({ view });
+    useSuggestedEditsStore.getState().setView(view);
   }
 
   public handlePromptSelect(mode: SuggestionScanMode, id: string): void {
+    const { setSelectedGlobalPromptId, setSelectedLocalPromptId } =
+      useSuggestedEditsStore.getState();
     if (mode === 'full') {
-      this.updateState({ selectedGlobalPromptId: id });
+      setSelectedGlobalPromptId(id);
     } else {
-      this.updateState({ selectedLocalPromptId: id });
+      setSelectedLocalPromptId(id);
     }
   }
 
@@ -388,23 +394,4 @@ export class SuggestedEditsController implements IDisposable {
   ): void {
     this.handlePromptSelect(mode, id);
   }
-
-  private _notebookSignals: INotebookSignals | null = null;
-  private _debouncer: Debouncer;
-  private _currentAbort: AbortController | null = null;
-  private _lastSnapshot: INotebookSnapshot | null = null;
-  private _activeMode: SuggestionScanMode = 'context';
-  private _isPaused = false;
-  private _disposed = false;
-
-  private _state: ISuggestedEditsState = {
-    status: 'Waiting for notebook activity.',
-    isPaused: false,
-    hasApiKey: false,
-    localSuggestions: [null, null],
-    globalSuggestion: null,
-    selectedLocalPromptId: 'default_local',
-    selectedGlobalPromptId: 'default_global',
-    view: 'home'
-  };
 }

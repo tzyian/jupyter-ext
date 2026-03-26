@@ -1,23 +1,20 @@
 import type { ISettingRegistry } from '@jupyterlab/settingregistry';
-import { SuggestedEditsController } from '../sidebar/suggestions/suggestedEditsController';
 import { defaultSettings } from '../sidebar/utils/defaults';
 import type { ISuggestedEditsSettings } from '../sidebar/types';
-import { IChatController } from '../sidebar/chat/chatController';
+import { useSettingsStore } from '../stores/useSettingsStore';
 
 /**
- * Load settings from the setting registry.
+ * Load settings from the setting registry and sync to Zustand store.
  */
 export async function loadSettings(
   registry: ISettingRegistry | null,
-  controller: SuggestedEditsController,
-  chatController: IChatController,
-  pluginId: string,
+  pluginId: string
 ): Promise<void> {
+  const settingsStore = useSettingsStore.getState();
   const merged = defaultSettings();
 
   if (!registry) {
-    controller.updateSettings(merged);
-    chatController.setSettings(merged);
+    settingsStore.setSettings(merged);
     return;
   }
 
@@ -30,15 +27,13 @@ export async function loadSettings(
         ...defaultSettings(),
         ...composite
       };
-      controller.updateSettings(resolved);
-      chatController.setSettings(resolved);
+      settingsStore.setSettings(resolved);
     };
 
     settings.changed.connect(applySettings);
     applySettings();
   } catch (error) {
     console.error('Failed to load selenejs settings.', error);
-    controller.updateSettings(merged);
-    chatController.setSettings(merged);
+    settingsStore.setSettings(merged);
   }
 }

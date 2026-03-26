@@ -1,20 +1,21 @@
 import React from 'react';
-import { IResolvedSuggestion, ISuggestedEditsState } from '../types';
+import { IResolvedSuggestion } from '../types';
 import { SuggestedEditsPanel } from './SuggestedEditsPanel';
 import { PromptSettingsPanel } from './PromptSettingsPanel';
 import { usePrompts } from '../../hooks/usePrompts';
 import { SidebarLayout } from '../../components/SidebarLayout';
+import { useSuggestedEditsStore } from '../useSuggestedEditsStore';
+import { useSettingsStore } from '../../../stores/useSettingsStore';
 
 /**
  * Props for the SuggestedEditsSidebarContent component.
- * Extends ISuggestedEditsState with action callbacks.
  */
-export interface ISuggestedEditsSidebarContentProps extends ISuggestedEditsState {
+export interface ISuggestedEditsSidebarContentProps {
   onRefreshContext: () => void;
   onRefreshFull: () => void;
   onPauseToggle: () => void;
   onApply: (s: IResolvedSuggestion) => void;
-  onDismiss: (s: IResolvedSuggestion, idx?: number) => void;
+  onDismiss: (s: IResolvedSuggestion) => void;
   onOpenSettings: () => void;
   onBack: () => void;
   onSelectLocal: (id: string) => void;
@@ -24,12 +25,14 @@ export interface ISuggestedEditsSidebarContentProps extends ISuggestedEditsState
 export const SuggestedEditsSidebarContent: React.FC<
   ISuggestedEditsSidebarContentProps
 > = props => {
+  const state = useSuggestedEditsStore();
+  const { settings } = useSettingsStore();
   const { prompts, updatePrompt, createPrompt, removePrompt } =
     usePrompts('suggestion');
 
   return (
     <SidebarLayout
-      view={props.view === 'home' ? 'suggestions' : 'settings'}
+      view={state.view === 'home' ? 'suggestions' : 'settings'}
       onViewChange={val => {
         if (val === 'suggestions') {
           props.onBack();
@@ -42,11 +45,11 @@ export const SuggestedEditsSidebarContent: React.FC<
         { value: 'settings', label: 'Manage Prompts' }
       ]}
     >
-      {props.view === 'settings' ? (
+      {state.view === 'settings' ? (
         <PromptSettingsPanel
           prompts={prompts}
-          selectedLocalPromptId={props.selectedLocalPromptId}
-          selectedGlobalPromptId={props.selectedGlobalPromptId}
+          selectedLocalPromptId={state.selectedLocalPromptId}
+          selectedGlobalPromptId={state.selectedGlobalPromptId}
           onSelectLocal={props.onSelectLocal}
           onSelectGlobal={props.onSelectGlobal}
           onUpdatePrompt={updatePrompt}
@@ -56,17 +59,17 @@ export const SuggestedEditsSidebarContent: React.FC<
         />
       ) : (
         <SuggestedEditsPanel
-          status={props.status}
-          isPaused={props.isPaused}
-          localSuggestions={props.localSuggestions}
-          globalSuggestion={props.globalSuggestion}
+          status={state.status}
+          isPaused={state.isPaused}
+          localSuggestions={state.localSuggestions}
+          globalSuggestion={state.globalSuggestion}
           onRefreshContext={props.onRefreshContext}
           onRefreshFull={props.onRefreshFull}
           onPauseToggle={props.onPauseToggle}
           onApply={props.onApply}
           onDismiss={props.onDismiss}
           onOpenSettings={props.onOpenSettings}
-          hasApiKey={props.hasApiKey}
+          hasApiKey={!!settings?.openaiApiKey}
         />
       )}
     </SidebarLayout>
