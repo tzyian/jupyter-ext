@@ -26,8 +26,6 @@ def get_prompts_db_path() -> Path:
 
 
 def get_custom_prompts_json_path() -> Path:
-    # We check if it exists in the current directory first for migration purposes,
-    # but the target location for persistence should be in ~/.selenepy
     return get_selenepy_dir() / "custom_prompts.json"
 
 

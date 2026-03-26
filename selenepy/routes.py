@@ -1,6 +1,7 @@
 import asyncio
 import io
 import json
+import os
 import subprocess
 import sys
 import uuid
@@ -14,8 +15,11 @@ from selenepy.chat_stream_writer import ChatStreamWriter
 
 try:
     from langfuse.openai import OpenAI
-except ImportError:
-    from openai import OpenAI
+except (ImportError, AttributeError):
+    try:
+        from langfuse import OpenAI
+    except ImportError:
+        from openai import OpenAI
 from .chat_db import ChatDB
 from .chat_langchain.service import EducatorNotebookService
 from .logging import get_logger
