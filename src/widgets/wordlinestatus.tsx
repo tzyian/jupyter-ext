@@ -1,22 +1,53 @@
-import { INotebookTracker } from '@jupyterlab/notebook';
+import { INotebookTracker, INotebookModel } from '@jupyterlab/notebook';
 import { IStatusBar } from '@jupyterlab/statusbar';
 import { CodeEditor } from '@jupyterlab/codeeditor';
 import { ReactWidget } from '@jupyterlab/apputils';
 import React from 'react';
 
-class MarkdownWordLineStatus extends ReactWidget {
+/**
+ * Statistics for the current notebook and active cell.
+ */
+interface INotebookSummaryStats {
+  words: number;
+  lines: number;
+  markdownCells: number;
+  codeCells: number;
+  totalCells: number;
+}
+
+const NotebookSummaryComponent = (props: { stats: INotebookSummaryStats }) => {
+  const { stats } = props;
+  const { words, lines, markdownCells, codeCells, totalCells } = stats;
+
+  const pct = (n: number, d: number) => (d > 0 ? Math.round((n / d) * 100) : 0);
+
+  const msg = `Words:${words}, Lines:${lines} | MD:${markdownCells}(${pct(
+    markdownCells,
+    totalCells
+  )}%), PY:${codeCells}(${pct(codeCells, totalCells)}%) Tot:${totalCells}`;
+
+  return <span title="Notebook summary">{msg}</span>;
+};
+
+class NotebookSummaryStatus extends ReactWidget {
   constructor(private tracker: INotebookTracker) {
     super();
     this.addClass('jp-WordLineStatus');
+
     this._onActiveCellChanged = this._onActiveCellChanged.bind(this);
     this._onCurrentNotebookChanged = this._onCurrentNotebookChanged.bind(this);
+
     tracker.activeCellChanged.connect(this._onActiveCellChanged);
     tracker.currentChanged.connect(this._onCurrentNotebookChanged);
+
     this._onCurrentNotebookChanged();
     this._onActiveCellChanged();
   }
 
   dispose(): void {
+    if (this.isDisposed) {
+      return;
+    }
     this._disconnectFromCell();
     this._disconnectFromNotebook();
     this.tracker.activeCellChanged.disconnect(this._onActiveCellChanged);
@@ -35,10 +66,13 @@ class MarkdownWordLineStatus extends ReactWidget {
   }
 
   private _disconnectFromNotebook() {
-    if (this._onCellsChanged && this._cellsList) {
-      this._cellsList.changed.disconnect(this._onCellsChanged, this);
+    if (this._onContentChanged && this._notebookModel) {
+      this._notebookModel.contentChanged.disconnect(
+        this._onContentChanged,
+        this
+      );
     }
-    this._cellsList = null;
+    this._notebookModel = null;
   }
 
   private _onActiveCellChanged() {
@@ -57,66 +91,69 @@ class MarkdownWordLineStatus extends ReactWidget {
   }
 
   private _onCurrentNotebookChanged() {
-    // Reconnect to the current notebook's cell list to track add/remove/type changes
+    // Reconnect to the current notebook's content changed signal
     this._disconnectFromNotebook();
-    const nb = this.tracker.currentWidget?.content as any;
-    const model = nb?.model ?? null;
-    const cells = model?.cells ?? null; // IObservableUndoableList<ICellModel>
+    const panel = this.tracker.currentWidget;
+    const model = panel?.model;
 
-    if (cells && typeof cells.changed?.connect === 'function') {
-      this._cellsList = cells;
-      this._onCellsChanged = () => this.update();
-      cells.changed.connect(this._onCellsChanged, this);
+    if (model) {
+      this._notebookModel = model;
+      this._onContentChanged = () => this.update();
+      model.contentChanged.connect(this._onContentChanged, this);
     }
     this.update();
   }
 
-  render(): JSX.Element {
-    const notebookPanel = this.tracker.currentWidget as any;
-    const nb = notebookPanel?.content;
+  private _calculateStats(): INotebookSummaryStats {
+    const panel = this.tracker.currentWidget;
+    const nb = panel?.content;
     const widgets = nb?.widgets ?? [];
-    const total = widgets.length;
+    const totalCells = widgets.length;
 
     // Count totals
-    let code = 0;
-    let md = 0;
+    let codeCells = 0;
+    let markdownCells = 0;
     for (const w of widgets) {
-      const t = (w.model as any)?.type as string | undefined;
-      if (t === 'code') {
-        code += 1;
-      } else if (t === 'markdown') {
-        md += 1;
+      const type = w.model.type;
+      if (type === 'code') {
+        codeCells += 1;
+      } else if (type === 'markdown') {
+        markdownCells += 1;
       }
     }
 
-    const pct = (n: number, d: number) =>
-      d > 0 ? Math.round((n / d) * 100) : 0;
-
     // Active cell text stats
-    const cell = this.tracker.activeCell as any;
-    const text: string = cell?.editor?.model?.sharedModel?.getSource?.() ?? '';
+    const cell = this.tracker.activeCell;
+    const text: string = cell?.model.sharedModel.getSource() ?? '';
     const trimmed = text.trim();
     const words = trimmed ? trimmed.split(/\s+/).length : 0;
     const lines = text ? text.split(/\r\n|\r|\n/).length : 0;
 
-    // Output format: Words:121|LineCount:5|MD:1(20%)|PY:4(80%)|Tot:5
-    const msg = `Words:${words}, Lines:${lines} | MD:${md}(${pct(md, total)}%), PY:${code}(${pct(code, total)}%) Tot:${total}`;
+    return {
+      words,
+      lines,
+      markdownCells,
+      codeCells,
+      totalCells
+    };
+  }
 
-    return <span title="Notebook summary">{msg}</span>;
+  render(): JSX.Element {
+    const stats = this._calculateStats();
+    return <NotebookSummaryComponent stats={stats} />;
   }
 
   private _editorModel: CodeEditor.IModel | null = null;
   private _onSharedChanged: ((sender: any, change: any) => void) | null = null;
-  private _cellsList: any | null = null;
-  private _onCellsChanged: ((sender: any, change: any) => void) | null = null;
-  // _onCurrentNotebookChanged is a class method; no backing field needed
+  private _notebookModel: INotebookModel | null = null;
+  private _onContentChanged: ((sender: any, change: any) => void) | null = null;
 }
 
 export function registerWordLineStatus(
   tracker: INotebookTracker,
   statusBar: IStatusBar
 ): void {
-  const item = new MarkdownWordLineStatus(tracker);
+  const item = new NotebookSummaryStatus(tracker);
   statusBar.registerStatusItem('selenejs:markdown-word-lines', {
     item,
     align: 'left',
