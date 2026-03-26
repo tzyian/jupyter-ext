@@ -33,6 +33,7 @@ export class SuggestedEditsController implements IDisposable {
   private _activeMode: SuggestionScanMode = 'context';
   private _isPaused = false;
   private _disposed = false;
+  private _unsubscribeSettings: (() => void) | null = null;
 
   constructor(
     private readonly _tracker: INotebookTracker,
@@ -60,7 +61,14 @@ export class SuggestedEditsController implements IDisposable {
     }, settings?.debounceMs ?? 1000);
 
     // Initial state sync (though store handles defaults)
-    useSuggestedEditsStore.getState().setHasApiKey(!!settings?.openaiApiKey);
+    const hasApiKey = !!settings?.openaiApiKey;
+    useSuggestedEditsStore.getState().setHasApiKey(hasApiKey);
+    this._panel.setHasApiKey(hasApiKey);
+
+    // Keep suggestion UI in sync with JupyterLab setting changes.
+    this._unsubscribeSettings = useSettingsStore.subscribe(state => {
+      this.updateSettings(state.settings);
+    });
   }
 
   get state(): ISuggestedEditsState {
@@ -91,6 +99,10 @@ export class SuggestedEditsController implements IDisposable {
     this._tracker.currentChanged.disconnect(this.handleNotebookChanged, this);
     this.cancelPendingStream();
     this._debouncer.dispose();
+    if (this._unsubscribeSettings) {
+      this._unsubscribeSettings();
+      this._unsubscribeSettings = null;
+    }
   }
 
   updateSettings(settings: ISuggestedEditsSettings): void {
@@ -100,7 +112,9 @@ export class SuggestedEditsController implements IDisposable {
     } else {
       void this._debouncer.invoke();
     }
-    useSuggestedEditsStore.getState().setHasApiKey(!!settings.openaiApiKey);
+    const hasApiKey = !!settings.openaiApiKey;
+    useSuggestedEditsStore.getState().setHasApiKey(hasApiKey);
+    this._panel.setHasApiKey(hasApiKey);
   }
 
   private showIdle(): void {

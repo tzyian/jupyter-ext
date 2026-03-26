@@ -57,6 +57,7 @@ export function registerSidebars(options: {
   const suggestionsSidebar = new SuggestedEditsSidebar();
 
   const controller = new SuggestedEditsController(tracker, suggestionsSidebar);
+  suggestionsSidebar.setController(controller);
 
   // Initialize telemetry system
   const telemetryService = new TelemetryService();
