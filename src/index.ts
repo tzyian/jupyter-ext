@@ -9,7 +9,7 @@ import { ICommandPalette } from '@jupyterlab/apputils';
 
 import { ISettingRegistry } from '@jupyterlab/settingregistry';
 
-import { registerWordLineStatus } from './widgets/wordlinestatus';
+import { registerWordLineStatus } from './widgets/WordLineStatus';
 import { registerSidebars } from './register';
 import '../style/index.css';
 

@@ -12,11 +12,15 @@ from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import END, START, StateGraph
 from pydantic import SecretStr
 
-from .models import RouterClassification, WorkflowEventKind
 from ...utils.logging import get_logger
 from ...utils.openai_config import resolve_openai_api_key
-
-from .models import AgentNode, AgentState, Intent
+from .models import (
+    AgentNode,
+    AgentState,
+    Intent,
+    RouterClassification,
+    WorkflowEventKind,
+)
 from .prompts import (
     NOTEBOOK_EDITOR_SYSTEM,
     RESEARCH_SYSTEM,
@@ -458,6 +462,8 @@ class EducatorNotebookWorkflow:
             case Intent.RESEARCH_THEN_EDIT.value:
                 return AgentNode.EDITOR
             case Intent.REPLY.value:
+                return AgentNode.RESPONDER
+            case Intent.CLARIFY.value:
                 return AgentNode.RESPONDER
             case Intent.RESEARCH.value:
                 return AgentNode.RESEARCH
