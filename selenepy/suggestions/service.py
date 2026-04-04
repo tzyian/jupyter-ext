@@ -25,7 +25,7 @@ from .models import (
 LOGGER = get_logger(__name__)
 
 OPENAI_MODEL_ENV_VAR = "OPENAI_MODEL"
-DEFAULT_OPENAI_MODEL = "gpt-4o-mini"
+DEFAULT_OPENAI_MODEL = "gpt-5.4-nano"
 
 load_dotenv()
 

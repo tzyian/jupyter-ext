@@ -39,7 +39,7 @@ class EducatorNotebookWorkflow:
         self.jupyter_tools = jupyter_tools
         self.checkpointer = checkpointer or MemorySaver()
         self.model_name = (
-            os.getenv("OPENAI_MODEL", "gpt-4o-mini").strip() or "gpt-4o-mini"
+            os.getenv("OPENAI_MODEL", "gpt-5-nano").strip() 
         )
 
     @staticmethod
@@ -71,7 +71,7 @@ class EducatorNotebookWorkflow:
         return ctx
 
     def _build_llm(
-        self, config: RunnableConfig | None, temperature: float
+        self, config: RunnableConfig | None, temperature: float, model_name:  str,
     ) -> ChatOpenAI:
         api_key = self._resolve_openai_api_key(config)
         if api_key:
@@ -83,7 +83,7 @@ class EducatorNotebookWorkflow:
         return ChatOpenAI(model=self.model_name, temperature=temperature)
 
     def _build_research_agent(self, config: RunnableConfig | None = None):
-        llm = self._build_llm(config, temperature=0.1)
+        llm = self._build_llm(config, temperature=0.1, model_name="gpt-5-nano")
         user_system_prompt = self._get_system_prompt(config)
         system_prompt = RESEARCH_SYSTEM
         if user_system_prompt:
@@ -100,7 +100,7 @@ class EducatorNotebookWorkflow:
         )
 
     def _build_notebook_editor_agent(self, config: RunnableConfig | None = None):
-        llm = self._build_llm(config, temperature=0.1)
+        llm = self._build_llm(config, temperature=0.1, model_name="gpt-5.4-nano")
         user_system_prompt = self._get_system_prompt(config)
         system_prompt = NOTEBOOK_EDITOR_SYSTEM
         if user_system_prompt:
@@ -198,7 +198,7 @@ class EducatorNotebookWorkflow:
         confidence = 0.55
 
         try:
-            llm = self._build_llm(config, temperature=0)
+            llm = self._build_llm(config, temperature=0, model_name="gpt-5-nano")
             router_llm = llm.with_structured_output(RouterClassification)
             response = await router_llm.ainvoke(
                 [
@@ -233,7 +233,7 @@ class EducatorNotebookWorkflow:
     ) -> AgentState:
         LOGGER.info("Responder agent received state")
 
-        llm = self._build_llm(config, temperature=0.2)
+        llm = self._build_llm(config, temperature=0.2, model_name="gpt-5-nano")
         user_system_prompt = self._get_system_prompt(config)
         system_prompt = RESPONDER_SYSTEM
         if user_system_prompt:
