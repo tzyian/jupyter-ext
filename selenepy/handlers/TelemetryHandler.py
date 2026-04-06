@@ -1,7 +1,10 @@
 import tornado
 from jupyter_server.base.handlers import APIHandler
 
+from pydantic import ValidationError
+
 from selenepy.db.telemetry_db import TelemetryDB
+from selenepy.telemetry.models import TelemetryPayload
 from selenepy.utils.logging import get_logger
 from selenepy.utils.utils import handle_exceptions
 
@@ -19,9 +22,15 @@ class TelemetryHandler(APIHandler):
     @handle_exceptions
     def post(self) -> None:
         """Receive and store telemetry events from the frontend."""
-        body = self.get_json_body() or {}
-        events = body.get("events", [])
+        try:
+            body = self.get_json_body() or {}
+            payload = TelemetryPayload.model_validate(body)
+        except ValidationError as e:
+            self.set_status(400)
+            self.finish({"error": str(e)})
+            return
 
+        events = payload.events
         LOGGER.info(f"[Telemetry] Received {len(events)} events from frontend")
 
         if not events:
@@ -29,7 +38,7 @@ class TelemetryHandler(APIHandler):
             self.finish({"error": "No events provided"})
             return
 
-        count = self.db.insert_events(events)
+        count = self.db.insert_events([event.model_dump(exclude_none=True) for event in events])
         LOGGER.info(f"[Telemetry] Successfully inserted {count} events into database")
         self.finish({"inserted": count})
 

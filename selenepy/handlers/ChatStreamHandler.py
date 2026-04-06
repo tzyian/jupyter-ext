@@ -1,14 +1,17 @@
 import asyncio
 import json
 import uuid
-from typing import Mapping
+
 
 import tornado
 from jupyter_server.base.handlers import APIHandler
 
+from pydantic import ValidationError
+
 from selenepy.chat.writer import ChatStreamWriter
 from selenepy.db.chat_db import ChatDB
 from selenepy.chat.get_chat_langchain_service import get_chat_langchain_service
+from selenepy.chat.models import ChatStreamPayload
 from selenepy.utils.logging import get_logger
 from selenepy.utils.openai_config import resolve_openai_api_key
 from selenepy.utils.sse import set_sse_headers
@@ -34,10 +37,17 @@ class ChatStreamHandler(APIHandler):
         set_sse_headers(self)
 
         body = self.get_json_body() or {}
-        message = body.get("message", "")
-        snapshot = body.get("snapshot")
-        settings = body.get("settings", {})
-        thread_id = body.get("thread_id")
+        try:
+            payload = ChatStreamPayload.model_validate(body)
+        except ValidationError as e:
+            self.set_status(400)
+            self.finish(json.dumps({"error": str(e)}))
+            return
+
+        message = payload.message
+        snapshot = payload.snapshot
+        settings = payload.settings
+        thread_id = payload.thread_id
         thread_id_str = str(thread_id) if thread_id is not None else None
         openai_api_key = resolve_openai_api_key(settings=settings, body=body)
 
@@ -59,9 +69,9 @@ class ChatStreamHandler(APIHandler):
             notebook_path = ""
             notebook_context = ""
             active_cell_index = -1
-            if isinstance(snapshot, Mapping):
-                notebook_path = str(snapshot.get("path", "")).strip()
-                active_cell_index = snapshot.get("activeCellIndex", -1)
+            if snapshot is not None:
+                notebook_path = snapshot.path.strip()
+                active_cell_index = snapshot.activeCellIndex
                 try:
                     notebook_context = format_snapshot_for_prompt(snapshot)
                 except Exception as e:

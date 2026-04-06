@@ -3,7 +3,10 @@ import json
 import tornado
 from jupyter_server.base.handlers import APIHandler
 
+from pydantic import ValidationError
 from selenepy.db.chat_db import ChatDB
+from selenepy.chat.models import ThreadCreatePayload, ThreadUpdatePayload
+
 
 
 class ChatThreadsHandler(APIHandler):
@@ -21,11 +24,15 @@ class ChatThreadsHandler(APIHandler):
     @tornado.web.authenticated
     def post(self):
         """Create a new thread."""
-        body = self.get_json_body() or {}
-        title = body.get("title", "New Chat")
-        thread = self.chat_db.create_thread(title)
-        self.set_status(201)
-        self.finish(json.dumps(thread))
+        try:
+            body = self.get_json_body() or {}
+            payload = ThreadCreatePayload.model_validate(body)
+            thread = self.chat_db.create_thread(payload.title)
+            self.set_status(201)
+            self.finish(json.dumps(thread))
+        except ValidationError as e:
+            self.set_status(400)
+            self.finish(json.dumps({"error": str(e)}))
 
     @tornado.web.authenticated
     def patch(self):
@@ -36,13 +43,19 @@ class ChatThreadsHandler(APIHandler):
             self.finish(json.dumps({"error": "Thread ID is required"}))
             return
 
-        body = self.get_json_body() or {}
-        updates = {}
+        try:
+            body = self.get_json_body() or {}
+            payload = ThreadUpdatePayload.model_validate(body)
+        except ValidationError as e:
+            self.set_status(400)
+            self.finish(json.dumps({"error": str(e)}))
+            return
 
-        if "title" in body:
-            updates["title"] = body["title"]
-        if "last_response_duration" in body:
-            updates["last_response_duration"] = body["last_response_duration"]
+        updates = {}
+        if payload.title is not None:
+            updates["title"] = payload.title
+        if payload.last_response_duration is not None:
+            updates["last_response_duration"] = payload.last_response_duration
 
         if not updates:
             self.set_status(400)

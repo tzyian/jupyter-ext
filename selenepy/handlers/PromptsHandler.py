@@ -3,6 +3,9 @@ import json
 import tornado
 from jupyter_server.base.handlers import APIHandler
 
+from pydantic import ValidationError
+
+from selenepy.prompts.models import PromptPayload
 from selenepy.prompts.prompt_manager import PromptManager
 
 
@@ -19,20 +22,21 @@ class PromptsHandler(APIHandler):
 
     @tornado.web.authenticated
     def post(self):
-        body = self.get_json_body() or {}
-        name = body.get("name")
-        content = body.get("content")
-        prompt_id = body.get("id")
-        description = body.get("description")
-        category = body.get("category", "suggestion")
+        try:
+            body = self.get_json_body() or {}
+            payload = PromptPayload.model_validate(body)
+        except ValidationError as e:
+            self.set_status(400)
+            self.finish(json.dumps({"error": str(e)}))
+            return
 
-        if not name or not content:
+        if not payload.name or not payload.content:
             self.set_status(400)
             self.finish(json.dumps({"error": "Name and content are required"}))
             return
 
         saved_prompt = self.prompt_manager.save_prompt(
-            name, content, prompt_id, description, category
+            payload.name, payload.content, payload.id, payload.description, payload.category
         )
         self.finish(json.dumps(saved_prompt))
 
