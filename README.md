@@ -11,24 +11,26 @@
 7. jupyter lab --port 8888 --IdentityProvider.token MY_TOKEN
 
 All in one step:
+
 - pip install --editable ".[dev,test]" && jupyter server extension enable selenepy && jupyter labextension develop . --overwrite && jlpm run watch
 
-If you get the following error, try  `pip uninstall selenepy` and try again
+If you get the following error, try `pip uninstall selenepy` and try again
 `ERROR: Could not install packages due to an OSError: [Errno 2] No such file or directory: '/jupyterlab-ext/share/jupyter/labextensions/selenejs/install.json'`
 
-To push, use 
+To push, use
+
 1. python -m build
 2. python -m twine upload dist/*
-or
-2. python3 -m twine upload --repository testpypi dist/*
+   or
+3. python3 -m twine upload --repository testpypi dist/*
 
 To test the package from a fresh installation:
+
 1. pip install --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ selenepy
 2. pip install jupyterlab==4.4.1 jupyter-collaboration==4.0.2 jupyter-mcp-tools>=0.1.4 ipykernel
 3. pip uninstall -y pycrdt datalayer_pycrdt
 4. pip install datalayer_pycrdt==0.12.17
 5. jupyter lab --port 8888 --IdentityProvider.token MY_TOKEN
-
 
 # README
 
