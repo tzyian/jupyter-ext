@@ -263,7 +263,7 @@ class TelemetryDB:
                 f"""
                 SELECT SUM(CAST(json_extract(metadata, '$.duration') AS REAL)) as total_away
                 FROM events
-                WHERE type = 'NotebookHiddenEvent' AND {time_filter}
+                WHERE type = 'NotebookVisibleEvent' AND {time_filter}
             """,
                 params,
             )
