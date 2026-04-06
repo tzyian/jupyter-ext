@@ -2,7 +2,7 @@ import asyncio
 import os
 import uuid
 from functools import lru_cache
-from typing import Any, AsyncIterator, Dict, Mapping, Sequence
+from typing import Any, AsyncIterator, Dict, Mapping
 
 from dotenv import load_dotenv
 from openai import AsyncOpenAI
@@ -14,9 +14,9 @@ from ..utils.openai_config import (
     normalize_api_key,
     resolve_openai_api_key,
 )
-from ..utils.utils import format_snapshot_for_prompt, safe_int
+from ..utils.utils import format_snapshot_for_prompt
 from .models import (
-    SYSTEM_PROMPT,
+    NotebookSnapshot,
     SuggestedEditModel,
     SuggestedEditsPayload,
     SuggestionContextType,
@@ -41,14 +41,14 @@ def _get_openai_client() -> AsyncOpenAI:
 
 
 def apply_scan_scope(
-    snapshot: Mapping[str, Any], mode: str, context_window: int
-) -> Mapping[str, Any]:
+    snapshot: NotebookSnapshot, mode: str, context_window: int
+) -> NotebookSnapshot:
     """Limit snapshot content when operating in context-sensitive mode."""
     if mode != "context":
         return snapshot
 
-    cells: Sequence[Mapping[str, Any]] = snapshot.get("cells", []) or []
-    active = safe_int(snapshot.get("activeCellIndex"), 0)
+    cells = snapshot.cells
+    active = snapshot.activeCellIndex
     if not cells:
         return snapshot
 
@@ -56,24 +56,18 @@ def apply_scan_scope(
     start = max(0, active - limit)
     end = active + limit + 1
 
-    def is_in_window(item: Mapping[str, Any], key: str = "cellIndex") -> bool:
-        return start <= safe_int(item.get(key), 0) < end
+    filtered_cells = [cell for cell in cells if start <= cell.cellIndex < end]
+    filtered_outline = [item for item in snapshot.outline if start <= item.cellIndex < end]
 
-    filtered_cells = [cell for cell in cells if is_in_window(cell)]
-    outline: Sequence[Mapping[str, Any]] = snapshot.get("outline", []) or []
-    filtered_outline = [item for item in outline if is_in_window(item)]
-
-    trimmed = dict(snapshot)
-    trimmed["cells"] = filtered_cells
-    trimmed["outline"] = filtered_outline
-    trimmed["scanWindow"] = {"start": start, "end": max(start, end - 1)}
-    return trimmed
+    return snapshot.model_copy(
+        update={"cells": filtered_cells, "outline": filtered_outline}
+    )
 
 
 async def stream_live_suggestions(
-    snapshot: Mapping[str, Any],
+    snapshot: NotebookSnapshot,
     mode: str,
-    system_prompt: str | None = None,
+    system_prompt: str = "",
     openai_api_key: str | None = None,
 ) -> AsyncIterator[Mapping[str, Any]]:
     """Yield structured suggestions from the OpenAI Responses API."""
@@ -91,7 +85,7 @@ async def stream_live_suggestions(
 
     context_type: SuggestionContextType = "local" if mode == "context" else "global"
 
-    current_system_prompt = system_prompt or SYSTEM_PROMPT
+    current_system_prompt = system_prompt
     LOGGER.info("LLM SYSTEM PROMPT: %s...", current_system_prompt[:200])
 
     messages: list[ResponseInputItemParam] = [

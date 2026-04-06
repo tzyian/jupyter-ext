@@ -5,7 +5,6 @@ import { PromptSettingsPanel } from './PromptSettingsPanel';
 import { usePrompts } from '../../hooks/usePrompts';
 import { SidebarLayout } from '../../components/SidebarLayout';
 import { useSuggestedEditsStore } from '../useSuggestedEditsStore';
-import { useSettingsStore } from '../../../stores/useSettingsStore';
 
 /**
  * Props for the SuggestedEditsSidebarContent component.

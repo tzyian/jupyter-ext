@@ -3,8 +3,9 @@
 import functools
 import json
 import traceback
-from typing import Any, Callable, Mapping, Sequence
+from typing import Any, Callable
 
+from selenepy.suggestions.models import NotebookSnapshot
 from .logging import get_logger
 
 LOGGER = get_logger(__name__)
@@ -49,40 +50,37 @@ def trim_text(value: str, limit: int) -> str:
     return text[:limit].rstrip() + "…"
 
 
-def format_snapshot_for_prompt(snapshot: Mapping[str, Any]) -> str:
-    outline: Sequence[Mapping[str, Any]] = snapshot.get("outline", []) or []
-    cells: Sequence[Mapping[str, Any]] = snapshot.get("cells", []) or []
-    active_context: Mapping[str, Any] | None = snapshot.get("activeCellContext")  # type: ignore[assignment]
+def format_snapshot_for_prompt(snapshot: NotebookSnapshot) -> str:
+    outline = snapshot.outline
+    cells = snapshot.cells
+    active_context = snapshot.activeCellContext
 
     lines = [
-        f"Notebook path: {snapshot.get('path', 'unknown')}",
-        f"Active cell index: {snapshot.get('activeCellIndex', 0)}",
+        f"Notebook path: {snapshot.path}",
+        f"Active cell index: {snapshot.activeCellIndex}",
         "--- Outline ---",
     ]
 
     if active_context:
-        cursor_offset = active_context.get("cursorOffset")
+        cursor_offset = active_context.cursorOffset
         if cursor_offset is not None:
             lines.append(f"Cursor offset: {cursor_offset}")
-        selected = str(active_context.get("selectedText", ""))
+        selected = active_context.selectedText
         if selected:
             lines.append(f"Selected text snippet: {selected}")
 
     if outline:
         for item in outline:
-            level = item.get("level", 1)
-            text = str(item.get("text", ""))
-            cell_idx = item.get("cellIndex", 0)
-            lines.append(f"L{level} [Cell {cell_idx}]: {text}")
+            lines.append(f"L{item.level} [Cell {item.cellIndex}]: {item.text}")
     else:
         lines.append("(outline empty)")
 
-    active_idx = safe_int(snapshot.get("activeCellIndex"), 0)
+    active_idx = snapshot.activeCellIndex
     lines.append("\n--- Cells ---")
     for cell in cells:
-        idx = cell.get("cellIndex", 0)
-        cell_type = cell.get("cellType", "markdown")
-        source = str(cell.get("source", ""))
+        idx = cell.cellIndex
+        cell_type = cell.cellType
+        source = cell.source
 
         # Keep cells within a window (+-3) full, truncate others to 500 chars
         if abs(idx - active_idx) > 3:

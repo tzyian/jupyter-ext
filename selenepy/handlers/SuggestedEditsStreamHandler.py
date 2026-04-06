@@ -1,4 +1,3 @@
-import json
 from typing import Any, Mapping
 
 import tornado
@@ -6,6 +5,7 @@ from jupyter_server.base.handlers import APIHandler
 
 from selenepy.prompts.prompt_manager import PromptManager
 from selenepy.suggestions import apply_scan_scope, stream_live_suggestions
+from selenepy.suggestions.models import NotebookSnapshot
 from selenepy.suggestions.writer import SuggestionStreamWriter
 from selenepy.utils.logging import get_logger
 from selenepy.utils.openai_config import resolve_openai_api_key
@@ -31,7 +31,8 @@ class SuggestedEditsStreamHandler(APIHandler):
     def _parse_request_params(self) -> Mapping[str, Any]:
         """Extract and validate request parameters from the body."""
         body = self.get_json_body() or {}
-        snapshot = body.get("snapshot") or {}
+        snapshot_dict = body.get("snapshot") or {}
+        snapshot = NotebookSnapshot.model_validate(snapshot_dict)
         settings = body.get("settings") or {}
         mode = str(body.get("mode", "context")).lower()
         if mode not in {"context", "full"}:
@@ -62,11 +63,11 @@ class SuggestedEditsStreamHandler(APIHandler):
             "LLM REQUEST (mode=%s, window=%s, path=%s, prompt_id=%s)",
             mode,
             context_window,
-            snapshot.get("path", "unknown"),
+            snapshot.path,
             prompt_id,
         )
         LOGGER.debug(
-            "SNAPSHOT DATA: %s", json.dumps(snapshot, ensure_ascii=False)[:1200]
+            "SNAPSHOT DATA: %s", snapshot.model_dump_json(exclude_none=True)[:1200]
         )
 
         writer = SuggestionStreamWriter(self)
@@ -75,7 +76,7 @@ class SuggestedEditsStreamHandler(APIHandler):
 
         # Resolve system prompt
         prompt_data = self.prompt_manager.get_prompt_by_id(prompt_id)
-        system_prompt = prompt_data["content"] if prompt_data else None
+        system_prompt = prompt_data["content"] if prompt_data else ""
 
         try:
             target_snapshot = apply_scan_scope(snapshot, mode, context_window)
