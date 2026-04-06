@@ -404,6 +404,7 @@
   gap: 8px;
   max-height: 300px;
   overflow-y: auto;
+  scrollbar-width: thin;
 }
 
 .jp-selenepy-chatThought {
@@ -411,6 +412,7 @@
   border-left: 3px solid var(--jp-brand-color1);
   padding: 6px 8px;
   border-radius: 2px;
+  flex-shrink: 0;
 }
 
 .jp-selenepy-chatThought-agent {
@@ -432,6 +434,8 @@
   border-left: 3px solid var(--jp-warn-color1);
   border-radius: 2px;
   overflow: hidden;
+  flex-shrink: 0;
+  min-height: 32px;
 }
 
 .jp-selenepy-chatToolCall-header {
@@ -456,6 +460,9 @@
 
 .jp-selenepy-chatToolCall-content {
   padding: 0 8px 8px;
+  max-height: 200px;
+  overflow-y: auto;
+  scrollbar-width: thin;
 }
 
 .jp-selenepy-chatToolCall-status {
