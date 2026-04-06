@@ -460,7 +460,7 @@ class EducatorNotebookWorkflow:
     ) -> AgentNode:
         match state.get("intent", "").strip().lower():
             case Intent.RESEARCH_THEN_EDIT.value:
-                return AgentNode.EDITOR
+                return AgentNode.RESEARCH
             case Intent.REPLY.value:
                 return AgentNode.RESPONDER
             case Intent.CLARIFY.value:
