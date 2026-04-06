@@ -82,7 +82,6 @@ export const ChatSidebarContent: React.FC<IChatSidebarContentProps> = ({
             messages={state.messages}
             isStreaming={state.isStreaming}
             onSendMessage={msg => void controller.handleSendMessage(msg)}
-            onClear={() => controller.handleClear()}
             onStop={() => controller.handleStop()}
             hasApiKey={!!settings?.openaiApiKey}
             openaiApiKey={settings?.openaiApiKey}

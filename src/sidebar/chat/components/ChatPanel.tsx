@@ -24,7 +24,6 @@ interface IChatPanelProps {
   messages: IChatMessage[];
   isStreaming: boolean;
   onSendMessage: (message: string) => void;
-  onClear: () => void;
   onStop: () => void;
   hasApiKey: boolean;
   openaiApiKey?: string;
@@ -134,7 +133,6 @@ export function ChatPanel({
   messages,
   isStreaming,
   onSendMessage,
-  onClear,
   onStop,
   hasApiKey,
   openaiApiKey,

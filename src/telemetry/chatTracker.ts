@@ -15,7 +15,6 @@ export class ChatTelemetryTracker implements IDisposable {
     private readonly _telemetry: TelemetryService
   ) {
     this._controller.messageSent.connect(this._onMessageSent, this);
-    this._controller.chatCleared.connect(this._onChatCleared, this);
 
     // State-based subscriptions
     this._unsubscribe = useChatStore.subscribe((state, prevState) => {
@@ -78,7 +77,6 @@ export class ChatTelemetryTracker implements IDisposable {
     this._disposed = true;
 
     this._controller.messageSent.disconnect(this._onMessageSent, this);
-    this._controller.chatCleared.disconnect(this._onChatCleared, this);
     this._unsubscribe();
   }
 
@@ -89,10 +87,6 @@ export class ChatTelemetryTracker implements IDisposable {
     this._telemetry.logEvent('ChatMessageSentEvent', {
       isContextMenu: args.isContextMenu
     });
-  };
-
-  private _onChatCleared = (): void => {
-    this._telemetry.logEvent('ChatClearedEvent', {});
   };
 
   private _onChatStopped = (): void => {

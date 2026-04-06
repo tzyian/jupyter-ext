@@ -21,7 +21,6 @@ import { useSettingsStore } from '../../stores/useSettingsStore';
 export interface IChatController extends IDisposable {
   readonly state: IChatState;
   readonly messageSent: ISignal<IChatController, { isContextMenu: boolean }>;
-  readonly chatCleared: ISignal<IChatController, void>;
   readonly chatStopped: ISignal<IChatController, void>;
   readonly metricsReceived: ISignal<
     IChatController,
@@ -33,7 +32,6 @@ export interface IChatController extends IDisposable {
   executePrompt(promptText: string): Promise<void>;
   executeContextMenuPrompt(promptText: string): Promise<void>;
   handleSendMessage(content: string, isContextMenu?: boolean): Promise<void>;
-  handleClear(): void;
   handleStop(): void;
   handleSelectThread(threadId: string): Promise<void>;
   handleCreateThread(): Promise<void>;
@@ -57,7 +55,6 @@ export class ChatController implements IChatController {
     IChatController,
     { isContextMenu: boolean }
   >(this);
-  private readonly _chatCleared = new Signal<IChatController, void>(this);
   private readonly _chatStopped = new Signal<IChatController, void>(this);
   private readonly _metricsReceived = new Signal<
     IChatController,
@@ -105,9 +102,6 @@ export class ChatController implements IChatController {
 
   get messageSent(): ISignal<IChatController, { isContextMenu: boolean }> {
     return this._messageSent;
-  }
-  get chatCleared(): ISignal<IChatController, void> {
-    return this._chatCleared;
   }
   get chatStopped(): ISignal<IChatController, void> {
     return this._chatStopped;
@@ -510,18 +504,6 @@ export class ChatController implements IChatController {
       case 'metrics':
         this._metricsReceived.emit(event);
         break;
-    }
-  }
-
-  handleClear(): void {
-    const { clearChat, activeThreadId } = useChatStore.getState();
-    if (this._abortController) {
-      this._abortController.abort();
-    }
-    this._chatCleared.emit(void 0);
-    clearChat();
-    if (activeThreadId) {
-      void this.handleSelectThread(activeThreadId);
     }
   }
 
