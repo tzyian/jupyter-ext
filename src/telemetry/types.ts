@@ -38,6 +38,11 @@ export interface ITelemetryStats {
   estimated_time_saved_minutes?: number;
   productivity_score?: number;
 
+  // Chat metrics
+  chat_messages_sent?: number;
+  chat_threads_created?: number;
+  chat_avg_response_seconds?: number;
+
   // Per-notebook breakdown and available notebook metadata
   per_notebook_breakdown?: INotebookBreakdown[];
   available_notebooks?: Array<{ path: string; filename: string }>;

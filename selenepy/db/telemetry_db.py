@@ -343,6 +343,26 @@ class TelemetryDB:
                 suggestions_applied * 2
             )  # 2 min per suggestion
 
+            # Chat Metrics
+            chat_messages_sent = event_counts.get("ChatMessageSentEvent", 0)
+            chat_threads_created = event_counts.get("ChatThreadCreatedEvent", 0)
+
+            # Calculate average response duration from ChatMetricsEvent
+            cursor.execute(
+                f"""
+                SELECT AVG(CAST(json_extract(metadata, '$.duration') AS REAL))
+                FROM events
+                WHERE type = 'ChatMetricsEvent' AND {time_filter}
+                AND json_extract(metadata, '$.duration') IS NOT NULL
+                AND json_extract(metadata, '$.duration') > 0
+            """,
+                params,
+            )
+            avg_response_result = cursor.fetchone()
+            chat_avg_response_seconds = (
+                (avg_response_result[0] / 1000) if avg_response_result[0] else 0
+            )  # Convert ms to s
+
             # Calculate productivity score
             productivity_score = self._calculate_productivity_score(
                 execution_success_rate=execution_success_rate,
@@ -398,6 +418,9 @@ class TelemetryDB:
             "suggestions_dismissed": event_counts.get("SuggestionDismissedEvent", 0),
             "estimated_time_saved_minutes": estimated_time_saved_minutes,
             "productivity_score": productivity_score,
+            "chat_messages_sent": chat_messages_sent,
+            "chat_threads_created": chat_threads_created,
+            "chat_avg_response_seconds": round(chat_avg_response_seconds, 2),
             "per_notebook_breakdown": per_notebook_breakdown,
             "available_notebooks": available_notebooks,
         }

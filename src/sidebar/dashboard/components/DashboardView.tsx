@@ -3,6 +3,7 @@ import { showDialog, Dialog } from '@jupyterlab/apputils';
 import type { ITelemetryStats } from '../../../telemetry/types';
 import { DashboardMetricCard } from './DashboardMetricCard';
 import { LLMMetricsCard } from './LLMMetricsCard';
+import { ChatMetricsCard } from './ChatMetricsCard';
 import { NotebookTableCard } from './NotebookTableCard';
 import { formatDuration } from '../../../utils/formatting';
 import { useTelemetryStats } from '../../hooks/useTelemetryStats';
@@ -159,6 +160,7 @@ export const DashboardView: React.FC<IDashboardViewProps> = ({
         />
 
         <LLMMetricsCard stats={stats} />
+        <ChatMetricsCard stats={stats} />
 
         <DashboardMetricCard
           title="➕ Cells Created"
