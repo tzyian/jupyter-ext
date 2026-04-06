@@ -1,31 +1,34 @@
-# This module is a backend prompt registry consumed by PromptManager.
-# Frontend features like notebook snippets, context menu prompts, chat snippets,
-# and suggested edits read prompts via API endpoints backed by PromptManager/DB,
-# not by importing this module directly.
+# --- SYSTEM PROMPT TEMPLATES ---
 
-# Prompt category usage map:
-# - suggestion: Suggested edits prompt picker (local/global notebook scan).
-# - chat_system_prompt: Chat sidebar "System Prompt" selector.
-# - chat_snippet: Reusable snippets inserted into chat input.
-# - notebook_snippet: Right-click notebook snippet insertion menu.
-# - context_menu: Right-click LLM prompt actions (chat-about-this menu).
+DEFAULT_SYSTEM_PROMPT = """You review Jupyter notebooks and propose clear, actionable edits. 
+Return only JSON matching the provided schema. 
+In order of priority:
+1) Conceptual errors
+2) Code correctness issues
+3) Missing explanations of key concepts
+4) Code efficiency improvements
+5) Comments which could improve code clarity
 
-DEFAULT_SYSTEM_PROMPT = """
-"You review Jupyter notebooks and propose clear, actionable edits. "
-    "Return only JSON matching the provided schema. "
-    "In order of priority:"
-    "1) Conceptual errors"
-    "2) Code correctness issues"
-    "3) Missing explanations of key concepts"
-    "4) Code efficiency improvements"
-    "5) Comments which could improve code clarity"
-    "Each suggestion must target one cell, cite its index, summarize the change, "
-    "and provide replacement cell source text that implements the edit. "
-    "Avoid repetitive or generic advice; tailor each suggestion to the supplied "
-    "context and current focus."
+Each suggestion must target one cell, cite its index, summarize the change, and provide replacement cell source text that implements the edit. 
+Avoid repetitive or generic advice; tailor each suggestion to the supplied context and current focus.
 """
 
-DEFAULT_PROMPTS = [
+DEFAULT_GLOBAL_SYSTEM_PROMPT = """You are an expert notebook reviewer conducting a **Full Notebook Scan**. 
+Your goal is to ensure the entire notebook is consistent, well-structured, and error-free. 
+Return only JSON matching the provided schema.
+
+Look beyond the active cell for global patterns, including:
+1) Cross-cell dependencies and variable inconsistencies
+2) Redundant code or duplicate function definitions
+3) Structural improvements to the overall narrative or code flow
+4) Project-wide optimization of imports or variable naming
+
+Each suggestion must target one cell, cite its index, summarize the change, and provide replacement cell source text that implements the edit.
+"""
+
+# --- CORE (DEFAULT) PROMPTS ---
+# These are baked into the extension by default.
+CORE_SUGGESTION_PROMPTS = [
     {
         "id": "default_local",
         "name": "Default (Local)",
@@ -38,10 +41,24 @@ DEFAULT_PROMPTS = [
         "id": "default_global",
         "name": "Default (Global)",
         "description": "Standard prompt for full notebook suggestions",
-        "content": DEFAULT_SYSTEM_PROMPT,
+        "content": DEFAULT_GLOBAL_SYSTEM_PROMPT,
         "category": "suggestion",
         "isDefault": True,
     },
+]
+
+CORE_CHAT_PROMPTS = [
+    {
+        "id": "default_chat_system",
+        "name": "Default Chat System",
+        "description": "Default system prompt for the chat assistant",
+        "content": "You are a helpful coding assistant.",
+        "category": "chat_system_prompt",
+        "isDefault": True,
+    },
+]
+
+CORE_CONTEXT_MENU_PROMPTS = [
     {
         "id": "default_explain",
         "name": "Explain Code",
@@ -58,18 +75,12 @@ DEFAULT_PROMPTS = [
         "category": "context_menu",
         "isDefault": True,
     },
-    {
-        "id": "default_chat_system",
-        "name": "Default Chat System",
-        "description": "Default system prompt for the chat assistant",
-        "content": "You are a helpful coding assistant.",
-        "category": "chat_system_prompt",
-        "isDefault": True,
-    },
 ]
 
-SAMPLE_PROMPTS = [
-    # Category: suggestion
+# --- SAMPLE PROMPTS ---
+# These are seeded into the database but can be deleted or modified by the user.
+
+SAMPLE_SUGGESTION_PROMPTS = [
     {
         "name": "Pedagogy Expert",
         "description": "Suggestions to make code more readable and educational for students.",
@@ -82,7 +93,9 @@ SAMPLE_PROMPTS = [
         "content": "Suggest 2-3 follow-up exercises or 'Check your understanding' questions based on this cell's content to help students solidify their learning.",
         "category": "suggestion",
     },
-    # Category: chat_system_prompt
+]
+
+SAMPLE_CHAT_SYSTEM_PROMPTS = [
     {
         "name": "Scientific Tutor",
         "description": "Patient, encouraging tutor who explains concepts using analogies.",
@@ -95,7 +108,9 @@ SAMPLE_PROMPTS = [
         "content": "You are a Teaching Assistant helping a student. Your goal is to guide them to the answer without giving it away directly. Provide helpful hints, point out relevant documentation, or ask leading questions to help them debug their own code.",
         "category": "chat_system_prompt",
     },
-    # Category: chat_snippet
+]
+
+SAMPLE_CHAT_SNIPPET_PROMPTS = [
     {
         "name": "Explain for Beginners",
         "description": "Simplifies code explanation for novices.",
@@ -114,7 +129,9 @@ SAMPLE_PROMPTS = [
         "content": "Write a 3-sentence summary of this concept or code block that would be suitable for a lecture slide or textbook sidebar.",
         "category": "chat_snippet",
     },
-    # Category: notebook_snippet
+]
+
+SAMPLE_NOTEBOOK_SNIPPET_PROMPTS = [
     {
         "name": "Load Sample Dataset",
         "description": "Boilerplate for loading a teaching dataset (Iris).",
@@ -134,3 +151,17 @@ SAMPLE_PROMPTS = [
         "category": "notebook_snippet",
     },
 ]
+
+
+DEFAULT_PROMPTS = (
+    CORE_SUGGESTION_PROMPTS +
+    CORE_CHAT_PROMPTS +
+    CORE_CONTEXT_MENU_PROMPTS
+)
+
+SAMPLE_PROMPTS = (
+    SAMPLE_SUGGESTION_PROMPTS +
+    SAMPLE_CHAT_SYSTEM_PROMPTS +
+    SAMPLE_CHAT_SNIPPET_PROMPTS + 
+    SAMPLE_NOTEBOOK_SNIPPET_PROMPTS
+)

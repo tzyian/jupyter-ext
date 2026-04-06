@@ -5,6 +5,8 @@ from __future__ import annotations
 from typing import Literal, Optional
 
 from pydantic import BaseModel, ConfigDict
+from selenepy.prompts.prompts import DEFAULT_SYSTEM_PROMPT as SYSTEM_PROMPT
+from selenepy.prompts.prompts import DEFAULT_GLOBAL_SYSTEM_PROMPT as GLOBAL_SYSTEM_PROMPT
 
 SuggestionContextType = Literal["local", "global"]
 
@@ -31,25 +33,9 @@ class SuggestedEditsPayload(BaseModel):
     suggestions: list[SuggestedEditModel]
 
 
-SYSTEM_PROMPT = (
-    "You review Jupyter notebooks and propose clear, actionable edits. "
-    "Return only JSON matching the provided schema. "
-    "In order of priority:"
-    "1) Conceptual errors"
-    "2) Code correctness issues"
-    "3) Missing explanations of key concepts"
-    "4) Code efficiency improvements"
-    "5) Comments which could improve code clarity"
-    "Each suggestion must target one cell, cite its index, summarize the change, "
-    "and provide replacement cell source text that implements the edit. "
-    "Avoid repetitive or generic advice; tailor each suggestion to the supplied "
-    "context and current focus."
-)
-
 
 __all__ = [
     "SuggestionContextType",
     "SuggestedEditModel",
     "SuggestedEditsPayload",
-    "SYSTEM_PROMPT",
 ]
