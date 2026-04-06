@@ -15,6 +15,8 @@ export class ChatTelemetryTracker implements IDisposable {
     private readonly _telemetry: TelemetryService
   ) {
     this._controller.messageSent.connect(this._onMessageSent, this);
+    this._controller.threadCreated.connect(this._onThreadCreated, this);
+    this._controller.threadDeleted.connect(this._onThreadDeleted, this);
 
     // State-based subscriptions
     this._unsubscribe = useChatStore.subscribe((state, prevState) => {
@@ -39,28 +41,9 @@ export class ChatTelemetryTracker implements IDisposable {
           this._telemetry.logEvent('ChatMetricsEvent', {
             tokensUsed: 0,
             tokensSent: 0,
-            messagesSent: state.messages.length
+            messagesSent: state.messages.length,
+            duration: lastCurrThread.lastResponseDuration
           });
-        }
-      }
-
-      // Thread created
-      if (state.threads.length > prevState.threads.length) {
-        const newThread = state.threads.find(
-          t => !prevState.threads.some(pt => pt.id === t.id)
-        );
-        if (newThread) {
-          this._onThreadCreated(newThread.id);
-        }
-      }
-
-      // Thread deleted
-      if (state.threads.length < prevState.threads.length) {
-        const deletedThreadId = prevState.threads.find(
-          pt => !state.threads.some(t => t.id === pt.id)
-        )?.id;
-        if (deletedThreadId) {
-          this._onThreadDeleted(deletedThreadId);
         }
       }
     });
@@ -77,6 +60,8 @@ export class ChatTelemetryTracker implements IDisposable {
     this._disposed = true;
 
     this._controller.messageSent.disconnect(this._onMessageSent, this);
+    this._controller.threadCreated.disconnect(this._onThreadCreated, this);
+    this._controller.threadDeleted.disconnect(this._onThreadDeleted, this);
     this._unsubscribe();
   }
 
@@ -93,15 +78,15 @@ export class ChatTelemetryTracker implements IDisposable {
     this._telemetry.logEvent('ChatStoppedEvent', {});
   };
 
-  private _onThreadCreated = (threadId: string): void => {
+  private _onThreadCreated = (_: any, args: { threadId: string }): void => {
     this._telemetry.logEvent('ChatThreadCreatedEvent', {
-      threadId
+      threadId: args.threadId
     });
   };
 
-  private _onThreadDeleted = (threadId: string): void => {
+  private _onThreadDeleted = (_: any, args: { threadId: string }): void => {
     this._telemetry.logEvent('ChatThreadDeletedEvent', {
-      threadId
+      threadId: args.threadId
     });
   };
 }

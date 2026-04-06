@@ -49,7 +49,6 @@ export class NotebookTelemetryTracker implements IDisposable {
       // are the current widget in the shell. We use this to detect when the
       // user's active widget changes away from or back to the tracked notebook.
       // Use `any` for the signal payload to avoid tight coupling to shell typings.
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (this._app.shell.currentChanged as any).connect(
         this._onShellCurrentChanged,
         this
@@ -86,7 +85,6 @@ export class NotebookTelemetryTracker implements IDisposable {
     this._tracker.currentChanged.disconnect(this._onCurrentChanged, this);
     NotebookActions.executed.disconnect(this._onCellExecuted, this);
     if (this._app) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (this._app.shell.currentChanged as any).disconnect(
         this._onShellCurrentChanged,
         this
@@ -127,13 +125,15 @@ export class NotebookTelemetryTracker implements IDisposable {
   private _onNotebookAdded(_: INotebookTracker, panel: NotebookPanel): void {
     this._telemetry.logEvent('NotebookOpenEvent', {
       notebookPath: panel.context.path,
-      path: panel.context.path,
       kernel: panel.sessionContext.kernelDisplayName
     });
 
-    // Start session tracking
+    this._startNotebookSession(panel.context.path);
+  }
+
+  private _startNotebookSession(path: string): void {
     this._notebookSessionStart = Date.now() / 1000;
-    this._currentNotebookPath = panel.context.path;
+    this._currentNotebookPath = path;
   }
 
   private _getCurrentNotebookPath(): string | null {
@@ -150,10 +150,7 @@ export class NotebookTelemetryTracker implements IDisposable {
     this._detachNotebook();
     if (panel) {
       this._attachNotebook(panel);
-
-      // Start new notebook session
-      this._notebookSessionStart = Date.now() / 1000;
-      this._currentNotebookPath = panel.context.path;
+      this._startNotebookSession(panel.context.path);
     }
   }
 
@@ -170,12 +167,10 @@ export class NotebookTelemetryTracker implements IDisposable {
     // Track saves
     context.saveState.connect(this._onSaveStateChanged, this);
 
-    // Attach DOM event listeners
     const node = content.node;
     node.addEventListener('copy', this._onClipboard);
     node.addEventListener('cut', this._onClipboard);
     node.addEventListener('paste', this._onClipboard);
-    node.addEventListener('scroll', this._onScroll);
   }
 
   private _detachNotebook(): void {
@@ -195,7 +190,6 @@ export class NotebookTelemetryTracker implements IDisposable {
     node.removeEventListener('copy', this._onClipboard);
     node.removeEventListener('cut', this._onClipboard);
     node.removeEventListener('paste', this._onClipboard);
-    node.removeEventListener('scroll', this._onScroll);
 
     // Disconnect any attached cell content listener
     if (this._currentCellModel) {
@@ -326,7 +320,7 @@ export class NotebookTelemetryTracker implements IDisposable {
   }
 
   private _onCellsChanged = (
-    _: any,
+    _: unknown,
     change: IObservableList.IChangedArgs<ICellModel>
   ): void => {
     if (change.type === 'add') {
@@ -350,15 +344,14 @@ export class NotebookTelemetryTracker implements IDisposable {
     }
   };
 
-  private _onSaveStateChanged = (_: any, saveState: string): void => {
+  private _onSaveStateChanged = (_: unknown, saveState: string): void => {
     if (!this._currentPanel) {
       return;
     }
 
     if (saveState === 'completed') {
       this._telemetry.logEvent('NotebookSaveEvent', {
-        notebookPath: this._currentPanel.context.path,
-        path: this._currentPanel.context.path
+        notebookPath: this._currentPanel.context.path
       });
     }
   };
@@ -389,14 +382,9 @@ export class NotebookTelemetryTracker implements IDisposable {
     });
   };
 
-  private _onScroll = (): void => {
-    // Throttled scroll tracking could be added here if needed
-    // For now, we skip to avoid excessive events
-  };
-
   private _onCellExecuted = (
     _: any,
-    args: { notebook: any; cell: any; success: boolean }
+    args: { notebook: unknown; cell: any; success: boolean }
   ): void => {
     // Only track executions for the current notebook
     if (!this._currentPanel || args.notebook !== this._currentPanel.content) {
@@ -419,78 +407,60 @@ export class NotebookTelemetryTracker implements IDisposable {
   };
 
   private _onVisibilityChange = (): void => {
-    const now = Date.now() / 1000;
-
     if (document.hidden) {
-      // User left the tab - only log if not already hidden
-      if (this._visibilityStartTime === null) {
-        this._visibilityStartTime = now;
-        console.log('[NotebookTracker] User left tab (hidden)');
-        this._telemetry.logEvent('NotebookHiddenEvent', {
-          notebookPath: this._getCurrentNotebookPath()
-        });
-
-        // Pause notebook session (end current session)
-        this._endNotebookSession();
-      }
+      this._handleVisibilityHidden();
     } else {
-      // User returned to the tab
-      if (this._visibilityStartTime !== null) {
-        const duration = now - this._visibilityStartTime;
-        console.log(
-          `[NotebookTracker] User returned to tab, was away for ${duration.toFixed(2)}s`
-        );
-        this._telemetry.logEvent('NotebookVisibleEvent', {
-          duration,
-          notebookPath: this._getCurrentNotebookPath()
-        });
-        this._visibilityStartTime = null;
-
-        // Resume notebook session (start new session)
-        if (this._currentPanel) {
-          this._notebookSessionStart = now;
-          this._currentNotebookPath = this._currentPanel.context.path;
-        }
-      }
+      this._handleVisibilityVisible();
     }
   };
 
-  // Handler for Lumino shell currentChanged signal. Uses `any` for the
-  // payload since the exact shape depends on the shell implementation.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  private _onShellCurrentChanged = (_: any, args: any): void => {
+  private _handleVisibilityHidden(): void {
+    const now = Date.now() / 1000;
+    if (this._visibilityStartTime === null) {
+      this._visibilityStartTime = now;
+      console.log('[NotebookTracker] User left notebook focus (hidden)');
+      this._telemetry.logEvent('NotebookHiddenEvent', {
+        notebookPath: this._getCurrentNotebookPath()
+      });
+
+      this._endNotebookSession();
+    }
+  }
+
+  private _handleVisibilityVisible(): void {
+    const now = Date.now() / 1000;
+    if (this._visibilityStartTime !== null) {
+      const duration = now - this._visibilityStartTime;
+      console.log(
+        `[NotebookTracker] User returned to notebook focus, was away for ${duration.toFixed(2)}s`
+      );
+      this._telemetry.logEvent('NotebookVisibleEvent', {
+        duration,
+        notebookPath: this._getCurrentNotebookPath()
+      });
+      this._visibilityStartTime = null;
+
+      if (this._currentPanel) {
+        this._startNotebookSession(this._currentPanel.context.path);
+      }
+    }
+  }
+
+  // Handler for Lumino shell currentChanged signal.
+  private _onShellCurrentChanged = (_: unknown, args: any): void => {
     try {
       const newWidget = args?.newValue ?? null;
-      const now = Date.now() / 1000;
 
       // If the active widget switched away from the tracked notebook
       if (this._currentPanel && newWidget !== this._currentPanel) {
-        if (this._visibilityStartTime === null) {
-          this._visibilityStartTime = now;
-          this._telemetry.logEvent('NotebookHiddenEvent', {
-            notebookPath: this._getCurrentNotebookPath()
-          });
-          // Pause notebook session
-          this._endNotebookSession();
-        }
+        this._handleVisibilityHidden();
       }
 
       // If the active widget became the tracked notebook again
       if (this._currentPanel && newWidget === this._currentPanel) {
-        if (this._visibilityStartTime !== null) {
-          const duration = now - this._visibilityStartTime;
-          this._telemetry.logEvent('NotebookVisibleEvent', {
-            duration,
-            notebookPath: this._getCurrentNotebookPath()
-          });
-          this._visibilityStartTime = null;
-          // Resume notebook session
-          this._notebookSessionStart = now;
-          this._currentNotebookPath = this._currentPanel.context.path;
-        }
+        this._handleVisibilityVisible();
       }
     } catch (err) {
-      // Swallow errors from shell signal handling to not break the app
       console.error('Error in shell currentChanged handler', err);
     }
   };

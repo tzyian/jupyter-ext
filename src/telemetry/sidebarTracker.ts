@@ -1,5 +1,6 @@
 import { IDisposable } from '@lumino/disposable';
 import type { SuggestedEditsSidebar } from '../sidebar/suggestions/SuggestedEditsSidebar';
+import type { IResolvedSuggestion } from '../sidebar/suggestions/types';
 import type { TelemetryService } from './telemetryService';
 
 /**
@@ -56,7 +57,10 @@ export class SidebarTelemetryTracker implements IDisposable {
     });
   };
 
-  private _onApply = (_: any, suggestion: any): void => {
+  private _onApply = (
+    _: SuggestedEditsSidebar,
+    suggestion: IResolvedSuggestion
+  ): void => {
     this._telemetry.logEvent('SuggestionAppliedEvent', {
       cellIndex: suggestion.cellIndex,
       contextType: suggestion.contextType,
@@ -64,7 +68,10 @@ export class SidebarTelemetryTracker implements IDisposable {
     });
   };
 
-  private _onDismiss = (_: any, suggestion: any): void => {
+  private _onDismiss = (
+    _: SuggestedEditsSidebar,
+    suggestion: IResolvedSuggestion
+  ): void => {
     this._telemetry.logEvent('SuggestionDismissedEvent', {
       cellIndex: suggestion.cellIndex,
       contextType: suggestion.contextType,

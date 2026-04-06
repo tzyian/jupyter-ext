@@ -7,11 +7,14 @@ import type { ITelemetryEvent, ITelemetryStats } from './types';
  */
 export class TelemetryService {
   private readonly _eventBuffer: ITelemetryEvent[] = [];
+  private _settings: ServerConnection.ISettings | null = null;
   private _flushTimer: number | null = null;
   private readonly _batchSize = 50;
   private readonly _flushIntervalMs = 5000; // 5 seconds
 
-  constructor(private readonly _serverSettings?: ServerConnection.ISettings) {}
+  constructor(serverSettings?: ServerConnection.ISettings) {
+    this._settings = serverSettings || null;
+  }
 
   /**
    * Log a telemetry event. Events are batched and sent periodically.
@@ -54,7 +57,7 @@ export class TelemetryService {
     console.log(`[Telemetry] Flushing ${events.length} events to backend`);
 
     try {
-      const settings = this._serverSettings ?? ServerConnection.makeSettings();
+      const settings = this._getSettings();
       const url = URLExt.join(settings.baseUrl, 'selenepy', 'telemetry');
 
       console.log(`[Telemetry] Sending POST to ${url}`);
@@ -95,7 +98,7 @@ export class TelemetryService {
     notebookPath?: string
   ): Promise<ITelemetryStats | null> {
     try {
-      const settings = this._serverSettings ?? ServerConnection.makeSettings();
+      const settings = this._getSettings();
       const baseUrl = URLExt.join(settings.baseUrl, 'selenepy', 'telemetry');
 
       const params = new URLSearchParams();
@@ -134,7 +137,7 @@ export class TelemetryService {
    */
   async notifyRename(oldPath: string, newPath: string): Promise<void> {
     try {
-      const settings = this._serverSettings ?? ServerConnection.makeSettings();
+      const settings = this._getSettings();
       const url = URLExt.join(
         settings.baseUrl,
         'selenepy',
@@ -195,5 +198,12 @@ export class TelemetryService {
       window.clearTimeout(this._flushTimer);
       this._flushTimer = null;
     }
+  }
+
+  private _getSettings(): ServerConnection.ISettings {
+    if (!this._settings) {
+      this._settings = ServerConnection.makeSettings();
+    }
+    return this._settings;
   }
 }
