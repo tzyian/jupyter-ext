@@ -21,17 +21,9 @@ export interface ISuggestedEditsSidebarContentProps {
   onSelectGlobal: (id: string) => void;
 }
 
-export const SuggestedEditsSidebarContent: React.FC<{
-  onRefreshContext: () => void;
-  onRefreshFull: () => void;
-  onPauseToggle: () => void;
-  onApply: (s: IResolvedSuggestion) => void;
-  onDismiss: (s: IResolvedSuggestion) => void;
-  onOpenSettings: () => void;
-  onBack: () => void;
-  onSelectLocal: (id: string) => void;
-  onSelectGlobal: (id: string) => void;
-}> = props => {
+export const SuggestedEditsSidebarContent: React.FC<
+  ISuggestedEditsSidebarContentProps
+> = props => {
   const {
     view,
     status,

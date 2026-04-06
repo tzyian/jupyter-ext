@@ -5,7 +5,7 @@ import json
 import traceback
 from typing import Any, Callable
 
-from selenepy.suggestions.models import NotebookSnapshot
+from selenepy.models import NotebookSnapshot
 from .logging import get_logger
 
 LOGGER = get_logger(__name__)
