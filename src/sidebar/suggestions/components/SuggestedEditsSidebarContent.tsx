@@ -22,17 +22,34 @@ export interface ISuggestedEditsSidebarContentProps {
   onSelectGlobal: (id: string) => void;
 }
 
-export const SuggestedEditsSidebarContent: React.FC<
-  ISuggestedEditsSidebarContentProps
-> = props => {
-  const state = useSuggestedEditsStore();
-  const { settings } = useSettingsStore();
+export const SuggestedEditsSidebarContent: React.FC<{
+  onRefreshContext: () => void;
+  onRefreshFull: () => void;
+  onPauseToggle: () => void;
+  onApply: (s: IResolvedSuggestion) => void;
+  onDismiss: (s: IResolvedSuggestion) => void;
+  onOpenSettings: () => void;
+  onBack: () => void;
+  onSelectLocal: (id: string) => void;
+  onSelectGlobal: (id: string) => void;
+}> = props => {
+  const {
+    view,
+    status,
+    isPaused,
+    hasApiKey,
+    localSuggestions,
+    globalSuggestion,
+    selectedLocalPromptId,
+    selectedGlobalPromptId
+  } = useSuggestedEditsStore();
+
   const { prompts, updatePrompt, createPrompt, removePrompt } =
     usePrompts('suggestion');
 
   return (
     <SidebarLayout
-      view={state.view === 'home' ? 'suggestions' : 'settings'}
+      view={view === 'home' ? 'suggestions' : 'settings'}
       onViewChange={val => {
         if (val === 'suggestions') {
           props.onBack();
@@ -45,11 +62,11 @@ export const SuggestedEditsSidebarContent: React.FC<
         { value: 'settings', label: 'Manage Prompts' }
       ]}
     >
-      {state.view === 'settings' ? (
+      {view === 'settings' ? (
         <PromptSettingsPanel
           prompts={prompts}
-          selectedLocalPromptId={state.selectedLocalPromptId}
-          selectedGlobalPromptId={state.selectedGlobalPromptId}
+          selectedLocalPromptId={selectedLocalPromptId}
+          selectedGlobalPromptId={selectedGlobalPromptId}
           onSelectLocal={props.onSelectLocal}
           onSelectGlobal={props.onSelectGlobal}
           onUpdatePrompt={updatePrompt}
@@ -59,17 +76,17 @@ export const SuggestedEditsSidebarContent: React.FC<
         />
       ) : (
         <SuggestedEditsPanel
-          status={state.status}
-          isPaused={state.isPaused}
-          localSuggestions={state.localSuggestions}
-          globalSuggestion={state.globalSuggestion}
+          status={status}
+          isPaused={isPaused}
+          localSuggestions={localSuggestions}
+          globalSuggestion={globalSuggestion}
           onRefreshContext={props.onRefreshContext}
           onRefreshFull={props.onRefreshFull}
           onPauseToggle={props.onPauseToggle}
           onApply={props.onApply}
           onDismiss={props.onDismiss}
           onOpenSettings={props.onOpenSettings}
-          hasApiKey={!!settings?.openaiApiKey}
+          hasApiKey={hasApiKey}
         />
       )}
     </SidebarLayout>

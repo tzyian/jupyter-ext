@@ -4,12 +4,9 @@ import React from 'react';
 
 import type { SuggestionScanMode } from '../types';
 import type { IResolvedSuggestion } from './types';
-import { SuggestedEditsPanel } from './components/SuggestedEditsPanel';
-import { PromptSettingsPanel } from './components/PromptSettingsPanel';
-import { usePrompts } from '../hooks/usePrompts';
-import { SidebarLayout } from '../components/SidebarLayout';
 import { useSuggestedEditsStore } from './useSuggestedEditsStore';
 import { SUGGESTIONS_SIDEBAR_ID } from '../../types';
+import { SuggestedEditsSidebarContent } from './components/SuggestedEditsSidebarContent';
 
 /**
  * Sidebar widget for displaying LLM suggested edits, backed by React.
@@ -182,74 +179,3 @@ export class SuggestedEditsSidebar extends ReactWidget {
     { mode: SuggestionScanMode; id: string }
   >(this);
 }
-
-const SuggestedEditsSidebarContent: React.FC<{
-  onRefreshContext: () => void;
-  onRefreshFull: () => void;
-  onPauseToggle: () => void;
-  onApply: (s: IResolvedSuggestion) => void;
-  onDismiss: (s: IResolvedSuggestion) => void;
-  onOpenSettings: () => void;
-  onBack: () => void;
-  onSelectLocal: (id: string) => void;
-  onSelectGlobal: (id: string) => void;
-}> = props => {
-  const {
-    view,
-    status,
-    isPaused,
-    hasApiKey,
-    localSuggestions,
-    globalSuggestion,
-    selectedLocalPromptId,
-    selectedGlobalPromptId
-  } = useSuggestedEditsStore();
-
-  const { prompts, updatePrompt, createPrompt, removePrompt } =
-    usePrompts('suggestion');
-
-  return (
-    <SidebarLayout
-      view={view === 'home' ? 'suggestions' : 'settings'}
-      onViewChange={val => {
-        if (val === 'suggestions') {
-          props.onBack();
-        } else {
-          props.onOpenSettings();
-        }
-      }}
-      options={[
-        { value: 'suggestions', label: 'Suggestions' },
-        { value: 'settings', label: 'Manage Prompts' }
-      ]}
-    >
-      {view === 'settings' ? (
-        <PromptSettingsPanel
-          prompts={prompts}
-          selectedLocalPromptId={selectedLocalPromptId}
-          selectedGlobalPromptId={selectedGlobalPromptId}
-          onSelectLocal={props.onSelectLocal}
-          onSelectGlobal={props.onSelectGlobal}
-          onUpdatePrompt={updatePrompt}
-          onCreatePrompt={createPrompt}
-          onDeletePrompt={removePrompt}
-          onBack={props.onBack}
-        />
-      ) : (
-        <SuggestedEditsPanel
-          status={status}
-          isPaused={isPaused}
-          localSuggestions={localSuggestions}
-          globalSuggestion={globalSuggestion}
-          onRefreshContext={props.onRefreshContext}
-          onRefreshFull={props.onRefreshFull}
-          onPauseToggle={props.onPauseToggle}
-          onApply={props.onApply}
-          onDismiss={props.onDismiss}
-          onOpenSettings={props.onOpenSettings}
-          hasApiKey={hasApiKey}
-        />
-      )}
-    </SidebarLayout>
-  );
-};

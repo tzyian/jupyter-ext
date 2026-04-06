@@ -17,7 +17,7 @@ import { SuggestedEditsSidebar } from './SuggestedEditsSidebar';
 import { streamSuggestions } from '../api';
 import { buildSnapshot } from '../utils/snapshot';
 import { buildDiffSegments } from '../utils/diff';
-import { NotebookSignalGroup } from '../../telemetry/notebookSignals';
+import { NotebookSignalGroup } from './notebookSignals';
 import { useSuggestedEditsStore } from './useSuggestedEditsStore';
 import { useSettingsStore } from '../../stores/useSettingsStore';
 
