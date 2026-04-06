@@ -34,6 +34,7 @@ export class SuggestedEditsController implements IDisposable {
   private _isPaused = false;
   private _disposed = false;
   private _unsubscribeSettings: (() => void) | null = null;
+  private _currentDebounceMs: number;
 
   constructor(
     private readonly _tracker: INotebookTracker,
@@ -56,9 +57,10 @@ export class SuggestedEditsController implements IDisposable {
     }
 
     const settings = useSettingsStore.getState().settings;
+    this._currentDebounceMs = settings?.debounceMs ?? 1000;
     this._debouncer = new Debouncer(() => {
       void this.refresh('context');
-    }, settings?.debounceMs ?? 1000);
+    }, this._currentDebounceMs);
 
     // Initial state sync (though store handles defaults)
     const hasApiKey = !!settings?.openaiApiKey;
@@ -106,6 +108,14 @@ export class SuggestedEditsController implements IDisposable {
   }
 
   updateSettings(settings: ISuggestedEditsSettings): void {
+    if (settings.debounceMs !== this._currentDebounceMs) {
+      this._currentDebounceMs = settings.debounceMs;
+      this._debouncer.dispose();
+      this._debouncer = new Debouncer(() => {
+        void this.refresh('context');
+      }, this._currentDebounceMs);
+    }
+
     if (!settings.autoRefresh) {
       this.cancelPendingStream();
       this.showIdle();
