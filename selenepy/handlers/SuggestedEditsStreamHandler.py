@@ -71,6 +71,7 @@ class SuggestedEditsStreamHandler(APIHandler):
 
         writer = SuggestionStreamWriter(self)
         await writer.send_status("started")
+        await writer.send_info("Selene is analyzing your notebook...")
 
         # Resolve system prompt
         prompt_data = self.prompt_manager.get_prompt_by_id(prompt_id)

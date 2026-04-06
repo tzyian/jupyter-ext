@@ -64,24 +64,30 @@ def format_snapshot_for_prompt(snapshot: Mapping[str, Any]) -> str:
         cursor_offset = active_context.get("cursorOffset")
         if cursor_offset is not None:
             lines.append(f"Cursor offset: {cursor_offset}")
-        selected = trim_text(str(active_context.get("selectedText", "")), 240)
+        selected = str(active_context.get("selectedText", ""))
         if selected:
             lines.append(f"Selected text snippet: {selected}")
 
     if outline:
         for item in outline:
             level = item.get("level", 1)
-            text = trim_text(str(item.get("text", "")), 120)
+            text = str(item.get("text", ""))
             cell_idx = item.get("cellIndex", 0)
             lines.append(f"L{level} [Cell {cell_idx}]: {text}")
     else:
         lines.append("(outline empty)")
 
+    active_idx = safe_int(snapshot.get("activeCellIndex"), 0)
     lines.append("\n--- Cells ---")
     for cell in cells:
         idx = cell.get("cellIndex", 0)
         cell_type = cell.get("cellType", "markdown")
-        source = trim_text(str(cell.get("source", "")), 400)
+        source = str(cell.get("source", ""))
+
+        # Keep cells within a window (+-3) full, truncate others to 500 chars
+        if abs(idx - active_idx) > 3:
+            source = trim_text(source, 500)
+
         lines.append(f"Cell {idx} [{cell_type}]:")
         lines.append(f"{source}\n")
 

@@ -38,9 +38,6 @@ export function buildSnapshot(
     };
   }
 
-  const trunc = (value: string) =>
-    value.length > maxLength ? `${value.slice(0, maxLength)}…` : value;
-
   for (let index = 0; index < model.cells.length; index++) {
     const cellModel = model.cells.get(index);
     const cellType = cellModel.type as 'code' | 'markdown' | 'raw';
@@ -63,7 +60,7 @@ export function buildSnapshot(
 
     cells.push({
       cellType,
-      source: trunc(source),
+      source: source,
       cellIndex: index,
       metadata: extractMetadata(cellModel)
     });

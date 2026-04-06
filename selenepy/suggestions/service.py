@@ -92,6 +92,7 @@ async def stream_live_suggestions(
     context_type: SuggestionContextType = "local" if mode == "context" else "global"
 
     current_system_prompt = system_prompt or SYSTEM_PROMPT
+    LOGGER.info("LLM SYSTEM PROMPT: %s...", current_system_prompt[:200])
 
     messages: list[ResponseInputItemParam] = [
         {"role": "system", "content": current_system_prompt},
