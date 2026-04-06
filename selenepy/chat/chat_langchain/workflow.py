@@ -389,7 +389,7 @@ class EducatorNotebookWorkflow:
 
         try:
             notebook_editor_agent = self._build_notebook_editor_agent(
-                cast(RunnableConfig, invoke_config)
+                cast(RunnableConfig, invoke_config | {"recursion_limit": 50})
             )
             edit_prompt = (
                 f"User request: {state.get('user_request', '')}\n\n"
