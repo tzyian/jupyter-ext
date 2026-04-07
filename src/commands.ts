@@ -157,7 +157,7 @@ export function registerCommands(
       type: 'submenu',
       submenu: chatMenu,
       selector: '.jp-Cell',
-      rank: 11
+      rank: 10.95
     });
 
     const snippetMenu = new Menu({ commands: app.commands });
@@ -168,13 +168,7 @@ export function registerCommands(
       type: 'submenu',
       submenu: snippetMenu,
       selector: '.jp-Cell',
-      rank: 11.01
-    });
-
-    app.contextMenu.addItem({
-      type: 'separator',
-      selector: '.jp-Cell',
-      rank: 11.1
+      rank: 10.95
     });
 
     const contextMenuController = new ContextMenuController(
