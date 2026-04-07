@@ -112,6 +112,7 @@ This is your core thinking process for any task. This cycle begins by deconstruc
 7. To insert cells at the end of the notebook, use the cell number of -1
 8. Do not keep retrying indefinitely. If the same blocking issue repeats, stop and return a structured failure status.
 9. The use_notebook tool requires a notebook_name and notebook_path, mode: "connect"|"create"
+10. When executing cells, make sure to execute from the start.
 
 # Required Final Status Block
 

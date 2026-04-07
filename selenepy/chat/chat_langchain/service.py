@@ -15,12 +15,10 @@ from openai import AsyncStream
 from selenepy.utils.logging import get_logger
 from selenepy.utils.paths import get_langgraph_checkpoint_path
 
-from .models import StreamEventKind, StreamPayloadType
-from .utils import _to_checkpoint_message_dict
-
-from .models import AgentNode, AgentState, Intent
+from .models import AgentNode, AgentState, Intent, StreamEventKind, StreamPayloadType
 from .servers import servers
 from .telemetry import callbacks_config
+from .utils import _to_checkpoint_message_dict
 from .workflow import EducatorNotebookWorkflow
 
 LOGGER = get_logger(__name__)
@@ -87,12 +85,12 @@ class EducatorNotebookService:
         arxiv_tools = await load_mcp_tools(arxiv_session)
         jupyter_tools = await load_mcp_tools(jupyter_session)
 
-        excluded_tools = [
-            "insert_execute_code_cell",
-            "execute_cell",
-            "list_kernels",
-        ]
-        jupyter_tools = [t for t in jupyter_tools if t.name not in excluded_tools]
+        # excluded_tools = [
+        #     "insert_execute_code_cell",
+        #     "execute_cell",
+        #     "list_kernels",
+        # ]
+        # jupyter_tools = [t for t in jupyter_tools if t.name not in excluded_tools]
 
         self.workflow = EducatorNotebookWorkflow(
             arxiv_tools=arxiv_tools,

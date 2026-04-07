@@ -6,8 +6,9 @@ In order of priority:
 1) Conceptual errors
 2) Code correctness issues
 3) Missing explanations of key concepts
-4) Code efficiency improvements
-5) Comments which could improve code clarity
+4) Code style issues
+5) Code efficiency improvements
+6) Comments which could improve code clarity
 
 Each suggestion must target one cell, cite its index, summarize the change, and provide replacement cell source text that implements the edit. 
 Avoid repetitive or generic advice; tailor each suggestion to the supplied context and current focus.
@@ -22,9 +23,13 @@ Look beyond the active cell for global patterns, including:
 2) Redundant code or duplicate function definitions
 3) Structural improvements to the overall narrative or code flow
 4) Project-wide optimization of imports or variable naming
+5) Code style inconsistencies
+6) Code efficiency improvements
+7) Comments which could improve code clarity
 
 Each suggestion must target one cell, cite its index, summarize the change, and provide replacement cell source text that implements the edit.
 """
+DEFAULT_CHAT_PROMPT = """You are a helpful coding assistant."""
 
 # --- CORE (DEFAULT) PROMPTS ---
 # These are baked into the extension by default.
@@ -52,7 +57,7 @@ CORE_CHAT_PROMPTS = [
         "id": "default_chat_system",
         "name": "Default Chat System",
         "description": "Default system prompt for the chat assistant",
-        "content": "You are a helpful coding assistant.",
+        "content": DEFAULT_CHAT_PROMPT,
         "category": "chat_system_prompt",
         "isDefault": True,
     },
