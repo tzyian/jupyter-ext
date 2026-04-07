@@ -88,7 +88,7 @@ export function registerCommands(
 
   if (!app.commands.hasCommand(CommandIDs.openNotebookSnippetsConfig)) {
     app.commands.addCommand(CommandIDs.openNotebookSnippetsConfig, {
-      label: 'Configure Context Menu LLM Prompts',
+      label: 'Configure Context Menu Snippets',
       isEnabled: () => !contextMenuSidebar.isDisposed,
       execute: () => {
         openPanel(app, contextMenuSidebar, SIDEBAR_PANEL_RANKS.contextMenus);
