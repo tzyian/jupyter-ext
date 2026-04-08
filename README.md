@@ -1,30 +1,27 @@
-# selenepy
+# SelenePy
+A JupyterLab extension to support AI-assisted generation of Juypter notebooks.
 
-### Quickstart
 
-1. python -m venv .venv
-2. source .venv/bin/activate
-3. pip install --editable ".[dev,test]"
+## Available Features:
+- Word and Cell count of current notebook
+- Suggestions Panel which asynchronously reports suggestions based on the current cell
+- Multi-agent Chat system with research and edit capabilities
+- Productivity Dashboard that tracks time spent and usage of other features in the notebook
+- Context Menu Snippets that can be used to quickly generate code or explanations
+
+## Quickstart
+To run locally within this repository:
+
+1. pip install --editable ".[dev,test]"
+2. pip uninstall -y pycrdt datalayer_pycrdt
+3. pip install datalayer_pycrdt==0.12.17
 4. jupyter server extension enable selenepy
 5. jupyter labextension develop . --overwrite
-6. jlpm run watch
-7. jupyter lab --port 8888 --IdentityProvider.token MY_TOKEN
+6. jlpm run build
+9. jupyter lab --port 8888 --IdentityProvider.token MY_TOKEN
 
-All in one step:
 
-- pip install --editable ".[dev,test]" && jupyter server extension enable selenepy && jupyter labextension develop . --overwrite && jlpm run watch
-
-If you get the following error, try `pip uninstall selenepy` and try again
-`ERROR: Could not install packages due to an OSError: [Errno 2] No such file or directory: '/jupyterlab-ext/share/jupyter/labextensions/selenejs/install.json'`
-
-To push, use
-
-1. python -m build
-2. python -m twine upload dist/*
-   or
-3. python3 -m twine upload --repository testpypi dist/*
-
-To test the package from a fresh installation:
+To download and run the extension package in your own repository:
 
 1. pip install --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ selenepy
 2. pip install jupyterlab==4.4.1 jupyter-collaboration==4.0.2 jupyter-mcp-tools>=0.1.4 ipykernel
@@ -32,180 +29,7 @@ To test the package from a fresh installation:
 4. pip install datalayer_pycrdt==0.12.17
 5. jupyter lab --port 8888 --IdentityProvider.token MY_TOKEN
 
-# README
 
-A JupyterLab extension.
-
-This extension is composed of a Python package named `selenepy`
-for the server extension and a NPM package named `selenejs`
-for the frontend extension.
-
-## Requirements
-
-- JupyterLab >= 4.0.0
-
-## Install
-
-To install the extension, execute:
-
-```bash
-pip install selenepy
-```
-
-## Uninstall
-
-To remove the extension, execute:
-
-```bash
-pip uninstall selenepy
-```
-
-## Troubleshoot
-
-If you are seeing the frontend extension, but it is not working, check
-that the server extension is enabled:
-
-```bash
-jupyter server extension list
-```
-
-If the server extension is installed and enabled, but you are not seeing
-the frontend extension, check the frontend extension is installed:
-
-```bash
-jupyter labextension list
-```
-
-## Contributing
-
-### Development install
-
-Note: You will need NodeJS to build the extension package.
-
-The `jlpm` command is JupyterLab's pinned version of
-[yarn](https://yarnpkg.com/) that is installed with JupyterLab. You may use
-`yarn` or `npm` in lieu of `jlpm` below.
-
-```bash
-# Clone the repo to your local environment
-# Change directory to the selenepy directory
-
-# Set up a virtual environment and install package in development mode
-python -m venv .venv
-source .venv/bin/activate
-pip install --editable ".[dev,test]"
-
-# Link your development version of the extension with JupyterLab
-jupyter labextension develop . --overwrite
-# Server extension must be manually installed in develop mode
-jupyter server extension enable selenepy
-
-# Rebuild extension Typescript source after making changes
-# IMPORTANT: Unlike the steps above which are performed only once, do this step
-# every time you make a change.
-jlpm build
-```
-
-You can watch the source directory and run JupyterLab at the same time in different terminals to watch for changes in the extension's source and automatically rebuild the extension.
-
-```bash
-# Watch the source directory in one terminal, automatically rebuilding when needed
-jlpm watch
-# Run JupyterLab in another terminal
-jupyter lab
-```
-
-With the watch command running, every saved change will immediately be built locally and available in your running JupyterLab. Refresh JupyterLab to load the change in your browser (you may need to wait several seconds for the extension to be rebuilt).
-
-By default, the `jlpm build` command generates the source maps for this extension to make it easier to debug using the browser dev tools. To also generate source maps for the JupyterLab core extensions, you can run the following command:
-
-```bash
-jupyter lab build --minimize=False
-```
-
-### Development uninstall
-
-```bash
-# Server extension must be manually disabled in develop mode
-jupyter server extension disable selenepy
-pip uninstall selenepy
-```
-
-In development mode, you will also need to remove the symlink created by `jupyter labextension develop`
-command. To find its location, you can run `jupyter labextension list` to figure out where the `labextensions`
-folder is located. Then you can remove the symlink named `selenejs` within that folder.
-
-### Testing the extension
-
-#### Server tests
-
-This extension is using [Pytest](https://docs.pytest.org/) for Python code testing.
-
-Install test dependencies (needed only once):
-
-```sh
-pip install -e ".[test]"
-# Each time you install the Python package, you need to restore the front-end extension link
-jupyter labextension develop . --overwrite
-```
-
-To execute them, run:
-
-```sh
-pytest -vv -r ap --cov selenepy
-```
-
-#### Frontend tests
-
-This extension is using [Jest](https://jestjs.io/) for JavaScript code testing.
-
-To execute them, execute:
-
-```sh
-jlpm
-jlpm test
-```
-
-#### Integration tests
-
-This extension uses [Playwright](https://playwright.dev/docs/intro) for the integration tests (aka user level tests).
-More precisely, the JupyterLab helper [Galata](https://github.com/jupyterlab/jupyterlab/tree/master/galata) is used to handle testing the extension in JupyterLab.
-
-More information are provided within the [ui-tests](./ui-tests/README.md) README.
-
-## AI Coding Assistant Support
-
-This project includes an `AGENTS.md` file with coding standards and best practices for JupyterLab extension development. The file follows the [AGENTS.md standard](https://agents.md) for cross-tool compatibility.
-
-### Compatible AI Tools
-
-`AGENTS.md` works with AI coding assistants that support the standard, including Cursor, GitHub Copilot, Windsurf, Aider, and others. For a current list of compatible tools, see [the AGENTS.md standard](https://agents.md).
-
-Other conventions you might encounter:
-
-- `.cursorrules` - Cursor's YAML/JSON format (Cursor also supports AGENTS.md natively)
-- `CONVENTIONS.md` / `CONTRIBUTING.md` - For CodeConventions.ai and GitHub bots
-- Project-specific rules in JetBrains AI Assistant settings
-
-All tool-specific files should be symlinks to `AGENTS.md` as the single source of truth.
-
-### What's Included
-
-The `AGENTS.md` file provides guidance on:
-
-- Code quality rules and file-scoped validation commands
-- Naming conventions for packages, plugins, and files
-- Coding standards (TypeScript, Python)
-- Development workflow and debugging
-- Backend-frontend integration patterns (`APIHandler`, `requestAPI()`, routing)
-- Common pitfalls and how to avoid them
-
-### Customization
-
-You can edit `AGENTS.md` to add project-specific conventions or adjust guidelines to match your team's practices. The file uses plain Markdown with Do/Don't patterns and references to actual project files.
-
-**Note**: `AGENTS.md` is living documentation. Update it when you change conventions, add dependencies, or discover new patterns. Include `AGENTS.md` updates in commits that modify workflows or coding standards.
-
-### Packaging the extension
-
-See [RELEASE](RELEASE.md)
+##  Use
+- Configure your OpenAI API Key in the settings in the frontend. 
+- The panels are available on the left sidebar for use.
