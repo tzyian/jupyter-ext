@@ -12,7 +12,7 @@ export class ChatSidebar extends ReactWidget {
     this.id = CHAT_SIDEBAR_ID;
     this.addClass('jp-selenepy-chat');
     this.title.label = 'Chat';
-    this.title.caption = 'Selenejs Chat';
+    this.title.caption = 'Selenepy Chat';
     this.title.iconClass = 'jp-CodeConsoleIcon';
   }
 

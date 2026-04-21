@@ -275,7 +275,7 @@ export function ChatPanel({
   return (
     <div className="jp-selenepy-chatPanel">
       <div className="jp-selenepy-chatHeader">
-        <h3>SeleneJs Chat</h3>
+        <h3>SelenePy Chat</h3>
         <div className="jp-selenepy-buttonGroup">
           {isStreaming && (
             <button
